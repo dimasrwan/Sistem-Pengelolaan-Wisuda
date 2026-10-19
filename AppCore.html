@@ -1,0 +1,247 @@
+<script>
+    function showOnly(id) {
+      ['landing-view','login-view','app-view'].forEach(function (viewId) {
+        document.getElementById(viewId).classList.toggle('hidden', viewId !== id);
+      });
+      window.scrollTo(0, 0);
+    }
+
+    function openLogin() {
+      stopScanner();
+      showOnly('login-view');
+      const status = document.getElementById('login-status');
+      status.className = 'notice notice-info';
+      status.textContent = 'Tekan tombol di bawah untuk memeriksa akun Google.';
+    }
+
+    function showLanding() {
+      stopScanner();
+      showOnly('landing-view');
+    }
+
+    function checkLogin() {
+      const btn = document.getElementById('login-btn');
+      const status = document.getElementById('login-status');
+
+      btn.disabled = true;
+      btn.textContent = 'Memeriksa akun...';
+      status.className = 'notice notice-info';
+      status.textContent = 'Memeriksa akun Google dan hak akses...';
+
+      google.script.run
+        .withSuccessHandler(function (result) {
+          btn.disabled = false;
+          btn.textContent = 'Periksa Akun Google';
+
+          if (!result || !result.authenticated) {
+            status.className = 'notice notice-error';
+            status.textContent = (result && result.message) || 'Akun tidak dapat diverifikasi.';
+            if (result && result.email) {
+              status.textContent += ' Email terdeteksi: ' + result.email;
+            }
+            return;
+          }
+
+          APP.session = result;
+          loadDashboard();
+        })
+        .withFailureHandler(function (error) {
+          btn.disabled = false;
+          btn.textContent = 'Periksa Akun Google';
+          status.className = 'notice notice-error';
+          status.textContent = getErrorMessage(error);
+        })
+        .getSession();
+    }
+
+    function loadDashboard() {
+      google.script.run
+        .withSuccessHandler(function (data) {
+          if (!data || !data.session || !data.session.authenticated) {
+            showOnly('login-view');
+            return;
+          }
+
+          APP.dashboard = data;
+          APP.session = data.session;
+          showOnly('app-view');
+          configureRole();
+
+          navigate(APP.session.role === 'Panitia' ? 'scanner' : 'dashboard');
+        })
+        .withFailureHandler(function (error) {
+          showOnly('login-view');
+          const status = document.getElementById('login-status');
+          status.className = 'notice notice-error';
+          status.textContent = getErrorMessage(error);
+        })
+        .getDashboardData();
+    }
+
+    function configureRole() {
+      if (!APP.session) return;
+
+      document.getElementById('top-role').textContent = APP.session.role;
+
+      document.querySelectorAll('[data-roles]').forEach(function (element) {
+        const roles = element.dataset.roles.split(',').map(function (value) {
+          return value.trim();
+        });
+        element.classList.toggle('hidden', !roles.includes(APP.session.role));
+      });
+    }
+
+    function navigate(page) {
+      const role = APP.session && APP.session.role;
+      const allowed = ALLOWED_PAGES[role] || [];
+
+      if (!allowed.includes(page)) {
+        showToast('Akses ke halaman tersebut tidak diizinkan.');
+
+        if (role === 'Panitia' && APP.currentPage !== 'scanner') {
+          navigate('scanner');
+        } else if (role === 'Wisudawan' && APP.currentPage !== 'dashboard') {
+          navigate('dashboard');
+        } else if (role === 'Admin' && APP.currentPage !== 'dashboard') {
+          navigate('dashboard');
+        }
+        return;
+      }
+
+      stopScanner();
+      APP.currentPage = page;
+
+      document.querySelectorAll('.side-link[data-page]').forEach(function (element) {
+        element.classList.toggle('active', element.dataset.page === page);
+      });
+
+      document.getElementById('sidebar').classList.remove('open');
+
+      const target = document.getElementById('page-content');
+      target.innerHTML = '<div class="panel panel-body">Memuat halaman...</div>';
+
+      const renderers = {
+        dashboard: renderDashboard,
+        students: renderStudents,
+        calls: renderCalls,
+        seats: renderSeats,
+        best: renderBest,
+        scanner: renderScanner,
+        guests: renderGuests,
+        reports: renderReports
+      };
+
+      if (renderers[page]) {
+        renderers[page]();
+      } else {
+        target.innerHTML = '<div class="panel panel-body">Halaman tidak ditemukan.</div>';
+      }
+    }
+
+    function toggleMobileMenu() {
+      document.getElementById('sidebar').classList.toggle('open');
+    }
+
+    function pageHeader(title, description, action) {
+      return '<div class="page-header"><div><div class="eyebrow">Portal Wisuda</div>' +
+        '<h1>' + escapeHtml(title) + '</h1><p>' + escapeHtml(description) +
+        '</p></div>' + (action || '') + '</div>';
+    }
+
+    function periodLabel() {
+      const period = APP.dashboard && APP.dashboard.period;
+      if (!period) return 'Informasi periode belum tersedia';
+
+      return [period.name, period.wave ? 'Gel. ' + period.wave : '', period.year]
+        .filter(Boolean).join(' · ');
+    }
+
+    function renderDashboard() {
+      const role = APP.session.role;
+      const data = APP.dashboard || {};
+      const content = document.getElementById('page-content');
+
+      if (role === 'Panitia') {
+        navigate('scanner');
+        return;
+      }
+
+      if (role === 'Wisudawan') {
+        const student = data.student;
+        const call = (data.callList || [])[0] || {};
+        const seat = (data.seats || [])[0] || {};
+
+        content.innerHTML =
+          pageHeader('Dashboard Wisudawan', 'Informasi pribadi dan pelaksanaan wisuda.') +
+          '<div class="notice notice-info">' + escapeHtml(periodLabel()) + '</div>' +
+          (student
+            ? '<div class="panel"><div class="panel-head"><h2>Informasi Wisudawan</h2>' +
+              '<span class="badge badge-green">Data ditemukan</span></div>' +
+              '<div class="panel-body"><div class="student-card">' +
+              detailBox('Nama lengkap', value(student,['Nama_Lengkap','Nama'])) +
+              detailBox('NIM', value(student,['NIM'])) +
+              detailBox('Fakultas', value(student,['Fakultas'])) +
+              detailBox('Program studi', value(student,['Program_Studi','Program Studi'])) +
+              detailBox('Urutan panggil', value(call,['Urutan_Panggil'])) +
+              detailBox('Kode kursi', value(seat,['Nomor_Kursi','Kode_Kursi'])) +
+              '</div></div></div>'
+            : '<div class="notice notice-warn">Data pribadi belum terhubung ke akun ini. Admin perlu mengisi ID_Wisudawan pada sheet PENGGUNA.</div>') +
+          '<div class="panel" style="margin-top:18px"><div class="panel-head"><h2>Periode Wisuda</h2></div>' +
+          '<div class="panel-body">' + escapeHtml(periodLabel()) + '</div></div>';
+        return;
+      }
+
+      const stats = data.stats || {};
+
+      content.innerHTML =
+        pageHeader('Dashboard Admin', 'Ringkasan pengelolaan wisuda dan akses cepat.') +
+        '<div class="notice notice-info">' + escapeHtml(periodLabel()) + '</div>' +
+        '<div class="stat-grid">' +
+          statCard('Total wisudawan',stats.totalStudents || 0,'Data induk') +
+          statCard('Daftar panggil',stats.totalCalls || 0,'Data pemanggilan') +
+          statCard('Data kursi',stats.totalSeats || 0,'Data denah kursi') +
+          statCard('Lulusan terbaik',stats.totalBestGraduates || 0,'Data per fakultas') +
+        '</div>' +
+        '<div class="panel"><div class="panel-head"><h2>Akses cepat</h2></div>' +
+        '<div class="panel-body"><div class="toolbar">' +
+          '<button class="btn btn-outline" onclick="navigate(\'students\')">Data Wisudawan</button>' +
+          '<button class="btn btn-outline" onclick="navigate(\'calls\')">Daftar Panggil</button>' +
+          '<button class="btn btn-outline" onclick="navigate(\'seats\')">Denah Kursi</button>' +
+          '<button class="btn btn-outline" onclick="navigate(\'scanner\')">Scan QR Tamu</button>' +
+          '<button class="btn btn-outline" onclick="navigate(\'reports\')">Laporan</button>' +
+        '</div></div></div>' +
+        '<div class="panel" style="margin-top:18px"><div class="panel-head"><h2>Informasi Sistem</h2></div>' +
+        '<div class="panel-body" style="color:var(--muted)">Data dibaca dari Google Spreadsheet yang terhubung. Pastikan data sumber sudah diverifikasi sebelum digunakan untuk operasional resmi.</div></div>';
+    }
+
+    function statCard(label, number, foot) {
+      return '<div class="stat-card"><div class="stat-label">' + escapeHtml(label) +
+        '</div><strong>' + Number(number || 0).toLocaleString('id-ID') +
+        '</strong><div class="stat-foot">' + escapeHtml(foot) + '</div></div>';
+    }
+
+    function detailBox(label, val) {
+      return '<div class="detail-box"><span>' + escapeHtml(label) + '</span><strong>' +
+        escapeHtml(val || 'Belum tersedia') + '</strong></div>';
+    }
+
+    function value(row, candidates) {
+      if (!row) return '';
+
+      const keys = Object.keys(row);
+
+      for (const candidate of candidates) {
+        const key = keys.find(function (name) {
+          return name.toLowerCase() === candidate.toLowerCase();
+        });
+
+        if (key !== undefined && String(row[key]).trim()) return row[key];
+      }
+
+      return '';
+    }
+
+    /* =========================
+       DATA WISUDAWAN DAN IMPORT
+       ========================= */
+</script>

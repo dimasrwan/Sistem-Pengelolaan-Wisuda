@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#07851b">
+  <title>Sistem Pengelolaan Wisuda | UIN Ar-Raniry</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <?!= include('Styles'); ?>
+</head>
+
+<body>
+  <!-- LANDING PAGE -->
+  <div id="landing-view">
+    <header class="site-header">
+      <div class="container nav">
+        <a class="brand" href="#beranda">
+          <img src="<?= CONFIG.LOGO_URL ?>" alt="Logo UIN Ar-Raniry">
+          <span class="brand-name">
+            UIN AR-RANIRY
+            <span class="brand-sub">Sistem Pengelolaan Wisuda</span>
+          </span>
+        </a>
+        <nav class="nav-links">
+          <a href="#layanan">Layanan</a>
+          <a href="#alur">Alur Sistem</a>
+          <button class="btn" onclick="openLogin()">Masuk ke Sistem</button>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero" id="beranda">
+        <div class="container hero-grid">
+          <div>
+            <span class="eyebrow">Portal Wisuda UIN Ar-Raniry</span>
+            <h1>Informasi wisuda yang <span>tertata</span>, layanan yang lebih mudah.</h1>
+            <p class="hero-copy">
+              Portal informasi dan pengelolaan wisuda UIN Ar-Raniry.
+              Akses daftar panggil, informasi tempat duduk, dan layanan
+              pelaksanaan wisuda melalui satu sistem.
+            </p>
+            <div class="hero-actions">
+              <button class="btn" onclick="openLogin()">Masuk ke Portal</button>
+              <a class="btn btn-outline" href="#layanan">Jelajahi Layanan</a>
+            </div>
+            <div class="hero-note">
+              <span class="note-mark">i</span>
+              <span>Akses sistem disesuaikan dengan akun dan kewenangan pengguna.</span>
+            </div>
+          </div>
+          <div class="hero-visual">
+            <div class="hero-logo-frame">
+              <img src="<?= CONFIG.LOGO_URL ?>" alt="Logo Universitas Islam Negeri Ar-Raniry">
+            </div>
+            <div class="hero-stat">
+              <strong>Wisuda UIN Ar-Raniry</strong>
+              <span>Portal informasi dan pengelolaan</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="layanan">
+        <div class="container">
+          <div class="section-heading">
+            <span class="eyebrow">Layanan Sistem</span>
+            <h2>Informasi penting dalam satu tempat.</h2>
+            <p>Fitur sistem mendukung proses pengelolaan wisuda, mulai dari informasi wisudawan hingga presensi tamu.</p>
+          </div>
+          <div class="feature-grid">
+            <article class="feature-card">
+              <div class="feature-index">01</div>
+              <h3>Daftar Panggil</h3>
+              <p>Pengelolaan dan penyajian urutan pemanggilan wisudawan secara teratur.</p>
+            </article>
+            <article class="feature-card">
+              <div class="feature-index">02</div>
+              <h3>Informasi Tempat Duduk</h3>
+              <p>Informasi penempatan kursi untuk membantu wisudawan menemukan tempatnya.</p>
+            </article>
+            <article class="feature-card">
+              <div class="feature-index">03</div>
+              <h3>Presensi QR</h3>
+              <p>Panitia memindai QR pada undangan untuk mencatat kehadiran tamu.</p>
+            </article>
+            <article class="feature-card">
+              <div class="feature-index">04</div>
+              <h3>Data Wisudawan</h3>
+              <p>Pengelolaan data wisudawan melalui spreadsheet yang terhubung ke sistem.</p>
+            </article>
+            <article class="feature-card">
+              <div class="feature-index">05</div>
+              <h3>Dashboard Statistik</h3>
+              <p>Ringkasan data untuk membantu administrator memantau pelaksanaan wisuda.</p>
+            </article>
+            <article class="feature-card">
+              <div class="feature-index">06</div>
+              <h3>Laporan</h3>
+              <p>Ekspor data untuk mendukung kebutuhan administrasi dan evaluasi.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section process-band" id="alur">
+        <div class="container">
+          <div class="section-heading">
+            <span class="eyebrow" style="color:#e0f1dc">Cara Mengakses</span>
+            <h2>Alur penggunaan yang jelas.</h2>
+            <p style="color:#d2e0d3">Pengguna mengakses sistem menggunakan akun yang terdaftar. Menu yang tersedia mengikuti peran masing-masing.</p>
+          </div>
+          <div class="process-grid">
+            <article class="process-item">
+              <span class="number">LANGKAH 01</span>
+              <h3>Periksa akun</h3>
+              <p>Gunakan akun Google yang sudah didaftarkan oleh administrator.</p>
+            </article>
+            <article class="process-item">
+              <span class="number">LANGKAH 02</span>
+              <h3>Akses sesuai role</h3>
+              <p>Sistem membedakan kewenangan Admin, Panitia, dan Wisudawan.</p>
+            </article>
+            <article class="process-item">
+              <span class="number">LANGKAH 03</span>
+              <h3>Gunakan layanan</h3>
+              <p>Akses fitur yang tersedia sesuai tugas dan kebutuhan akun.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <div class="cta-panel">
+            <div>
+              <h2>Siap melanjutkan ke portal?</h2>
+              <p>Masuk menggunakan akun yang terdaftar dan aktif.</p>
+            </div>
+            <button class="btn" onclick="openLogin()">Buka Portal Pengguna</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <span>© <span id="year"></span> UIN Ar-Raniry · Sistem Pengelolaan Wisuda</span>
+        <span>Portal informasi dan pengelolaan wisuda</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- LOGIN -->
+  <section id="login-view" class="hidden">
+    <div class="login-wrap">
+      <div class="login-card">
+        <img class="login-logo" src="<?= CONFIG.LOGO_URL ?>" alt="Logo UIN Ar-Raniry">
+        <span class="eyebrow">Area Pengguna</span>
+        <h1>Masuk ke sistem</h1>
+        <p>Sistem memeriksa akun Google yang sedang aktif. Hanya akun yang terdaftar dan aktif yang dapat mengakses portal.</p>
+        <div id="login-status" class="notice notice-info">Tekan tombol di bawah untuk memeriksa akun Google.</div>
+        <div class="login-actions">
+          <button class="btn" id="login-btn" onclick="checkLogin()">Periksa Akun Google</button>
+          <button class="btn btn-outline" onclick="showLanding()">Kembali ke halaman utama</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- APLIKASI -->
+  <section id="app-view" class="hidden">
+    <header class="app-topbar">
+      <div class="container app-topbar-inner">
+        <div class="brand">
+          <img src="<?= CONFIG.LOGO_URL ?>" alt="Logo UIN Ar-Raniry">
+          <span class="brand-name">UIN AR-RANIRY<span class="brand-sub">Sistem Pengelolaan Wisuda</span></span>
+        </div>
+        <div class="toolbar">
+          <button class="btn btn-outline btn-sm mobile-menu" onclick="toggleMobileMenu()">Menu</button>
+          <span id="top-role" class="role-pill">Pengguna</span>
+          <button class="btn btn-outline btn-sm" onclick="logout()">Keluar</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-label" data-roles="Admin,Wisudawan">Menu Utama</div>
+        <button class="side-link active" data-page="dashboard" data-roles="Admin,Wisudawan" onclick="navigate('dashboard')"><span class="side-icon">01</span> Dashboard</button>
+        <button class="side-link" data-page="students" data-roles="Admin" onclick="navigate('students')"><span class="side-icon">02</span> Data Wisudawan</button>
+        <button class="side-link" data-page="calls" data-roles="Admin,Wisudawan" onclick="navigate('calls')"><span class="side-icon">03</span> Daftar Panggil</button>
+        <button class="side-link" data-page="seats" data-roles="Admin,Wisudawan" onclick="navigate('seats')"><span class="side-icon">04</span> Denah Kursi</button>
+        <button class="side-link" data-page="best" data-roles="Admin" onclick="navigate('best')"><span class="side-icon">05</span> Lulusan Terbaik</button>
+        <div class="sidebar-label" data-roles="Admin,Panitia">Operasional</div>
+        <button class="side-link" data-page="scanner" data-roles="Admin,Panitia" onclick="navigate('scanner')"><span class="side-icon">06</span> Scan QR Tamu</button>
+        <button class="side-link" data-page="guests" data-roles="Admin" onclick="navigate('guests')"><span class="side-icon">07</span> Data Tamu</button>
+        <button class="side-link" data-page="reports" data-roles="Admin" onclick="navigate('reports')"><span class="side-icon">08</span> Laporan</button>
+        <div class="sidebar-label">Akun</div>
+        <button class="side-link" onclick="logout()"><span class="side-icon">09</span> Keluar</button>
+      </aside>
+      <main class="main-content">
+        <div id="app-message"></div>
+        <div id="page-content"><div class="panel panel-body">Memuat sistem...</div></div>
+      </main>
+    </div>
+  </section>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <?!= include('AppState'); ?>
+  <?!= include('AppCore'); ?>
+  <?!= include('StudentPages'); ?>
+  <?!= include('OperationsPages'); ?>
+</body>
+</html>

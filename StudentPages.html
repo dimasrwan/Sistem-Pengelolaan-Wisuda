@@ -1,0 +1,525 @@
+<script>
+    function renderStudents() {
+      if (APP.session.role !== 'Admin') {
+        showToast('Akses ditolak.');
+        return;
+      }
+
+      document.getElementById('page-content').innerHTML =
+        pageHeader(
+          'Data Wisudawan',
+          'Kelola data wisudawan untuk setiap gelombang wisuda.',
+          '<button class="btn" onclick="toggleStudentImport()">Import Data Wisudawan</button>'
+        ) +
+        '<div class="panel import-panel hidden" id="student-import-panel">' +
+          '<div class="panel-head"><div><h2>Import Data Wisudawan</h2>' +
+          '<div class="import-status-line">Unggah file SIAKAD, periksa, lalu simpan ke gelombang tujuan.</div></div>' +
+          '<button class="btn btn-outline btn-sm" onclick="toggleStudentImport(false)">Tutup</button></div>' +
+          '<div class="panel-body">' +
+            '<div class="notice notice-warn">Data akan ditambahkan ke periode yang dipilih. Data gelombang lain tidak dihapus. NIM dan nama wajib tersedia; duplikat akan dilewati.</div>' +
+            '<div class="import-grid">' +
+              '<div class="import-field"><label for="import-period">Gelombang tujuan</label>' +
+                '<select id="import-period" class="field" onchange="runStudentImportPreview()"><option value="">Memuat periode...</option></select>' +
+                '<div id="import-period-info" class="import-status-line">Pilih periode tujuan.</div></div>' +
+              '<div class="import-field"><label>Periode belum tersedia?</label>' +
+                '<div><button class="btn btn-outline" onclick="toggleNewPeriodForm()">Buat gelombang baru</button></div>' +
+                '<div class="import-status-line">Periode baru dibuat tanpa mengubah periode lama.</div></div>' +
+            '</div>' +
+            '<div class="period-form hidden" id="new-period-form">' +
+              '<h3 style="margin:0 0 12px;font:800 14px Manrope,sans-serif">Buat Periode Wisuda</h3>' +
+              '<div class="period-form-grid">' +
+                '<div class="import-field"><label for="new-period-name">Nama periode</label><input id="new-period-name" class="field" placeholder="Wisuda Gelombang IV Tahun 2027"></div>' +
+                '<div class="import-field"><label for="new-period-year">Tahun</label><input id="new-period-year" class="field" type="number" min="2000" max="2100" placeholder="2027"></div>' +
+                '<div class="import-field"><label for="new-period-wave">Gelombang</label><input id="new-period-wave" class="field" placeholder="IV"></div>' +
+                '<div class="import-field"><label for="new-period-date">Tanggal pelaksanaan</label><input id="new-period-date" class="field" type="date"></div>' +
+                '<div class="import-field" style="grid-column:1/-1"><label for="new-period-location">Lokasi</label><input id="new-period-location" class="field" placeholder="Lokasi wisuda"></div>' +
+              '</div>' +
+              '<div class="toolbar" style="margin-top:14px"><button class="btn" onclick="createStudentPeriod()">Simpan Periode</button><button class="btn btn-outline" onclick="toggleNewPeriodForm(false)">Batal</button></div>' +
+              '<div id="new-period-message" style="margin-top:10px"></div>' +
+            '</div>' +
+            '<div class="import-drop" style="margin-top:18px"><strong>Unggah file Excel atau CSV</strong>' +
+              '<p>Format .xlsx, .xls, atau .csv. Baris pertama file harus berisi header. Maksimal 10.000 baris dan 10 MB per impor.</p>' +
+              '<input type="file" id="student-import-file" class="field" accept=".xlsx,.xls,.csv" onchange="processStudentImportFile(this.files&&this.files[0])" style="max-width:100%">' +
+              '<div id="import-file-info" class="import-status-line" style="margin-top:10px">Belum ada file yang dipilih.</div></div>' +
+            '<div id="import-preview-container" style="margin-top:18px"><div class="table-empty">Pilih gelombang dan unggah file untuk memeriksa data.</div></div>' +
+            '<div class="toolbar" style="margin-top:16px"><button class="btn" id="confirm-import-btn" onclick="confirmStudentImport()" disabled>Impor Data Valid</button><button class="btn btn-outline" onclick="resetStudentImport()">Reset</button></div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="panel"><div class="panel-head"><h2>Data induk wisudawan</h2><span class="badge">Filter dan pagination</span></div>' +
+          '<div class="panel-body">' +
+            '<div class="student-filter-grid">' +
+              '<input id="student-search" class="field" placeholder="Cari nama, NIM, atau prodi" onkeydown="if(event.key===\'Enter\')searchStudentRows()">' +
+              '<select id="filter-period" class="field"><option value="">Semua gelombang</option></select>' +
+              '<select id="filter-faculty" class="field"><option value="">Semua fakultas</option></select>' +
+              '<select id="filter-program" class="field"><option value="">Semua program studi</option></select>' +
+              '<select id="filter-level" class="field"><option value="">Semua jenjang</option></select>' +
+              '<select id="filter-gender" class="field"><option value="">Semua jenis kelamin</option><option value="Laki-laki">Laki-laki</option><option value="Perempuan">Perempuan</option></select>' +
+              '<select id="filter-predicate" class="field"><option value="">Semua predikat</option></select>' +
+              '<select id="filter-nim-status" class="field"><option value="">Semua status NIM</option><option value="asli">NIM asli</option><option value="dummy">NIM dummy</option></select>' +
+            '</div><div class="toolbar" style="margin:12px 0 16px">' +
+              '<button class="btn" onclick="searchStudentRows()">Terapkan Filter</button>' +
+              '<button class="btn btn-outline" onclick="searchStudentRows(true)">Reset Filter</button>' +
+              '<label style="display:flex;align-items:center;gap:8px">Baris <select id="student-page-size" class="field" style="width:auto" onchange="searchStudentRows()"><option>25</option><option>50</option><option>100</option></select></label>' +
+            '</div><div id="student-table"><div class="table-empty">Memuat data...</div></div><div id="student-pagination" class="student-pagination"></div></div></div>';
+
+      loadStudentFilterOptions();
+      searchStudentRows(true);
+    }
+
+    function toggleStudentImport(forceOpen) {
+      const panel = document.getElementById('student-import-panel');
+      if (!panel) return;
+
+      const open = typeof forceOpen === 'boolean'
+        ? forceOpen
+        : panel.classList.contains('hidden');
+
+      panel.classList.toggle('hidden', !open);
+
+      if (open) {
+        loadStudentImportSetup();
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+
+    function loadStudentImportSetup(selectPeriodId) {
+      google.script.run
+        .withSuccessHandler(function (setup) {
+          APP.importPeriods = setup.periods || [];
+
+          const select = document.getElementById('import-period');
+          if (!select) return;
+
+          const previous = select.value;
+
+          select.innerHTML = '<option value="">Pilih gelombang tujuan...</option>' +
+            APP.importPeriods.map(function (period) {
+              const label = [
+                period.name,
+                period.wave ? 'Gel. ' + period.wave : '',
+                period.year
+              ].filter(Boolean).join(' · ');
+
+              return '<option value="' + escapeAttr(period.id) + '">' +
+                escapeHtml(label + ' [' + period.id + ']') + '</option>';
+            }).join('');
+
+          if (selectPeriodId && APP.importPeriods.some(function (p) {
+            return p.id === selectPeriodId;
+          })) {
+            select.value = selectPeriodId;
+          } else if (previous && APP.importPeriods.some(function (p) {
+            return p.id === previous;
+          })) {
+            select.value = previous;
+          }
+
+          const info = document.getElementById('import-period-info');
+
+          if (info) {
+            info.textContent = APP.importPeriods.length
+              ? Number(setup.totalStudents || 0).toLocaleString('id-ID') +
+                ' baris saat ini di data induk. Pastikan periode tujuan benar.'
+              : 'Belum ada periode terdaftar. Buat periode baru terlebih dahulu.';
+          }
+
+          if (selectPeriodId) runStudentImportPreview();
+        })
+        .withFailureHandler(showError)
+        .getStudentImportSetup();
+    }
+
+    function toggleNewPeriodForm(forceOpen) {
+      const form = document.getElementById('new-period-form');
+      if (!form) return;
+
+      const open = typeof forceOpen === 'boolean'
+        ? forceOpen
+        : form.classList.contains('hidden');
+
+      form.classList.toggle('hidden', !open);
+    }
+
+    function createStudentPeriod() {
+      if (APP.session.role !== 'Admin') return showToast('Akses ditolak.');
+
+      const payload = {
+        name: document.getElementById('new-period-name').value.trim(),
+        year: document.getElementById('new-period-year').value.trim(),
+        wave: document.getElementById('new-period-wave').value.trim(),
+        date: document.getElementById('new-period-date').value,
+        location: document.getElementById('new-period-location').value.trim()
+      };
+
+      const message = document.getElementById('new-period-message');
+      message.innerHTML = '';
+
+      if (!payload.name || !payload.year || !payload.wave) {
+        message.innerHTML = '<div class="notice notice-warn">Nama periode, tahun, dan gelombang wajib diisi.</div>';
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(function (result) {
+          message.innerHTML = '<div class="notice notice-success">' +
+            escapeHtml(result.message) + '</div>';
+
+          loadStudentImportSetup(result.period && result.period.id);
+          showToast('Periode baru berhasil dibuat.');
+        })
+        .withFailureHandler(function (error) {
+          message.innerHTML = '<div class="notice notice-error">' +
+            escapeHtml(getErrorMessage(error)) + '</div>';
+        })
+        .createWisudaPeriod(payload);
+    }
+
+    function processStudentImportFile(file) {
+      if (!file) return;
+      if (APP.session.role !== 'Admin') return showToast('Akses ditolak.');
+
+      const info = document.getElementById('import-file-info');
+      const preview = document.getElementById('import-preview-container');
+      const button = document.getElementById('confirm-import-btn');
+
+      if (file.size > 10 * 1024 * 1024) {
+        info.textContent = 'Ukuran file melebihi batas 10 MB.';
+        APP.importRows = null;
+        button.disabled = true;
+        return;
+      }
+
+      if (!window.XLSX) {
+        info.textContent = 'Pustaka pembaca Excel belum termuat. Muat ulang halaman dan coba kembali.';
+        return;
+      }
+
+      info.textContent = 'Membaca ' + file.name + '...';
+      preview.innerHTML = '<div class="table-empty">Sedang membaca file...</div>';
+      button.disabled = true;
+
+      const reader = new FileReader();
+
+      reader.onload = function (event) {
+        try {
+          const workbook = XLSX.read(event.target.result, {
+            type: 'array',
+            cellDates: true
+          });
+
+          const sheetName = workbook.SheetNames[0];
+          if (!sheetName) throw new Error('File tidak memiliki sheet yang dapat dibaca.');
+
+          const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
+            header: 1,
+            defval: '',
+            raw: false,
+            blankrows: false
+          });
+
+          if (!matrix || matrix.length < 2) {
+            throw new Error('File harus memiliki baris header dan setidaknya satu baris data.');
+          }
+
+          const headers = matrix[0].map(function (header) {
+            return String(header == null ? '' : header).trim();
+          });
+
+          if (!headers.some(Boolean)) {
+            throw new Error('Header tidak ditemukan pada baris pertama.');
+          }
+
+          const rows = matrix.slice(1)
+            .filter(function (row) {
+              return row.some(function (cell) {
+                return String(cell == null ? '' : cell).trim() !== '';
+              });
+            })
+            .map(function (row) {
+              const obj = {};
+              headers.forEach(function (header, index) {
+                if (header) {
+                  obj[header] = String(
+                    row[index] == null ? '' : row[index]
+                  ).trim();
+                }
+              });
+              return obj;
+            });
+
+          if (!rows.length) throw new Error('Tidak ada baris data setelah header.');
+
+          if (rows.length > 10000) {
+            throw new Error('File berisi lebih dari 10.000 baris. Pisahkan file terlebih dahulu.');
+          }
+
+          APP.importRows = rows;
+          APP.importFileName = file.name;
+          APP.importPreview = null;
+
+          info.textContent = file.name + ' · ' +
+            rows.length.toLocaleString('id-ID') +
+            ' baris · sheet: ' + sheetName;
+
+          runStudentImportPreview();
+        } catch (error) {
+          APP.importRows = null;
+          APP.importPreview = null;
+          button.disabled = true;
+
+          preview.innerHTML = '<div class="notice notice-error">' +
+            escapeHtml(getErrorMessage(error)) + '</div>';
+
+          info.textContent = 'File belum berhasil dibaca.';
+        }
+      };
+
+      reader.onerror = function () {
+        APP.importRows = null;
+        button.disabled = true;
+        info.textContent = 'Gagal membaca file dari komputer.';
+      };
+
+      reader.readAsArrayBuffer(file);
+    }
+
+    function runStudentImportPreview() {
+      const periodId = (document.getElementById('import-period') || {}).value || '';
+      const container = document.getElementById('import-preview-container');
+      const button = document.getElementById('confirm-import-btn');
+
+      if (!container || !button) return;
+
+      APP.importPreview = null;
+      button.disabled = true;
+
+      if (!APP.importRows || !APP.importRows.length) {
+        container.innerHTML = '<div class="table-empty">Unggah file Excel/CSV untuk melihat pratinjau.</div>';
+        return;
+      }
+
+      if (!periodId) {
+        container.innerHTML = '<div class="notice notice-warn">Pilih gelombang tujuan atau buat periode baru sebelum validasi.</div>';
+        return;
+      }
+
+      container.innerHTML = '<div class="table-empty">Memvalidasi NIM, nama, dan duplikat...</div>';
+
+      google.script.run
+        .withSuccessHandler(function (result) {
+          APP.importPreview = result;
+          renderStudentImportPreview(result);
+          button.disabled = !(result.importable > 0);
+        })
+        .withFailureHandler(function (error) {
+          APP.importPreview = null;
+          button.disabled = true;
+
+          container.innerHTML = '<div class="notice notice-error">' +
+            escapeHtml(getErrorMessage(error)) + '</div>';
+        })
+        .previewStudentImport({
+          periodId: periodId,
+          rows: APP.importRows
+        });
+    }
+
+    function importStat(label, value) {
+      return '<div class="import-stat"><span>' + escapeHtml(label) +
+        '</span><strong>' + Number(value || 0).toLocaleString('id-ID') +
+        '</strong></div>';
+    }
+
+    function renderStudentImportPreview(result) {
+      const container = document.getElementById('import-preview-container');
+      if (!container) return;
+
+      const stats = '<div class="import-stats">' +
+        importStat('Total baris', result.total) +
+        importStat('Siap diimpor', result.importable) +
+        importStat('Sudah ada', result.duplicateExisting) +
+        importStat('Duplikat / invalid', result.duplicateFile + result.invalid) +
+        '</div>';
+
+      const rows = (result.sample || []).map(function (row) {
+        const cls = row.status === 'Siap diimpor'
+          ? 'badge-green'
+          : row.status === 'Tidak valid'
+            ? 'badge-red'
+            : 'badge-yellow';
+
+        return '<tr><td>' + row.rowNumber +
+          '</td><td>' + escapeHtml(row.nim || '—') +
+          '</td><td>' + escapeHtml(row.name || '—') +
+          '</td><td>' + escapeHtml(row.faculty || '—') +
+          '</td><td>' + escapeHtml(row.program || '—') +
+          '</td><td><span class="badge ' + cls + '">' +
+          escapeHtml(row.status) +
+          '</span></td><td>' + escapeHtml(row.reason || '—') +
+          '</td></tr>';
+      }).join('');
+
+      container.innerHTML =
+        '<div class="notice notice-info">Tujuan impor: <strong>' +
+        escapeHtml(result.periodName) +
+        '</strong>. Pratinjau menampilkan maksimal 30 baris pertama; seluruh data akan divalidasi server.</div>' +
+        stats +
+        '<div class="import-preview-table"><table><thead><tr>' +
+        '<th>Baris file</th><th>NIM</th><th>Nama</th><th>Fakultas</th><th>Program Studi</th><th>Status</th><th>Keterangan</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+    }
+
+    function confirmStudentImport() {
+      if (APP.session.role !== 'Admin') return showToast('Akses ditolak.');
+
+      if (!APP.importRows || !APP.importPreview || APP.importPreview.importable < 1) {
+        return showToast('Validasi file terlebih dahulu.');
+      }
+
+      const periodId = (document.getElementById('import-period') || {}).value || '';
+      const count = APP.importPreview.importable;
+      const name = APP.importPreview.periodName;
+
+      if (!confirm('Impor ' + count + ' data valid ke ' + name + '? Data gelombang lain tidak akan dihapus.')) {
+        return;
+      }
+
+      const button = document.getElementById('confirm-import-btn');
+      button.disabled = true;
+      button.textContent = 'Menyimpan data...';
+
+      google.script.run
+        .withSuccessHandler(function (result) {
+          button.textContent = 'Impor Data Valid';
+          button.disabled = true;
+
+          const container = document.getElementById('import-preview-container');
+
+          if (container) {
+            container.insertAdjacentHTML(
+              'afterbegin',
+              '<div class="notice ' +
+              (result.success ? 'notice-success' : 'notice-warn') +
+              '">' + escapeHtml(result.message) + '</div>'
+            );
+          }
+
+          showToast(result.message);
+
+          APP.importRows = null;
+          APP.importPreview = null;
+          APP.importFileName = '';
+
+          const input = document.getElementById('student-import-file');
+          if (input) input.value = '';
+
+          const info = document.getElementById('import-file-info');
+          if (info) info.textContent = 'Import selesai. Pilih file lain untuk impor berikutnya.';
+
+          searchStudentRows(true);
+          loadStudentImportSetup();
+        })
+        .withFailureHandler(function (error) {
+          button.textContent = 'Impor Data Valid';
+          button.disabled = false;
+          showError(error);
+        })
+        .importStudentRows({
+          periodId: periodId,
+          rows: APP.importRows
+        });
+    }
+
+    function resetStudentImport() {
+      APP.importRows = null;
+      APP.importFileName = '';
+      APP.importPreview = null;
+
+      const input = document.getElementById('student-import-file');
+      const info = document.getElementById('import-file-info');
+      const preview = document.getElementById('import-preview-container');
+      const button = document.getElementById('confirm-import-btn');
+
+      if (input) input.value = '';
+      if (info) info.textContent = 'Belum ada file yang dipilih.';
+      if (preview) preview.innerHTML = '<div class="table-empty">Pilih gelombang dan unggah file untuk memeriksa data.</div>';
+      if (button) button.disabled = true;
+    }
+
+    let studentRowsCache = [];
+    let studentCurrentPage = 1;
+
+    function loadStudentFilterOptions() {
+      google.script.run.withSuccessHandler(function(rows) {
+        const definitions = [
+          ['filter-period', ['ID_Periode','ID Periode'], 'Semua gelombang'],
+          ['filter-faculty', ['Fakultas'], 'Semua fakultas'],
+          ['filter-program', ['Program_Studi','Program Studi'], 'Semua program studi'],
+          ['filter-level', ['Jenjang'], 'Semua jenjang'],
+          ['filter-predicate', ['Predikat'], 'Semua predikat']
+        ];
+        definitions.forEach(function(def) {
+          const el = document.getElementById(def[0]); if (!el) return;
+          const vals = Array.from(new Set(rows.map(function(r){ return String(value(r,def[1]) || '').trim(); }).filter(Boolean))).sort();
+          el.innerHTML = '<option value="">' + escapeHtml(def[2]) + '</option>' + vals.map(function(v){return '<option value="'+escapeAttr(v)+'">'+escapeHtml(v)+'</option>';}).join('');
+        });
+
+        // Tepat 3 opsi resmi: Semua jenis kelamin, Laki-laki, dan Perempuan
+        const genderEl = document.getElementById('filter-gender');
+        if (genderEl) {
+          const currentVal = genderEl.value;
+          genderEl.innerHTML = '<option value="">Semua jenis kelamin</option>' +
+            '<option value="Laki-laki">Laki-laki</option>' +
+            '<option value="Perempuan">Perempuan</option>';
+          if (currentVal === 'Laki-laki' || currentVal === 'Perempuan') {
+            genderEl.value = currentVal;
+          }
+        }
+      }).withFailureHandler(showError).searchStudents('');
+    }
+
+    function searchStudentRows(reset) {
+      if (APP.session.role !== 'Admin') return showToast('Akses ditolak.');
+      if (reset) {
+        ['student-search','filter-period','filter-faculty','filter-program','filter-level','filter-gender','filter-predicate','filter-nim-status'].forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
+        studentCurrentPage = 1;
+      }
+      const query = (document.getElementById('student-search') || {}).value || '';
+      const filters = {
+        period: (document.getElementById('filter-period') || {}).value || '',
+        faculty: (document.getElementById('filter-faculty') || {}).value || '',
+        program: (document.getElementById('filter-program') || {}).value || '',
+        level: (document.getElementById('filter-level') || {}).value || '',
+        gender: (document.getElementById('filter-gender') || {}).value || '',
+        predicate: (document.getElementById('filter-predicate') || {}).value || '',
+        nimStatus: (document.getElementById('filter-nim-status') || {}).value || ''
+      };
+      const size = parseInt((document.getElementById('student-page-size') || {}).value || '25',10);
+      const target = document.getElementById('student-table');
+      if (target) target.innerHTML = '<div class="table-empty">Memuat data...</div>';
+      google.script.run.withSuccessHandler(function(rows) {
+        studentRowsCache = rows || [];
+        const pages = Math.max(1, Math.ceil(studentRowsCache.length / size));
+        studentCurrentPage = Math.min(Math.max(1, studentCurrentPage), pages);
+        const from = (studentCurrentPage - 1) * size;
+        const visible = studentRowsCache.slice(from, from + size);
+        if (target) target.innerHTML = buildTable(visible, [
+          ['NIM','NIM'],['Nama_Lengkap','Nama'],['Fakultas','Fakultas'],['Program_Studi','Program Studi'],['Jenjang','Jenjang'],['Predikat','Predikat'],['Status_NIM','Status NIM']
+        ]);
+        const pager = document.getElementById('student-pagination');
+        if (pager) {
+          let buttons = '';
+          const lo = Math.max(1, studentCurrentPage - 2), hi = Math.min(pages, studentCurrentPage + 2);
+          for (let p=lo; p<=hi; p++) buttons += '<button class="student-page-btn '+(p===studentCurrentPage?'active':'')+'" onclick="goStudentPage('+p+')">'+p+'</button>';
+          pager.innerHTML = '<span class="student-page-summary">Menampilkan '+(studentRowsCache.length ? from+1 : 0)+'–'+Math.min(from+visible.length,studentRowsCache.length)+' dari '+studentRowsCache.length+' data</span><div class="student-pagination-pages"><button class="student-page-btn" '+(studentCurrentPage<=1?'disabled':'')+' onclick="goStudentPage('+(studentCurrentPage-1)+')">Sebelumnya</button>'+buttons+'<button class="student-page-btn" '+(studentCurrentPage>=pages?'disabled':'')+' onclick="goStudentPage('+(studentCurrentPage+1)+')">Berikutnya</button></div>';
+        }
+      }).withFailureHandler(showError).searchStudents(query, filters);
+    }
+
+    function goStudentPage(page) {
+      studentCurrentPage = page;
+      searchStudentRows();
+    }
+
+    /* DAFTAR PANGGIL */
+</script>

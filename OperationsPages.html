@@ -1,0 +1,501 @@
+<script>
+    function renderCalls() {
+      const role = APP.session.role;
+
+      if (role === 'Wisudawan') {
+        const rows = (APP.dashboard && APP.dashboard.callList) || [];
+
+        document.getElementById('page-content').innerHTML =
+          pageHeader('Daftar Panggil','Informasi pemanggilan untuk akun wisudawan ini.') +
+          '<div class="panel"><div class="panel-head"><h2>Daftar panggil pribadi</h2></div>' +
+          '<div class="panel-body">' + buildTable(rows, [
+            ['Urutan_Panggil','Urutan'],
+            ['Kelompok_Panggil','Kelompok'],
+            ['Status_Panggil','Status'],
+            ['Waktu_Panggil','Waktu']
+          ]) + '</div></div>';
+        return;
+      }
+
+      if (role !== 'Admin') return showToast('Akses ditolak.');
+
+      document.getElementById('page-content').innerHTML =
+        pageHeader('Daftar Panggil','Tinjau dan perbarui status pemanggilan.') +
+        '<div class="panel"><div class="panel-head"><h2>Daftar pemanggilan</h2>' +
+        '<button class="btn btn-outline btn-sm" onclick="renderCalls()">Muat ulang</button></div>' +
+        '<div class="panel-body"><div id="calls-table">Memuat data...</div></div></div>';
+
+      google.script.run
+        .withSuccessHandler(function (rows) {
+          const target = document.getElementById('calls-table');
+          if (!target) return;
+
+          target.innerHTML = buildTable(rows, [
+            ['ID_Panggil','ID Panggil'],
+            ['Urutan_Panggil','Urutan'],
+            ['Nama_Lengkap','Nama'],
+            ['NIM','NIM'],
+            ['Fakultas','Fakultas'],
+            ['Nomor_Kursi','Kursi'],
+            ['Status_Panggil','Status']
+          ], function (row) {
+            return '<button class="btn btn-outline btn-sm" onclick="cycleCallStatus(\'' +
+              escapeAttr(value(row,['ID_Panggil'])) + '\',\'' +
+              escapeAttr(value(row,['Status_Panggil'])) +
+              '\')">Ubah status</button>';
+          });
+        })
+        .withFailureHandler(showError)
+        .getCallList();
+    }
+
+    function cycleCallStatus(id, status) {
+      if (APP.session.role !== 'Admin') return showToast('Akses ditolak.');
+
+      const next = status === 'Belum Dipanggil'
+        ? 'Siap Dipanggil'
+        : status === 'Siap Dipanggil'
+          ? 'Sudah Dipanggil'
+          : 'Belum Dipanggil';
+
+      if (!confirm('Ubah status menjadi "' + next + '"?')) return;
+
+      google.script.run
+        .withSuccessHandler(function (result) {
+          showToast(result.message || 'Status diperbarui.');
+          renderCalls();
+        })
+        .withFailureHandler(showError)
+        .updateCallStatus(id, next);
+    }
+
+    /* DENAH KURSI */
+
+    function renderSeats() {
+      const role = APP.session.role;
+
+      if (role === 'Wisudawan') {
+        const rows = (APP.dashboard && APP.dashboard.seats) || [];
+
+        document.getElementById('page-content').innerHTML =
+          pageHeader('Denah Kursi','Informasi tempat duduk milik akun ini.') +
+          '<div class="panel"><div class="panel-head"><h2>Informasi tempat duduk</h2></div>' +
+          '<div class="panel-body">' + buildTable(rows, [
+            ['Blok','Blok'],
+            ['Baris','Baris'],
+            ['Kolom','Kolom'],
+            ['Nomor_Kursi','Nomor Kursi'],
+            ['Status_Kursi','Status']
+          ]) + '</div></div>';
+        return;
+      }
+
+      if (role !== 'Admin') return showToast('Akses ditolak.');
+
+      document.getElementById('page-content').innerHTML =
+        pageHeader('Denah Kursi','Data kursi dan penempatan berdasarkan spreadsheet.') +
+        '<div class="notice notice-warn">Data ini menampilkan penempatan dari spreadsheet. Pastikan koordinat mengikuti denah resmi gedung.</div>' +
+        '<div class="panel"><div class="panel-head"><h2>Data penempatan kursi</h2></div>' +
+        '<div class="panel-body"><div id="seats-table">Memuat data...</div></div></div>';
+
+      google.script.run
+        .withSuccessHandler(function (rows) {
+          const target = document.getElementById('seats-table');
+          if (!target) return;
+
+          target.innerHTML = buildTable(rows, [
+            ['ID_Kursi','ID Kursi'],
+            ['ID_Wisudawan','ID Wisudawan'],
+            ['Nama_Lengkap','Nama'],
+            ['Fakultas','Fakultas'],
+            ['Blok','Blok'],
+            ['Baris','Baris'],
+            ['Kolom','Kolom'],
+            ['Nomor_Kursi','Nomor Kursi'],
+            ['Status_Kursi','Status']
+          ]);
+        })
+        .withFailureHandler(showError)
+        .getSeatMap();
+    }
+
+    /* LULUSAN TERBAIK */
+
+    function renderBest() {
+      if (APP.session.role !== 'Admin') return showToast('Akses ditolak.');
+
+      document.getElementById('page-content').innerHTML =
+        pageHeader('Lulusan Terbaik','Daftar lulusan terbaik yang tercatat di spreadsheet.') +
+        '<div class="panel"><div class="panel-head"><h2>Data lulusan terbaik</h2></div>' +
+        '<div class="panel-body"><div id="best-table">Memuat data...</div></div></div>';
+
+      google.script.run
+        .withSuccessHandler(function (rows) {
+          const target = document.getElementById('best-table');
+          if (!target) return;
+
+          target.innerHTML = buildTable(rows, [
+            ['Peringkat','Peringkat'],
+            ['Nama_Lengkap','Nama'],
+            ['Fakultas','Fakultas'],
+            ['Program_Studi','Program Studi'],
+            ['IPK','IPK'],
+            ['Keterangan','Keterangan']
+          ]);
+        })
+        .withFailureHandler(showError)
+        .getBestGraduates();
+    }
+
+    /* DATA TAMU */
+
+    function renderGuests() {
+      if (APP.session.role !== 'Admin') return showToast('Akses ditolak.');
+
+      document.getElementById('page-content').innerHTML =
+        pageHeader('Data Tamu','Daftar tamu yang tercatat pada periode wisuda.') +
+        '<div class="panel"><div class="panel-head"><h2>Data tamu</h2></div>' +
+        '<div class="panel-body"><div id="guests-table">Memuat data...</div></div></div>';
+
+      google.script.run
+        .withSuccessHandler(function (rows) {
+          const target = document.getElementById('guests-table');
+          if (!target) return;
+
+          target.innerHTML = buildTable(rows, [
+            ['ID_Tamu','ID Tamu'],
+            ['Nama_Tamu','Nama'],
+            ['Instansi','Instansi'],
+            ['Jabatan','Jabatan'],
+            ['Kategori','Kategori'],
+            ['Status_Undangan','Status Undangan']
+          ]);
+        })
+        .withFailureHandler(showError)
+        .getGuests();
+    }
+
+    /* PEMINDAIAN QR TAMU */
+
+    function renderScanner() {
+      if (!['Admin','Panitia'].includes(APP.session.role)) {
+        showToast('Akses ditolak.');
+        return;
+      }
+
+      document.getElementById('page-content').innerHTML =
+        pageHeader('Scan QR Tamu','Pindai QR pada undangan untuk mencatat kehadiran tamu.') +
+        '<div class="notice notice-warn">Izinkan akses kamera pada browser. QR harus berisi ID_Tamu yang cocok dengan sheet DATA_TAMU.</div>' +
+        '<div class="scanner-layout">' +
+          '<div class="panel"><div class="panel-head"><h2>Pemindai QR</h2></div>' +
+            '<div class="panel-body"><div id="qr-reader"></div>' +
+            '<div class="toolbar" style="margin-top:14px">' +
+              '<button class="btn" onclick="startScanner()">Aktifkan kamera</button>' +
+              '<button class="btn btn-outline" onclick="stopScanner()">Hentikan kamera</button>' +
+            '</div>' +
+            '<div style="margin-top:15px"><label for="manual-guest-id">Masukkan ID tamu secara manual</label>' +
+              '<div class="toolbar" style="margin-top:7px">' +
+                '<input id="manual-guest-id" class="field" style="flex:1;min-width:180px" placeholder="Contoh: TAM-0001">' +
+                '<button class="btn" onclick="submitManualGuest()">Catat</button>' +
+              '</div></div>' +
+            '</div></div>' +
+          '<div class="panel"><div class="panel-head"><h2>Hasil pemindaian</h2></div>' +
+            '<div class="panel-body"><div id="scanner-result" class="scanner-result">Belum ada QR yang dipindai.</div></div>' +
+          '</div>' +
+        '</div>';
+    }
+
+    function startScanner() {
+      if (!['Admin','Panitia'].includes(APP.session.role)) return showToast('Akses ditolak.');
+      if (!window.Html5Qrcode) return showToast('Library pemindai QR tidak dapat dimuat.');
+
+      if (APP.scanner) stopScanner();
+
+      APP.scanner = new Html5Qrcode('qr-reader');
+
+      APP.scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 230, height: 230 } },
+        function (text) {
+          if (APP.scanBusy) return;
+          APP.scanBusy = true;
+          handleScannedGuest(text);
+        },
+        function () {}
+      ).catch(function (error) {
+        APP.scanner = null;
+        showToast('Kamera tidak dapat dibuka. Periksa izin kamera browser.');
+        console.error(error);
+      });
+    }
+
+    function stopScanner() {
+      if (APP.scanner) {
+        const scanner = APP.scanner;
+        APP.scanner = null;
+
+        scanner.stop()
+          .catch(function () {})
+          .finally(function () {
+            try { scanner.clear(); } catch (e) {}
+          });
+      }
+
+      APP.scanBusy = false;
+    }
+
+    function handleScannedGuest(text) {
+      if (!['Admin','Panitia'].includes(APP.session.role)) {
+        APP.scanBusy = false;
+        return showToast('Akses ditolak.');
+      }
+
+      let id = String(text || '').trim();
+
+      try {
+        const parsed = JSON.parse(id);
+        id = parsed.ID_Tamu || parsed.idTamu || parsed.id || id;
+      } catch (e) {}
+
+      if (id.indexOf('TAMU:') === 0) id = id.slice(5).trim();
+
+      const box = document.getElementById('scanner-result');
+      if (!box) {
+        APP.scanBusy = false;
+        return;
+      }
+
+      box.textContent = 'Memproses ID tamu: ' + id;
+
+      google.script.run
+        .withSuccessHandler(function (result) {
+          const target = document.getElementById('scanner-result');
+
+          if (target) {
+            target.innerHTML = '<div class="notice ' +
+              (result.success ? 'notice-success' : 'notice-warn') +
+              '">' + escapeHtml(result.message || 'Pemindaian selesai.') + '</div>';
+          }
+
+          showToast(result.message || 'Pemindaian selesai.');
+          setTimeout(function () { APP.scanBusy = false; }, 1800);
+        })
+        .withFailureHandler(function (error) {
+          const target = document.getElementById('scanner-result');
+
+          if (target) {
+            target.innerHTML = '<div class="notice notice-error">' +
+              escapeHtml(getErrorMessage(error)) + '</div>';
+          }
+
+          APP.scanBusy = false;
+        })
+        .recordGuestAttendance(id, 'QR Code');
+    }
+
+    function submitManualGuest() {
+      const input = document.getElementById('manual-guest-id');
+      const id = input ? input.value.trim() : '';
+
+      if (!id) return showToast('Masukkan ID tamu terlebih dahulu.');
+      if (APP.scanBusy) return;
+
+      APP.scanBusy = true;
+      handleScannedGuest(id);
+    }
+
+    /* LAPORAN */
+
+    function renderReports() {
+      if (APP.session.role !== 'Admin') return showToast('Akses ditolak.');
+
+      document.getElementById('page-content').innerHTML =
+        pageHeader('Laporan','Ekspor data untuk kebutuhan administrasi.') +
+        '<div class="notice notice-info">Laporan dapat diunduh sebagai CSV dan dibuka menggunakan Excel.</div>' +
+        '<div class="panel"><div class="panel-head"><h2>Ekspor data</h2></div>' +
+        '<div class="panel-body"><div class="toolbar">' +
+          '<button class="btn" onclick="exportReport(\'students\')">Data Wisudawan</button>' +
+          '<button class="btn btn-outline" onclick="exportReport(\'calls\')">Daftar Panggil</button>' +
+          '<button class="btn btn-outline" onclick="exportReport(\'seats\')">Denah Kursi</button>' +
+          '<button class="btn btn-outline" onclick="exportReport(\'guests\')">Data Tamu</button>' +
+          '<button class="btn btn-outline" onclick="exportReport(\'guestAttendance\')">Presensi Tamu</button>' +
+        '</div><div id="report-status" class="import-status-line" style="margin-top:15px"></div></div></div>';
+    }
+
+    function exportReport(key) {
+      if (APP.session.role !== 'Admin') return showToast('Akses ditolak.');
+
+      const status = document.getElementById('report-status');
+      if (!status) return;
+
+      status.textContent = 'Menyiapkan laporan...';
+
+      function download(data) {
+        const rows = data[key] || [];
+        if (!rows.length) {
+          status.textContent = 'Tidak ada data untuk diekspor.';
+          return;
+        }
+
+        const headers = Object.keys(rows[0]);
+        const csv = [headers]
+          .concat(rows.map(function (row) {
+            return headers.map(function (header) { return row[header]; });
+          }))
+          .map(function (row) {
+            return row.map(csvCell).join(',');
+          }).join('\r\n');
+
+        const blob = new Blob(['\uFEFF' + csv], {
+          type: 'text/csv;charset=utf-8;'
+        });
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+
+        a.href = url;
+        a.download = key + '_wisuda.csv';
+
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+
+        status.textContent = 'Laporan disiapkan: ' + rows.length + ' baris.';
+      }
+
+      if (APP.reportCache) {
+        download(APP.reportCache);
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(function (data) {
+          APP.reportCache = data;
+          download(data);
+        })
+        .withFailureHandler(function (error) {
+          status.textContent = getErrorMessage(error);
+        })
+        .getReportData();
+    }
+
+    function csvCell(value) {
+      let text = String(value == null ? '' : value);
+      if (/^[=+@]/.test(text)) text = "'" + text;
+      return '"' + text.replace(/"/g, '""') + '"';
+    }
+
+    /* TABEL DAN UTILITAS */
+
+    function buildTable(rows, columns, actionRenderer) {
+      if (!rows || !rows.length) {
+        return '<div class="table-empty">Belum ada data untuk ditampilkan.</div>';
+      }
+
+      const heads = '<thead><tr>' +
+        columns.map(function (column) {
+          return '<th>' + escapeHtml(column[1]) + '</th>';
+        }).join('') +
+        (actionRenderer ? '<th>Aksi</th>' : '') +
+        '</tr></thead>';
+
+      const body = rows.map(function (row) {
+        return '<tr>' +
+          columns.map(function (column) {
+            return '<td>' + formatCell(
+              column[0],
+              value(row, [column[0]])
+            ) + '</td>';
+          }).join('') +
+          (actionRenderer ? '<td>' + actionRenderer(row) + '</td>' : '') +
+          '</tr>';
+      }).join('');
+
+      return '<div class="table-wrap"><table>' +
+        heads + '<tbody>' + body + '</tbody></table></div>';
+    }
+
+    function formatCell(key, val) {
+      const safe = escapeHtml(val || '—');
+
+      if (/status/i.test(key)) {
+        let cls = 'badge';
+        const normalized = String(val || '').toLowerCase();
+
+        if (
+          normalized.includes('sudah') ||
+          normalized.includes('hadir') ||
+          normalized === 'aktif'
+        ) {
+          cls += ' badge-green';
+        } else if (
+          normalized.includes('belum') ||
+          normalized.includes('siap')
+        ) {
+          cls += ' badge-yellow';
+        } else if (
+          normalized.includes('nonaktif') ||
+          normalized.includes('batal')
+        ) {
+          cls += ' badge-red';
+        }
+
+        return '<span class="' + cls + '">' + safe + '</span>';
+      }
+
+      return safe;
+    }
+
+    function escapeHtml(value) {
+      return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function escapeAttr(value) {
+      return String(value == null ? '' : value)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'");
+    }
+
+    function getErrorMessage(error) {
+      return error && error.message
+        ? error.message
+        : String(error || 'Terjadi kesalahan.');
+    }
+
+    function showError(error) {
+      showToast(getErrorMessage(error));
+      console.error(error);
+    }
+
+    let toastTimer;
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.remove('hidden');
+
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () {
+        toast.classList.add('hidden');
+      }, 3500);
+    }
+
+    function logout() {
+      stopScanner();
+      APP.session = null;
+      APP.dashboard = null;
+      APP.reportCache = null;
+      APP.importRows = null;
+      APP.importPreview = null;
+      showLanding();
+    }
+
+    // Landing page selalu menjadi halaman pertama.
+    showOnly('landing-view');
+</script>

@@ -1,0 +1,22 @@
+<script>
+const APP = {
+      session: null,
+      dashboard: null,
+      currentPage: 'dashboard',
+      scanner: null,
+      scanBusy: false,
+      reportCache: null,
+      importRows: null,
+      importFileName: '',
+      importPreview: null,
+      importPeriods: []
+    };
+
+    const ALLOWED_PAGES = {
+      Admin: ['dashboard','students','calls','seats','best','scanner','guests','reports'],
+      Panitia: ['scanner'],
+      Wisudawan: ['dashboard','calls','seats']
+    };
+
+    document.getElementById('year').textContent = new Date().getFullYear();
+</script>
