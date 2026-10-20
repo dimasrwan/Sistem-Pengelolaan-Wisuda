@@ -940,10 +940,246 @@
 
     .student-filter-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
     .student-pagination { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; }
-    .student-pagination-pages { display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
     .student-page-btn { min-width:36px; min-height:34px; padding:6px 10px; border:1px solid #dfe6dd; border-radius:8px; background:#fff; color:var(--green-dark); cursor:pointer; }
     .student-page-btn.active { background:var(--green); border-color:var(--green); color:#fff; }
     .student-page-btn:disabled { opacity:.45; cursor:not-allowed; }
     @media(max-width:900px){.student-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
     @media(max-width:520px){.student-filter-grid{grid-template-columns:1fr}.student-pagination{align-items:flex-start;flex-direction:column}}
+    .student-modal-overlay { position:fixed; inset:0; z-index:100; background:rgba(15,28,17,.6); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; padding:16px; }
+    .student-modal-card { width:min(640px,100%); max-height:90vh; overflow-y:auto; background:#fff; border-radius:16px; border:1px solid var(--line); box-shadow:0 20px 60px rgba(0,0,0,.18); }
+
+    /* =========================================================
+       VISUAL DENAH KURSI 2D (UIN AR-RANIRY)
+       ========================================================= */
+    .seat-plan-wrapper {
+      background: #fbfdfa;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 20px;
+      overflow-x: auto;
+      margin-top: 15px;
+    }
+    .seat-plan-header-title {
+      text-align: center;
+      font-weight: 800;
+      font-size: 16px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: #1a2c1d;
+      margin-bottom: 20px;
+    }
+    .seat-stage-box {
+      border: 1px solid #e1b4b4;
+      background: #fde8e8;
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+      margin-bottom: 14px;
+    }
+    .seat-stage-senat {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      color: #492828;
+      margin-bottom: 8px;
+    }
+    .seat-stage-officials {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 5px;
+      margin-bottom: 8px;
+    }
+    .seat-official-tag {
+      background: #c7e1f4;
+      border: 1px solid #99c2e2;
+      border-radius: 4px;
+      padding: 3px 6px;
+      font-size: 9px;
+      font-weight: 700;
+      color: #163e5e;
+    }
+    .seat-togawan-label {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .2em;
+      color: #552727;
+      text-transform: uppercase;
+    }
+    .seat-vip-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 6px;
+    }
+    .seat-vvip-banner {
+      background: #99e699;
+      border: 1px solid #73cf73;
+      text-align: center;
+      padding: 5px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      color: #0b450b;
+      border-radius: 4px;
+    }
+    .seat-vip-banner {
+      background: #a3e048;
+      border: 1px solid #82be31;
+      text-align: center;
+      padding: 5px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      color: #214408;
+      border-radius: 4px;
+    }
+    .seat-columns-bar {
+      display: grid;
+      grid-template-columns: 1fr 34px 1fr;
+      gap: 16px;
+      margin-top: 15px;
+      margin-bottom: 6px;
+    }
+    .seat-cols-subgrid {
+      display: grid;
+      grid-template-columns: repeat(17, minmax(28px, 1fr));
+      gap: 3px;
+      text-align: center;
+      font-size: 10px;
+      font-weight: 700;
+      color: #68716a;
+    }
+    .seat-hall-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 1060px;
+    }
+    .seat-grid-row {
+      display: grid;
+      grid-template-columns: 1fr 34px 1fr;
+      gap: 16px;
+      align-items: center;
+    }
+    .seat-block-grid {
+      display: grid;
+      grid-template-columns: repeat(17, minmax(28px, 1fr));
+      gap: 3px;
+    }
+    .seat-aisle-num {
+      text-align: center;
+      font-size: 11px;
+      font-weight: 800;
+      color: #556056;
+      background: #edf2eb;
+      border-radius: 4px;
+      padding: 4px 0;
+    }
+    .seat-cell {
+      height: 25px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #e0e0e0;
+      border-radius: 3px;
+      background: #fff;
+      font-size: 9px;
+      font-weight: 700;
+      color: #222;
+      user-select: none;
+      transition: transform .12s, box-shadow .12s;
+      cursor: pointer;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding: 0 1px;
+    }
+    .seat-cell:hover {
+      transform: scale(1.12);
+      z-index: 10;
+      box-shadow: 0 4px 12px rgba(0,0,0,.15);
+    }
+    .seat-cell.seat-empty {
+      background: #fbfbfb;
+      border-color: #ededed;
+      color: transparent;
+      cursor: default;
+    }
+    .seat-cell.seat-empty:hover {
+      transform: none;
+      box-shadow: none;
+    }
+    /* Warna Unit / Fakultas Sesuai Gambar Referensi */
+    .seat-unit-s3 { background: #bca0dc !important; color: #2e164d !important; border-color: #9f7fc7 !important; }
+    .seat-unit-s2 { background: #9bf080 !important; color: #1e520d !important; border-color: #79ce5c !important; }
+    .seat-unit-s  { background: #aeeaf7 !important; color: #0f4c5c !important; border-color: #7ecfe2 !important; }
+    .seat-unit-u  { background: #ffff80 !important; color: #5a5405 !important; border-color: #dede4e !important; }
+    .seat-unit-d  { background: #55ee77 !important; color: #0b4f1f !important; border-color: #3bc65a !important; }
+    .seat-unit-t  { background: #ffccdd !important; color: #5c1629 !important; border-color: #e599b2 !important; }
+    .seat-unit-a  { background: #48cf7a !important; color: #06451d !important; border-color: #2fb561 !important; }
+    .seat-unit-e  { background: #6dd4f4 !important; color: #0b4556 !important; border-color: #40bade !important; }
+    .seat-unit-st { background: #e6b800 !important; color: #473500 !important; border-color: #c79e00 !important; }
+    .seat-unit-ip { background: #c6c6c6 !important; color: #2e2e2e !important; border-color: #a8a8a8 !important; }
+    .seat-unit-p  { background: #ea8df2 !important; color: #4e1254 !important; border-color: #cc6bd6 !important; }
+
+    /* Summary recap table */
+    .seat-summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+      margin-top: 15px;
+    }
+    .seat-summary-table th, .seat-summary-table td {
+      border: 1px solid #d5ddd4;
+      padding: 6px 9px;
+      text-align: center;
+    }
+    .seat-summary-table th {
+      background: #eef4ed;
+      color: #172015;
+      font-weight: 800;
+    }
+    .seat-legend-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      margin-top: 14px;
+      padding: 10px 14px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    .seat-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .seat-legend-color {
+      width: 18px;
+      height: 14px;
+      border-radius: 3px;
+      border: 1px solid rgba(0,0,0,.2);
+    }
+
+    /* Print styling */
+    @media print {
+      body * { visibility: hidden; }
+      #print-report-container, #print-report-container * {
+        visibility: visible;
+      }
+      #print-report-container {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        margin: 0;
+        padding: 10mm;
+        background: #fff;
+      }
+      .no-print { display: none !important; }
+    }
 </style>

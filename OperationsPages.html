@@ -1,4 +1,9 @@
 <script>
+    /* STATE MODUL OPERATIONS */
+    APP.callListFilters = APP.callListFilters || { day: '', period: '' };
+    APP.seatMapFilters = APP.seatMapFilters || { day: '1', period: '' };
+    APP.seatViewMode = APP.seatViewMode || 'visual'; // 'visual' atau 'table'
+
     function renderCalls() {
       const role = APP.session.role;
 
@@ -19,10 +24,29 @@
 
       if (role !== 'Admin') return showToast('Akses ditolak.');
 
+      const dayFilter = APP.callListFilters.day || '';
+      const periodFilter = APP.callListFilters.period || '';
+
       document.getElementById('page-content').innerHTML =
-        pageHeader('Daftar Panggil','Tinjau dan perbarui status pemanggilan.') +
+        pageHeader('Daftar Panggil','Tinjau, filter, dan perbarui status pemanggilan wisudawan.') +
+        '<div class="panel" style="margin-bottom:15px;">' +
+        '<div class="panel-body" style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; justify-content:space-between;">' +
+        '<div style="display:flex; flex-wrap:wrap; gap:12px; align-items:center;">' +
+        '<div><label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Filter Hari Wisuda</label>' +
+        '<select id="call-filter-day" class="field" style="min-width:160px;" onchange="onCallDayFilterChange(this.value)">' +
+        '<option value="" ' + (!dayFilter ? 'selected' : '') + '>Semua Hari</option>' +
+        '<option value="1" ' + (dayFilter === '1' ? 'selected' : '') + '>Hari Pertama (Selasa)</option>' +
+        '<option value="2" ' + (dayFilter === '2' ? 'selected' : '') + '>Hari Kedua (Rabu)</option>' +
+        '<option value="3" ' + (dayFilter === '3' ? 'selected' : '') + '>Hari Ketiga (Kamis)</option>' +
+        '</select></div>' +
+        '</div>' +
+        '<div style="display:flex; gap:8px;">' +
+        '<button class="btn btn-outline btn-sm" onclick="openCallListReportModal()">Pratinjau / Cetak Laporan PDF</button>' +
+        '<button class="btn btn-outline btn-sm" onclick="renderCalls()">Muat ulang</button>' +
+        '</div>' +
+        '</div></div>' +
         '<div class="panel"><div class="panel-head"><h2>Daftar pemanggilan</h2>' +
-        '<button class="btn btn-outline btn-sm" onclick="renderCalls()">Muat ulang</button></div>' +
+        '<span id="calls-count" style="font-size:12px; font-weight:700; color:var(--muted);"></span></div>' +
         '<div class="panel-body"><div id="calls-table">Memuat data...</div></div></div>';
 
       google.script.run
@@ -30,12 +54,17 @@
           const target = document.getElementById('calls-table');
           if (!target) return;
 
+          APP.currentCallsData = rows || [];
+          const countTarget = document.getElementById('calls-count');
+          if (countTarget) countTarget.textContent = 'Total: ' + (rows ? rows.length : 0) + ' wisudawan';
+
           target.innerHTML = buildTable(rows, [
             ['ID_Panggil','ID Panggil'],
             ['Urutan_Panggil','Urutan'],
-            ['Nama_Lengkap','Nama'],
+            ['Nama_Wisudawan','Nama Wisudawan'],
             ['NIM','NIM'],
             ['Fakultas','Fakultas'],
+            ['Program_Studi','Program Studi'],
             ['Nomor_Kursi','Kursi'],
             ['Status_Panggil','Status']
           ], function (row) {
@@ -46,7 +75,12 @@
           });
         })
         .withFailureHandler(showError)
-        .getCallList();
+        .getCallList(APP.callListFilters);
+    }
+
+    function onCallDayFilterChange(val) {
+      APP.callListFilters.day = val;
+      renderCalls();
     }
 
     function cycleCallStatus(id, status) {
@@ -69,7 +103,9 @@
         .updateCallStatus(id, next);
     }
 
-    /* DENAH KURSI */
+    /* =========================================================
+       MODUL VISUAL DENAH KURSI
+       ========================================================= */
 
     function renderSeats() {
       const role = APP.session.role;
@@ -92,31 +128,408 @@
 
       if (role !== 'Admin') return showToast('Akses ditolak.');
 
+      const dayFilter = APP.seatMapFilters.day || '1';
+      const isVisual = APP.seatViewMode === 'visual';
+
       document.getElementById('page-content').innerHTML =
-        pageHeader('Denah Kursi','Data kursi dan penempatan berdasarkan spreadsheet.') +
-        '<div class="notice notice-warn">Data ini menampilkan penempatan dari spreadsheet. Pastikan koordinat mengikuti denah resmi gedung.</div>' +
-        '<div class="panel"><div class="panel-head"><h2>Data penempatan kursi</h2></div>' +
-        '<div class="panel-body"><div id="seats-table">Memuat data...</div></div></div>';
+        pageHeader('Denah Kursi','Peta visual tempat duduk dua dimensi gedung wisuda dan data penempatan.') +
+        '<div class="panel" style="margin-bottom:15px;">' +
+        '<div class="panel-body" style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; justify-content:space-between;">' +
+        '<div style="display:flex; flex-wrap:wrap; gap:12px; align-items:center;">' +
+        '<div><label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Pilih Hari Wisuda</label>' +
+        '<select id="seat-filter-day" class="field" style="min-width:210px; font-weight:700;" onchange="onSeatDayFilterChange(this.value)">' +
+        '<option value="1" ' + (dayFilter === '1' ? 'selected' : '') + '>Hari Pertama (Selasa, 6 Okt 2026)</option>' +
+        '<option value="2" ' + (dayFilter === '2' ? 'selected' : '') + '>Hari Kedua (Rabu, 7 Okt 2026)</option>' +
+        '<option value="3" ' + (dayFilter === '3' ? 'selected' : '') + '>Hari Ketiga (Kamis, 8 Okt 2026)</option>' +
+        '</select></div>' +
+        '<div><label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Tampilan Halaman</label>' +
+        '<div style="display:flex; border:1px solid #d5ddd4; border-radius:8px; overflow:hidden;">' +
+        '<button class="btn btn-sm ' + (isVisual ? 'btn-green' : 'btn-outline') + '" style="border-radius:0; border:0;" onclick="switchSeatViewMode(\'visual\')">Visual Denah 2D</button>' +
+        '<button class="btn btn-sm ' + (!isVisual ? 'btn-green' : 'btn-outline') + '" style="border-radius:0; border:0;" onclick="switchSeatViewMode(\'table\')">Tabel Administrasi</button>' +
+        '</div></div>' +
+        '</div>' +
+        '<div style="display:flex; gap:8px;">' +
+        '<button class="btn btn-outline btn-sm" onclick="renderSeats()">Muat ulang</button>' +
+        '</div>' +
+        '</div></div>' +
+        '<div id="seat-main-view">Memuat data denah kursi...</div>';
 
       google.script.run
-        .withSuccessHandler(function (rows) {
-          const target = document.getElementById('seats-table');
-          if (!target) return;
-
-          target.innerHTML = buildTable(rows, [
-            ['ID_Kursi','ID Kursi'],
-            ['ID_Wisudawan','ID Wisudawan'],
-            ['Nama_Lengkap','Nama'],
-            ['Fakultas','Fakultas'],
-            ['Blok','Blok'],
-            ['Baris','Baris'],
-            ['Kolom','Kolom'],
-            ['Nomor_Kursi','Nomor Kursi'],
-            ['Status_Kursi','Status']
-          ]);
+        .withSuccessHandler(function (response) {
+          APP.currentSeatMapResponse = response;
+          drawSeatMapView();
         })
         .withFailureHandler(showError)
-        .getSeatMap();
+        .getSeatMap(APP.seatMapFilters);
+    }
+
+    function onSeatDayFilterChange(val) {
+      APP.seatMapFilters.day = val;
+      renderSeats();
+    }
+
+    function switchSeatViewMode(mode) {
+      APP.seatViewMode = mode;
+      renderSeats();
+    }
+
+    function drawSeatMapView() {
+      const target = document.getElementById('seat-main-view');
+      if (!target) return;
+
+      const resp = APP.currentSeatMapResponse;
+      if (!resp || !resp.seats) {
+        target.innerHTML = '<div class="notice notice-warn">Data denah belum tersedia.</div>';
+        return;
+      }
+
+      if (APP.seatViewMode === 'table') {
+        target.innerHTML =
+          '<div class="panel"><div class="panel-head"><h2>Data Penempatan Kursi (Administrasi)</h2>' +
+          '<span style="font-size:12px; font-weight:700; color:var(--muted);">Total ' + resp.seats.length + ' Kursi Terdaftar</span></div>' +
+          '<div class="panel-body">' + buildTable(resp.seats, [
+            ['Nomor_Kursi', 'Nomor Kursi'],
+            ['Blok', 'Blok'],
+            ['Baris', 'Baris'],
+            ['Kolom', 'Kolom'],
+            ['Nama_Wisudawan', 'Nama Wisudawan'],
+            ['NIM', 'NIM'],
+            ['Fakultas', 'Fakultas'],
+            ['Program_Studi', 'Program Studi'],
+            ['Jenis_Kelamin', 'Jenis Kelamin'],
+            ['Status_Kursi', 'Status']
+          ]) + '</div></div>';
+        return;
+      }
+
+      // Mode Visual Denah 2D
+      const dayNum = String(resp.day || '1');
+      const dayLabels = {
+        '1': 'DENAH WISUDA GELOMBANG III TAHUN 2026 HARI PERTAMA',
+        '2': 'DENAH WISUDA GELOMBANG III TAHUN 2026 HARI KEDUA',
+        '3': 'DENAH WISUDA GELOMBANG III TAHUN 2026 HARI KETIGA'
+      };
+      const title = dayLabels[dayNum] || ('DENAH WISUDA HARI KE-' + dayNum);
+
+      // Index kursi berdasarkan baris, blok, kolom
+      // Key: "baris-blok-kolom"
+      const seatLookup = {};
+      resp.seats.forEach(function (s) {
+        seatLookup[s.Baris + '-' + s.Blok + '-' + s.Kolom] = s;
+      });
+
+      let html = '<div class="seat-plan-wrapper">';
+      html += '<div class="seat-plan-header-title">' + escapeHtml(title) + '</div>';
+
+      // Panggung dan Togawan
+      html += '<div class="seat-stage-box">';
+      html += '<div class="seat-stage-senat">ANGGOTA SENAT LAINNYA (51 ORANG)</div>';
+      html += '<div class="seat-stage-officials">' +
+        '<span class="seat-official-tag">D-FAH</span>' +
+        '<span class="seat-official-tag">D-FDK</span>' +
+        '<span class="seat-official-tag">D-FUF</span>' +
+        '<span class="seat-official-tag">D-FTK</span>' +
+        '<span class="seat-official-tag">D-FSH</span>' +
+        '<span class="seat-official-tag">D-PPS</span>' +
+        '<span class="seat-official-tag">WAREK-I</span>' +
+        '<span class="seat-official-tag" style="background:#b3d7f4; font-weight:800;">REKTOR</span>' +
+        '<span class="seat-official-tag">KET. SENAT</span>' +
+        '<span class="seat-official-tag">WAREK-II</span>' +
+        '<span class="seat-official-tag">WAREK-III</span>' +
+        '<span class="seat-official-tag">D-FEBI</span>' +
+        '<span class="seat-official-tag">D-FST</span>' +
+        '<span class="seat-official-tag">D-FISIP</span>' +
+        '<span class="seat-official-tag">D-FPSI</span>' +
+        '</div>';
+      html += '<div class="seat-togawan-label">TOGAWAN</div>';
+      html += '</div>';
+
+      // Baris VIP
+      html += '<div class="seat-vip-row">' +
+        '<div class="seat-vvip-banner">UNDANGAN VVIP</div>' +
+        '<div class="seat-vvip-banner">UNDANGAN VVIP</div>' +
+        '</div>';
+      html += '<div class="seat-vip-row">' +
+        '<div class="seat-vip-banner">UNDANGAN VIP</div>' +
+        '<div class="seat-vip-banner">UNDANGAN VIP</div>' +
+        '</div>';
+
+      // Baris Angka Kolom 1..17 Kiri dan Kanan
+      html += '<div class="seat-columns-bar">';
+      html += '<div class="seat-cols-subgrid">';
+      for (let c = 1; c <= 17; c++) html += '<div>' + c + '</div>';
+      html += '</div>';
+      html += '<div></div>'; // Lorong header
+      html += '<div class="seat-cols-subgrid">';
+      for (let c = 1; c <= 17; c++) html += '<div>' + c + '</div>';
+      html += '</div>';
+      html += '</div>';
+
+      // Hall Grid 25 Baris
+      html += '<div class="seat-hall-grid">';
+      for (let r = 1; r <= 25; r++) {
+        html += '<div class="seat-grid-row">';
+
+        // Blok Kiri (Kolom 1..17)
+        html += '<div class="seat-block-grid">';
+        for (let c = 1; c <= 17; c++) {
+          const s = seatLookup[r + '-Kiri-' + c];
+          html += renderSeatCellHtml(s);
+        }
+        html += '</div>';
+
+        // Nomor Baris Lorong Tengah (1..25)
+        html += '<div class="seat-aisle-num">' + r + '</div>';
+
+        // Blok Kanan (Kolom 1..17)
+        html += '<div class="seat-block-grid">';
+        for (let c = 1; c <= 17; c++) {
+          const s = seatLookup[r + '-Kanan-' + c];
+          html += renderSeatCellHtml(s);
+        }
+        html += '</div>';
+
+        html += '</div>'; // seat-grid-row
+      }
+      html += '</div>'; // seat-hall-grid
+
+      // Legenda Warna Unit
+      html += buildSeatLegendHtml();
+
+      // Tabel Rekapitulasi Alokasi Kursi Gedung
+      html += buildSeatSummaryTableHtml(dayNum);
+
+      html += '</div>'; // seat-plan-wrapper
+
+      target.innerHTML = html;
+    }
+
+    function renderSeatCellHtml(seat) {
+      if (!seat) {
+        return '<div class="seat-cell seat-empty" title="Kosong / Lorong"></div>';
+      }
+
+      const code = seat.Nomor_Kursi;
+      const parts = code.split('-');
+      const unit = (parts[1] || '').toLowerCase();
+      const cls = 'seat-unit-' + unit;
+      const name = seat.Nama_Wisudawan || '—';
+      const nim = seat.NIM ? (' (' + seat.NIM + ')') : '';
+      const tooltip = code + ': ' + name + nim + ' - ' + (seat.Fakultas || '') + ' [' + (seat.Jenis_Kelamin || '') + ']';
+
+      return '<div class="seat-cell ' + cls + '" title="' + escapeAttr(tooltip) + '" onclick="showSeatStudentDetail(\'' + escapeAttr(code) + '\')">' +
+        escapeHtml(code) + '</div>';
+    }
+
+    function showSeatStudentDetail(seatCode) {
+      const resp = APP.currentSeatMapResponse;
+      if (!resp || !resp.seats) return;
+      const s = resp.seats.find(function (item) { return item.Nomor_Kursi === seatCode; });
+      if (!s) return;
+
+      const html = '<div class="student-modal-overlay" onclick="if(event.target===this)closeSeatModal()">' +
+        '<div class="student-modal-card" style="padding:22px;">' +
+        '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid var(--line); padding-bottom:10px;">' +
+        '<h3 style="margin:0; font-size:18px; color:var(--ink);">Detail Penempatan Kursi</h3>' +
+        '<button class="btn btn-outline btn-sm" onclick="closeSeatModal()">✕ Tutup</button>' +
+        '</div>' +
+        '<div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; font-size:13px;">' +
+        '<div><strong>Nomor Kursi:</strong> <span class="badge badge-green">' + escapeHtml(s.Nomor_Kursi) + '</span></div>' +
+        '<div><strong>Posisi Denah:</strong> Blok ' + escapeHtml(s.Blok) + ', Baris ' + s.Baris + ', Kolom ' + s.Kolom + '</div>' +
+        '<div style="grid-column:span 2;"><strong>Nama Lengkap:</strong> ' + escapeHtml(s.Nama_Wisudawan || '—') + '</div>' +
+        '<div><strong>NIM:</strong> ' + escapeHtml(s.NIM || '—') + '</div>' +
+        '<div><strong>Jenis Kelamin:</strong> ' + escapeHtml(s.Jenis_Kelamin || '—') + '</div>' +
+        '<div style="grid-column:span 2;"><strong>Fakultas:</strong> ' + escapeHtml(s.Fakultas || '—') + '</div>' +
+        '<div style="grid-column:span 2;"><strong>Program Studi:</strong> ' + escapeHtml(s.Program_Studi || '—') + '</div>' +
+        '<div><strong>Hari Wisuda:</strong> Hari Ke-' + escapeHtml(s.Hari_Ke) + '</div>' +
+        '<div><strong>Status Kursi:</strong> ' + escapeHtml(s.Status_Kursi || 'Terdaftar') + '</div>' +
+        '</div>' +
+        '</div></div>';
+
+      const prev = document.getElementById('seat-modal-container');
+      if (prev) prev.remove();
+      const wrap = document.createElement('div');
+      wrap.id = 'seat-modal-container';
+      wrap.innerHTML = html;
+      document.body.appendChild(wrap);
+    }
+
+    function closeSeatModal() {
+      const wrap = document.getElementById('seat-modal-container');
+      if (wrap) wrap.remove();
+    }
+
+    function buildSeatLegendHtml() {
+      const items = [
+        { code: 'S3', name: 'Pascasarjana S3', cls: 'seat-unit-s3' },
+        { code: 'S2', name: 'Pascasarjana S2', cls: 'seat-unit-s2' },
+        { code: 'S', name: 'FSH (Syari\'ah & Hukum)', cls: 'seat-unit-s' },
+        { code: 'U', name: 'FUF (Ushuluddin & Filsafat)', cls: 'seat-unit-u' },
+        { code: 'D', name: 'FDK (Dakwah & Komunikasi)', cls: 'seat-unit-d' },
+        { code: 'T', name: 'FTK (Tarbiyah & Keguruan)', cls: 'seat-unit-t' },
+        { code: 'A', name: 'FAH (Adab & Humaniora)', cls: 'seat-unit-a' },
+        { code: 'E', name: 'FEBI (Ekonomi & Bisnis Islam)', cls: 'seat-unit-e' },
+        { code: 'ST', name: 'FST (Sains & Teknologi)', cls: 'seat-unit-st' },
+        { code: 'IP', name: 'FISIP (Ilmu Sosial & Pemerintahan)', cls: 'seat-unit-ip' },
+        { code: 'P', name: 'FPSI (Psikologi)', cls: 'seat-unit-p' }
+      ];
+
+      let h = '<div class="seat-legend-bar"><strong style="font-size:12px; color:var(--muted);">Legenda Unit:</strong>';
+      items.forEach(function (it) {
+        h += '<div class="seat-legend-item"><span class="seat-legend-color ' + it.cls + '"></span><span>' + it.code + ' (' + it.name + ')</span></div>';
+      });
+      h += '</div>';
+      return h;
+    }
+
+    function buildSeatSummaryTableHtml(selectedDay) {
+      // Data Rekap Sesuai Tabel Resmi Denah
+      const recap = [
+        { unit: 'Pascasarjana - S3', kode: 'S3', lk: 19, pr: 12, jml: 31, hariKe: '1', hari: 'Selasa', tgl: '06/10/2026', jmlHr: 559 },
+        { unit: 'Pascasarjana - S2', kode: 'S2', lk: 65, pr: 59, jml: 124, hariKe: '1', hari: 'Selasa', tgl: '06/10/2026', jmlHr: '' },
+        { unit: 'FSH', kode: 'S', lk: 94, pr: 109, jml: 203, hariKe: '1', hari: 'Selasa', tgl: '06/10/2026', jmlHr: '' },
+        { unit: 'FUF', kode: 'U', lk: 43, pr: 32, jml: 75, hariKe: '1', hari: 'Selasa', tgl: '06/10/2026', jmlHr: '' },
+        { unit: 'FDK', kode: 'D', lk: 35, pr: 91, jml: 126, hariKe: '1', hari: 'Selasa', tgl: '06/10/2026', jmlHr: '' },
+        { unit: 'FTK', kode: 'T', lk: 114, pr: 398, jml: 512, hariKe: '2', hari: 'Rabu', tgl: '07/10/2026', jmlHr: 512 },
+        { unit: 'FAH', kode: 'A', lk: 40, pr: 82, jml: 122, hariKe: '3', hari: 'Kamis', tgl: '08/10/2026', jmlHr: 562 },
+        { unit: 'FEBI', kode: 'E', lk: 49, pr: 93, jml: 142, hariKe: '3', hari: 'Kamis', tgl: '08/10/2026', jmlHr: '' },
+        { unit: 'FST', kode: 'ST', lk: 63, pr: 81, jml: 144, hariKe: '3', hari: 'Kamis', tgl: '08/10/2026', jmlHr: '' },
+        { unit: 'FISIP', kode: 'IP', lk: 35, pr: 46, jml: 81, hariKe: '3', hari: 'Kamis', tgl: '08/10/2026', jmlHr: '' },
+        { unit: 'FPSI', kode: 'P', lk: 15, pr: 58, jml: 73, hariKe: '3', hari: 'Kamis', tgl: '08/10/2026', jmlHr: '' }
+      ];
+
+      let h = '<table class="seat-summary-table">';
+      h += '<thead><tr>' +
+        '<th>UNIT</th><th>KODE KURSI</th><th>LK</th><th>PR</th><th>JML</th><th>HARI KE-</th><th>HARI</th><th>TGL</th><th>JML / HR</th>' +
+        '</tr></thead><tbody>';
+
+      let sumLK = 0, sumPR = 0, sumTotal = 0;
+      recap.forEach(function (r) {
+        const isCurrent = String(r.hariKe) === String(selectedDay);
+        const rowStyle = isCurrent ? 'background:#eaf8ea; font-weight:700;' : '';
+        sumLK += r.lk;
+        sumPR += r.pr;
+        sumTotal += r.jml;
+
+        h += '<tr style="' + rowStyle + '">' +
+          '<td style="text-align:left;">' + escapeHtml(r.unit) + '</td>' +
+          '<td><span class="seat-cell seat-unit-' + r.kode.toLowerCase() + '" style="display:inline-block; padding:2px 8px; width:auto; height:auto;">' + escapeHtml(r.kode) + '</span></td>' +
+          '<td>' + r.lk + '</td>' +
+          '<td>' + r.pr + '</td>' +
+          '<td>' + r.jml + '</td>' +
+          '<td>' + r.hariKe + '</td>' +
+          '<td>' + r.hari + '</td>' +
+          '<td>' + r.tgl + '</td>' +
+          '<td>' + (r.jmlHr || '') + '</td>' +
+          '</tr>';
+      });
+
+      h += '<tr style="font-weight:800; background:#dbe7da;">' +
+        '<td colspan="2">TOTAL</td>' +
+        '<td>' + sumLK + '</td>' +
+        '<td>' + sumPR + '</td>' +
+        '<td>' + sumTotal + '</td>' +
+        '<td colspan="3"></td>' +
+        '<td>' + sumTotal + '</td>' +
+        '</tr>';
+
+      h += '</tbody></table>';
+      return h;
+    }
+
+    /* =========================================================
+       LAPORAN DAFTAR PANGGIL (SESUAI DOKUMEN RESMI PDF)
+       10 Kolom: No, Nomor Kursi, Nama, JK, Tempat Lahir, Tgl Lahir, IPK, Predikat, Fakultas, Program Studi
+       ========================================================= */
+
+    function openCallListReportModal() {
+      const rows = APP.currentCallsData || [];
+      if (!rows.length) {
+        showToast('Memuat data untuk pratinjau laporan...');
+        google.script.run
+          .withSuccessHandler(function (data) {
+            APP.currentCallsData = data || [];
+            openCallListReportModal();
+          })
+          .withFailureHandler(showError)
+          .getCallList(APP.callListFilters);
+        return;
+      }
+
+      // Group rows by unit / fakultas
+      const groups = {};
+      rows.forEach(function (r) {
+        const fakultas = r.Fakultas || 'Umum';
+        if (!groups[fakultas]) groups[fakultas] = [];
+        groups[fakultas].push(r);
+      });
+
+      let modalHtml = '<div class="student-modal-overlay" id="report-modal" onclick="if(event.target===this)closeReportModal()">' +
+        '<div class="student-modal-card" style="width:min(1100px, 96vw);">' +
+        '<div class="no-print" style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--line);">' +
+        '<h3 style="margin:0; font-size:17px;">Pratinjau Laporan Daftar Panggil (Format Resmi PDF)</h3>' +
+        '<div style="display:flex; gap:8px;">' +
+        '<button class="btn btn-green btn-sm" onclick="window.print()">Cetak / Simpan PDF</button>' +
+        '<button class="btn btn-outline btn-sm" onclick="closeReportModal()">✕ Tutup</button>' +
+        '</div></div>' +
+        '<div id="print-report-container" style="padding:20px; max-height:80vh; overflow-y:auto; font-size:12px;">';
+
+      Object.keys(groups).forEach(function (groupName) {
+        const groupRows = groups[groupName];
+        const sample = groupRows[0] || {};
+        const dayLabel = sample.Hari_Ke ? ('Hari ke ' + sample.Hari_Ke) : 'Jadwal Resmi';
+
+        modalHtml += '<div style="margin-bottom:30px; page-break-after:always;">' +
+          '<div style="text-align:center; font-weight:800; font-size:16px; margin-bottom:8px;">DAFTAR PANGGIL</div>' +
+          '<div style="display:flex; justify-content:space-between; margin-bottom:12px; font-weight:700; font-size:12px;">' +
+          '<div>Unit : ' + escapeHtml(groupName) + '</div>' +
+          '<div>Jadwal : ' + escapeHtml(dayLabel) + '</div>' +
+          '</div>' +
+          '<table style="width:100%; border-collapse:collapse; font-size:11px;">' +
+          '<thead><tr style="background:#f2f5f1; border-top:1px solid #333; border-bottom:1px solid #333;">' +
+          '<th style="padding:5px; border:1px solid #ccc; text-align:center; width:30px;">No.</th>' +
+          '<th style="padding:5px; border:1px solid #ccc; text-align:center; width:65px;">Nomor Kursi</th>' +
+          '<th style="padding:5px; border:1px solid #ccc; text-align:left;">Nama</th>' +
+          '<th style="padding:5px; border:1px solid #ccc; text-align:center; width:70px;">JK</th>' +
+          '<th style="padding:5px; border:1px solid #ccc; text-align:left;">Tempat Lahir</th>' +
+          '<th style="padding:5px; border:1px solid #ccc; text-align:left; width:95px;">Tgl. Lahir</th>' +
+          '<th style="padding:5px; border:1px solid #ccc; text-align:center; width:45px;">IPK</th>' +
+          '<th style="padding:5px; border:1px solid #ccc; text-align:center; width:75px;">Predikat</th>' +
+          '<th style="padding:5px; border:1px solid #ccc; text-align:left;">Fakultas</th>' +
+          '<th style="padding:5px; border:1px solid #ccc; text-align:left;">Program Studi</th>' +
+          '</tr></thead><tbody>';
+
+        groupRows.forEach(function (r, idx) {
+          modalHtml += '<tr style="border-bottom:1px solid #eee;">' +
+            '<td style="padding:5px; border:1px solid #ccc; text-align:center;">' + (idx + 1) + '</td>' +
+            '<td style="padding:5px; border:1px solid #ccc; text-align:center; font-weight:700;">' + escapeHtml(r.Nomor_Kursi || '—') + '</td>' +
+            '<td style="padding:5px; border:1px solid #ccc;">' + escapeHtml(r.Nama_Wisudawan || r.Nama_Lengkap || '—') + '</td>' +
+            '<td style="padding:5px; border:1px solid #ccc; text-align:center;">' + escapeHtml(r.Jenis_Kelamin || '—') + '</td>' +
+            '<td style="padding:5px; border:1px solid #ccc;">' + escapeHtml(r.Tempat_Lahir || '—') + '</td>' +
+            '<td style="padding:5px; border:1px solid #ccc;">' + escapeHtml(r.Tanggal_Lahir || '—') + '</td>' +
+            '<td style="padding:5px; border:1px solid #ccc; text-align:center;">' + escapeHtml(r.IPK || '—') + '</td>' +
+            '<td style="padding:5px; border:1px solid #ccc; text-align:center;">' + escapeHtml(r.Predikat || '—') + '</td>' +
+            '<td style="padding:5px; border:1px solid #ccc;">' + escapeHtml(r.Fakultas || '—') + '</td>' +
+            '<td style="padding:5px; border:1px solid #ccc;">' + escapeHtml(r.Program_Studi || '—') + '</td>' +
+            '</tr>';
+        });
+
+        modalHtml += '</tbody></table></div>';
+      });
+
+      modalHtml += '</div></div></div>';
+
+      const prev = document.getElementById('report-modal-wrapper');
+      if (prev) prev.remove();
+      const wrap = document.createElement('div');
+      wrap.id = 'report-modal-wrapper';
+      wrap.innerHTML = modalHtml;
+      document.body.appendChild(wrap);
+    }
+
+    function closeReportModal() {
+      const wrap = document.getElementById('report-modal-wrapper');
+      if (wrap) wrap.remove();
     }
 
     /* LULUSAN TERBAIK */

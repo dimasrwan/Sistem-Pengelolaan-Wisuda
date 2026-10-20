@@ -45,7 +45,7 @@
             '<div class="toolbar" style="margin-top:16px"><button class="btn" id="confirm-import-btn" onclick="confirmStudentImport()" disabled>Impor Data Valid</button><button class="btn btn-outline" onclick="resetStudentImport()">Reset</button></div>' +
           '</div>' +
         '</div>' +
-        '<div class="panel"><div class="panel-head"><h2>Data induk wisudawan</h2><span class="badge">Filter dan pagination</span></div>' +
+        '<div class="panel"><div class="panel-head"><h2>Data induk wisudawan</h2></div>' +
           '<div class="panel-body">' +
             '<div class="student-filter-grid">' +
               '<input id="student-search" class="field" placeholder="Cari nama, NIM, atau prodi" onkeydown="if(event.key===\'Enter\')searchStudentRows()">' +
@@ -53,17 +53,16 @@
               '<select id="filter-faculty" class="field"><option value="">Semua fakultas</option></select>' +
               '<select id="filter-program" class="field"><option value="">Semua program studi</option></select>' +
               '<select id="filter-level" class="field"><option value="">Semua jenjang</option></select>' +
-              '<select id="filter-gender" class="field"><option value="">Semua jenis kelamin</option><option value="Laki-laki">Laki-laki</option><option value="Perempuan">Perempuan</option></select>' +
-              '<select id="filter-predicate" class="field"><option value="">Semua predikat</option></select>' +
-              '<select id="filter-nim-status" class="field"><option value="">Semua status NIM</option><option value="asli">NIM asli</option><option value="dummy">NIM dummy</option></select>' +
             '</div><div class="toolbar" style="margin:12px 0 16px">' +
               '<button class="btn" onclick="searchStudentRows()">Terapkan Filter</button>' +
               '<button class="btn btn-outline" onclick="searchStudentRows(true)">Reset Filter</button>' +
               '<label style="display:flex;align-items:center;gap:8px">Baris <select id="student-page-size" class="field" style="width:auto" onchange="searchStudentRows()"><option>25</option><option>50</option><option>100</option></select></label>' +
             '</div><div id="student-table"><div class="table-empty">Memuat data...</div></div><div id="student-pagination" class="student-pagination"></div></div></div>';
 
-      loadStudentFilterOptions();
-      searchStudentRows(true);
+      loadStudentImportSetup(null, function () {
+        loadStudentFilterOptions();
+        searchStudentRows(true);
+      });
     }
 
     function toggleStudentImport(forceOpen) {
@@ -82,50 +81,65 @@
       }
     }
 
-    function loadStudentImportSetup(selectPeriodId) {
+    function loadStudentImportSetup(selectPeriodId, onComplete) {
       google.script.run
         .withSuccessHandler(function (setup) {
-          APP.importPeriods = setup.periods || [];
+          APP.importPeriods = (setup && setup.periods) || [];
 
           const select = document.getElementById('import-period');
-          if (!select) return;
+          if (select) {
+            const previous = select.value;
 
-          const previous = select.value;
+            select.innerHTML = '<option value="">Pilih gelombang tujuan...</option>' +
+              APP.importPeriods.map(function (period) {
+                const label = [
+                  period.name,
+                  period.wave ? 'Gel. ' + period.wave : '',
+                  period.year
+                ].filter(Boolean).join(' · ');
 
-          select.innerHTML = '<option value="">Pilih gelombang tujuan...</option>' +
-            APP.importPeriods.map(function (period) {
-              const label = [
-                period.name,
-                period.wave ? 'Gel. ' + period.wave : '',
-                period.year
-              ].filter(Boolean).join(' · ');
+                return '<option value="' + escapeAttr(period.id) + '">' +
+                  escapeHtml(label + ' [' + period.id + ']') + '</option>';
+              }).join('');
 
-              return '<option value="' + escapeAttr(period.id) + '">' +
-                escapeHtml(label + ' [' + period.id + ']') + '</option>';
-            }).join('');
-
-          if (selectPeriodId && APP.importPeriods.some(function (p) {
-            return p.id === selectPeriodId;
-          })) {
-            select.value = selectPeriodId;
-          } else if (previous && APP.importPeriods.some(function (p) {
-            return p.id === previous;
-          })) {
-            select.value = previous;
+            if (selectPeriodId && APP.importPeriods.some(function (p) {
+              return p.id === selectPeriodId;
+            })) {
+              select.value = selectPeriodId;
+            } else if (previous && APP.importPeriods.some(function (p) {
+              return p.id === previous;
+            })) {
+              select.value = previous;
+            }
           }
 
           const info = document.getElementById('import-period-info');
-
           if (info) {
             info.textContent = APP.importPeriods.length
-              ? Number(setup.totalStudents || 0).toLocaleString('id-ID') +
+              ? Number((setup && setup.totalStudents) || 0).toLocaleString('id-ID') +
                 ' baris saat ini di data induk. Pastikan periode tujuan benar.'
               : 'Belum ada periode terdaftar. Buat periode baru terlebih dahulu.';
           }
 
           if (selectPeriodId) runStudentImportPreview();
+          if (typeof onComplete === 'function') onComplete(setup, null);
         })
-        .withFailureHandler(showError)
+        .withFailureHandler(function (error) {
+          APP.importPeriods = [];
+
+          const select = document.getElementById('import-period');
+          if (select) {
+            select.innerHTML = '<option value="">Pilih gelombang tujuan...</option>';
+          }
+
+          const info = document.getElementById('import-period-info');
+          if (info) {
+            info.textContent = 'Gagal memuat daftar periode wisuda.';
+          }
+
+          showError(error);
+          if (typeof onComplete === 'function') onComplete(null, error);
+        })
         .getStudentImportSetup();
     }
 
@@ -451,37 +465,49 @@
 
     function loadStudentFilterOptions() {
       google.script.run.withSuccessHandler(function(rows) {
+        const periodEl = document.getElementById('filter-period');
+        if (periodEl) {
+          const currentVal = periodEl.value;
+          let periodOptions = '<option value="">Semua gelombang</option>';
+          if (APP.importPeriods && APP.importPeriods.length) {
+            periodOptions += APP.importPeriods.map(function(period) {
+              const label = [
+                period.name,
+                period.wave ? 'Gel. ' + period.wave : '',
+                period.year
+              ].filter(Boolean).join(' · ');
+              return '<option value="' + escapeAttr(period.id) + '">' + escapeHtml(label) + '</option>';
+            }).join('');
+          }
+          periodEl.innerHTML = periodOptions;
+          if (currentVal && APP.importPeriods && APP.importPeriods.some(function(p){ return p.id === currentVal; })) {
+            periodEl.value = currentVal;
+          }
+        }
+
         const definitions = [
-          ['filter-period', ['ID_Periode','ID Periode'], 'Semua gelombang'],
           ['filter-faculty', ['Fakultas'], 'Semua fakultas'],
           ['filter-program', ['Program_Studi','Program Studi'], 'Semua program studi'],
-          ['filter-level', ['Jenjang'], 'Semua jenjang'],
-          ['filter-predicate', ['Predikat'], 'Semua predikat']
+          ['filter-level', ['Jenjang'], 'Semua jenjang']
         ];
         definitions.forEach(function(def) {
           const el = document.getElementById(def[0]); if (!el) return;
+          const currentVal = el.value;
           const vals = Array.from(new Set(rows.map(function(r){ return String(value(r,def[1]) || '').trim(); }).filter(Boolean))).sort();
-          el.innerHTML = '<option value="">' + escapeHtml(def[2]) + '</option>' + vals.map(function(v){return '<option value="'+escapeAttr(v)+'">'+escapeHtml(v)+'</option>';}).join('');
-        });
-
-        // Tepat 3 opsi resmi: Semua jenis kelamin, Laki-laki, dan Perempuan
-        const genderEl = document.getElementById('filter-gender');
-        if (genderEl) {
-          const currentVal = genderEl.value;
-          genderEl.innerHTML = '<option value="">Semua jenis kelamin</option>' +
-            '<option value="Laki-laki">Laki-laki</option>' +
-            '<option value="Perempuan">Perempuan</option>';
-          if (currentVal === 'Laki-laki' || currentVal === 'Perempuan') {
-            genderEl.value = currentVal;
+          el.innerHTML = '<option value="">' + escapeHtml(def[2]) + '</option>' + vals.map(function(v){
+            return '<option value="'+escapeAttr(v)+'">'+escapeHtml(v)+'</option>';
+          }).join('');
+          if (currentVal && vals.includes(currentVal)) {
+            el.value = currentVal;
           }
-        }
+        });
       }).withFailureHandler(showError).searchStudents('');
     }
 
     function searchStudentRows(reset) {
       if (APP.session.role !== 'Admin') return showToast('Akses ditolak.');
       if (reset) {
-        ['student-search','filter-period','filter-faculty','filter-program','filter-level','filter-gender','filter-predicate','filter-nim-status'].forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
+        ['student-search','filter-period','filter-faculty','filter-program','filter-level'].forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
         studentCurrentPage = 1;
       }
       const query = (document.getElementById('student-search') || {}).value || '';
@@ -489,10 +515,7 @@
         period: (document.getElementById('filter-period') || {}).value || '',
         faculty: (document.getElementById('filter-faculty') || {}).value || '',
         program: (document.getElementById('filter-program') || {}).value || '',
-        level: (document.getElementById('filter-level') || {}).value || '',
-        gender: (document.getElementById('filter-gender') || {}).value || '',
-        predicate: (document.getElementById('filter-predicate') || {}).value || '',
-        nimStatus: (document.getElementById('filter-nim-status') || {}).value || ''
+        level: (document.getElementById('filter-level') || {}).value || ''
       };
       const size = parseInt((document.getElementById('student-page-size') || {}).value || '25',10);
       const target = document.getElementById('student-table');
@@ -503,9 +526,46 @@
         studentCurrentPage = Math.min(Math.max(1, studentCurrentPage), pages);
         const from = (studentCurrentPage - 1) * size;
         const visible = studentRowsCache.slice(from, from + size);
-        if (target) target.innerHTML = buildTable(visible, [
-          ['NIM','NIM'],['Nama_Lengkap','Nama'],['Fakultas','Fakultas'],['Program_Studi','Program Studi'],['Jenjang','Jenjang'],['Predikat','Predikat'],['Status_NIM','Status NIM']
-        ]);
+
+        if (!visible.length) {
+          if (target) target.innerHTML = '<div class="table-empty">Belum ada data untuk ditampilkan.</div>';
+        } else {
+          const heads = '<thead><tr>' +
+            '<th>No.</th>' +
+            '<th>NIM</th>' +
+            '<th>Nama Lengkap</th>' +
+            '<th>Fakultas</th>' +
+            '<th>Program Studi</th>' +
+            '<th>Jenjang</th>' +
+            '<th>Gelombang Wisuda</th>' +
+            '<th>Aksi</th>' +
+            '</tr></thead>';
+
+          const body = visible.map(function (row, idx) {
+            const no = from + idx + 1;
+            const nim = escapeHtml(value(row, ['NIM', 'Nomor Induk Mahasiswa']) || '—');
+            const nama = escapeHtml(value(row, ['Nama_Lengkap', 'Nama']) || '—');
+            const fakultas = escapeHtml(value(row, ['Fakultas']) || '—');
+            const prodi = escapeHtml(value(row, ['Program_Studi', 'Program Studi']) || '—');
+            const jenjang = escapeHtml(value(row, ['Jenjang']) || '—');
+            const gelombang = escapeHtml(formatStudentPeriodLabel(row));
+            const rowIdx = from + idx;
+
+            return '<tr>' +
+              '<td>' + no + '</td>' +
+              '<td>' + nim + '</td>' +
+              '<td><strong>' + nama + '</strong></td>' +
+              '<td>' + fakultas + '</td>' +
+              '<td>' + prodi + '</td>' +
+              '<td>' + jenjang + '</td>' +
+              '<td>' + gelombang + '</td>' +
+              '<td><button class="btn btn-outline btn-sm" onclick="showStudentDetailModal(' + rowIdx + ')">Detail</button></td>' +
+              '</tr>';
+          }).join('');
+
+          if (target) target.innerHTML = '<div class="table-wrap"><table>' + heads + '<tbody>' + body + '</tbody></table></div>';
+        }
+
         const pager = document.getElementById('student-pagination');
         if (pager) {
           let buttons = '';
@@ -519,6 +579,69 @@
     function goStudentPage(page) {
       studentCurrentPage = page;
       searchStudentRows();
+    }
+
+    function formatStudentPeriodLabel(row) {
+      if (!row) return '—';
+      const directName = String(value(row, ['Nama_Periode', 'Nama Periode', 'Gelombang', 'Gelombang_Wisuda']) || '').trim();
+      if (directName) return directName;
+      const periodId = String(value(row, ['ID_Periode', 'ID Periode']) || '').trim();
+      if (periodId && APP.importPeriods && APP.importPeriods.length) {
+        const found = APP.importPeriods.find(function (p) { return p.id === periodId; });
+        if (found) {
+          return [found.name, found.wave ? 'Gel. ' + found.wave : '', found.year].filter(Boolean).join(' · ');
+        }
+      }
+      return '—';
+    }
+
+    function showStudentDetailModal(index) {
+      const row = studentRowsCache[index];
+      if (!row) return;
+
+      const existing = document.getElementById('student-detail-modal');
+      if (existing) existing.remove();
+
+      const statusDataVal = value(row, ['Status_Data', 'Status Data']);
+      const statusDataHtml = statusDataVal ? detailBox('Status Data', statusDataVal) : '';
+
+      const modalHtml = '<div id="student-detail-modal" class="student-modal-overlay" onclick="if(event.target===this)closeStudentDetailModal()">' +
+        '<div class="student-modal-card">' +
+          '<div class="panel-head">' +
+            '<div><h2>Biodata Lengkap Wisudawan</h2><div class="import-status-line">Data induk hasil impor SIAKAD</div></div>' +
+            '<button class="btn btn-outline btn-sm" onclick="closeStudentDetailModal()">Tutup</button>' +
+          '</div>' +
+          '<div class="panel-body">' +
+            '<div class="student-card">' +
+              detailBox('Nama Lengkap', value(row, ['Nama_Lengkap', 'Nama'])) +
+              detailBox('NIM', value(row, ['NIM', 'Nomor Induk Mahasiswa'])) +
+              detailBox('Jenis Kelamin', value(row, ['Jenis_Kelamin', 'Jenis Kelamin'])) +
+              detailBox('Tempat Lahir', value(row, ['Tempat_Lahir', 'Tempat Lahir'])) +
+              detailBox('Tanggal Lahir', value(row, ['Tanggal_Lahir', 'Tanggal Lahir'])) +
+              detailBox('Fakultas', value(row, ['Fakultas'])) +
+              detailBox('Program Studi', value(row, ['Program_Studi', 'Program Studi'])) +
+              detailBox('Jenjang', value(row, ['Jenjang'])) +
+              detailBox('IPK', value(row, ['IPK', 'Indeks Prestasi Kumulatif', 'Indeks_Prestasi'])) +
+              detailBox('Predikat', value(row, ['Predikat', 'Predikat Kelulusan', 'Yudisium'])) +
+              detailBox('Gelombang Wisuda', formatStudentPeriodLabel(row)) +
+              statusDataHtml +
+              '<div class="detail-box" style="grid-column:1/-1"><span>Judul Skripsi / Tugas Akhir</span><strong>' +
+                escapeHtml(value(row, ['Judul_Skripsi', 'Judul Skripsi', 'Judul_TA', 'Judul TA', 'Judul', 'Tugas_Akhir']) || 'Belum tersedia') +
+              '</strong></div>' +
+            '</div>' +
+            '<div class="toolbar" style="margin-top:18px;justify-content:flex-end">' +
+              '<button class="btn btn-outline" onclick="closeStudentDetailModal()">Tutup</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+    }
+
+    function closeStudentDetailModal() {
+      const modal = document.getElementById('student-detail-modal');
+      if (modal) modal.remove();
     }
 
     /* DAFTAR PANGGIL */
