@@ -145,6 +145,7 @@ function getCallList(filters) {
 
 
 function getSeatMap(filters) {
+  Logger.log('[getSeatMap] Mulai - filters: ' + JSON.stringify(filters || {}));
   requireRole_(['Admin']);
   filters = filters || {};
 
@@ -157,117 +158,176 @@ function getSeatMap(filters) {
   if (filters.day !== undefined && filters.day !== null && String(filters.day).trim() !== '') {
     dayFilter = normalizeDay_(filters.day);
     if (!dayFilter) {
+      Logger.log('[getSeatMap] Hari tidak valid: ' + filters.day);
       return {
         day: '',
         period: periodFilter,
         total: 0,
         allocated: 0,
         needsVerification: 0,
+        hasCoordinates: false,
         seats: [],
         error: 'Hari tidak valid. Hari pelaksanaan wisuda hanya 1, 2, atau 3.'
       };
     }
   }
 
+  // Jika periode tidak ditemukan
+  if (!periodFilter) {
+    Logger.log('[getSeatMap] Periode aktif tidak ditemukan.');
+    return {
+      day: dayFilter,
+      period: '',
+      total: 0,
+      allocated: 0,
+      needsVerification: 0,
+      hasCoordinates: false,
+      seats: [],
+      error: 'Periode wisuda aktif tidak ditemukan.'
+    };
+  }
+
+  // Baca sheet DENAH_KURSI dan DATA_WISUDAWAN (tidak perlu membaca DAFTAR_PANGGIL untuk efisiensi)
   const rawSeatRows = getRows_(CONFIG.SHEETS.SEATS);
   const rawStudentRows = getRows_(CONFIG.SHEETS.STUDENTS);
-  const rawCallRows = getRows_(CONFIG.SHEETS.CALL_LIST);
+  Logger.log('[getSeatMap] Selesai baca sheet - seatRows: ' + rawSeatRows.length + ', studentRows: ' + rawStudentRows.length);
 
   // 1. Terapkan filter periode pada DATA_WISUDAWAN
-  // Jika periode belum dipilih / tidak valid, jangan bangun lookup dari gabungan periode
   const studentById = {};
-  if (periodFilter) {
-    rawStudentRows.filter(function (st) {
-      const p = normalize_(findValue_(st, ['ID_Periode', 'ID Periode', 'Periode']));
-      return Boolean(p && p === periodFilter);
-    }).forEach(function (st) {
-      const id = normalize_(findValue_(st, ['ID_Wisudawan', 'ID Wisudawan']));
-      if (id) studentById[id] = st;
-    });
-  }
+  rawStudentRows.filter(function (st) {
+    const p = normalize_(findValue_(st, ['ID_Periode', 'ID Periode', 'Periode']));
+    return Boolean(p && p === periodFilter);
+  }).forEach(function (st) {
+    const id = normalize_(findValue_(st, ['ID_Wisudawan', 'ID Wisudawan']));
+    if (id) studentById[id] = st;
+  });
 
-  // 2. Terapkan filter periode dan hari pada DAFTAR_PANGGIL
-  const callBySeat = {};
-  if (periodFilter) {
-    rawCallRows.filter(function (cl) {
-      const p = normalize_(findValue_(cl, ['ID_Periode', 'ID Periode', 'Periode']));
-      if (!p || p !== periodFilter) return false;
-
-      if (dayFilter) {
-        const canonicalDay = extractCanonicalDay_(cl);
-        if (!canonicalDay || canonicalDay !== dayFilter) return false;
-      }
-      return true;
-    }).forEach(function (cl) {
-      const seat = normalize_(findValue_(cl, ['Nomor_Kursi', 'Kode_Kursi', 'Kursi']));
-      if (seat) callBySeat[seat] = cl;
-    });
-  }
-
-  // 3. Terapkan filter periode dan hari pada DENAH_KURSI
+  // 2. Terapkan filter periode dan hari pada DENAH_KURSI
   const sheetSeatByCode = {};
-  if (periodFilter) {
-    rawSeatRows.filter(function (sr) {
-      const p = normalize_(findValue_(sr, ['ID_Periode', 'ID Periode', 'Periode']));
-      if (!p || p !== periodFilter) return false;
+  rawSeatRows.filter(function (sr) {
+    const p = normalize_(findValue_(sr, ['ID_Periode', 'ID Periode', 'Periode']));
+    if (!p || p !== periodFilter) return false;
 
-      if (dayFilter) {
-        const canonicalDay = extractCanonicalDay_(sr);
-        if (!canonicalDay || canonicalDay !== dayFilter) return false;
+    if (dayFilter) {
+      const canonicalDay = extractCanonicalDay_(sr);
+      if (!canonicalDay || canonicalDay !== dayFilter) return false;
+    }
+    return true;
+  }).forEach(function (sr) {
+    const code = String(findValue_(sr, ['Nomor_Kursi', 'Kode_Kursi', 'Kursi']) || '').trim();
+    if (code) sheetSeatByCode[code] = sr;
+  });
+  Logger.log('[getSeatMap] Selesai filter - period: ' + periodFilter + ', day: ' + dayFilter + ', seatCount: ' + Object.keys(sheetSeatByCode).length);
+
+  // Jika tidak ada data alokasi kursi di sheet untuk periode dan hari yang dipilih, isolasi total: kembalikan kosong
+  if (Object.keys(sheetSeatByCode).length === 0) {
+    Logger.log('[getSeatMap] Tidak ada alokasi kursi untuk periode ' + periodFilter + ' dan hari ' + dayFilter);
+    return {
+      day: dayFilter,
+      period: periodFilter,
+      total: 0,
+      allocated: 0,
+      needsVerification: 0,
+      hasCoordinates: false,
+      seats: []
+    };
+  }
+
+  // 3. Siapkan koordinat fisik denah resmi (UIN Ar-Raniry)
+  let officialLayouts = {};
+  if (typeof getOfficialDayLayouts_ === 'function') {
+    try {
+      officialLayouts = getOfficialDayLayouts_() || {};
+    } catch (errLayout) {
+      Logger.log('[getSeatMap] Peringatan memanggil getOfficialDayLayouts_: ' + errLayout.message);
+    }
+  } else if (typeof OFFICIAL_DAY_LAYOUTS_ !== 'undefined') {
+    officialLayouts = OFFICIAL_DAY_LAYOUTS_ || {};
+  }
+  const dayLayout = (officialLayouts && officialLayouts[dayFilter]) || [];
+
+  // 4. Susun data kursi dan tentukan status alokasi yang tepat
+  const layoutSeatCodes = {};
+  const result = [];
+
+  // Kasus A: Tata letak fisik resmi tersedia untuk hari ini
+  if (dayLayout.length > 0) {
+    dayLayout.forEach(function (item) {
+      const code = item[0];
+      const baris = item[1];
+      const isKanan = item[2];
+      const kolom = item[3];
+      const blok = isKanan === 1 ? 'Kanan' : 'Kiri';
+      layoutSeatCodes[code] = true;
+
+      const sheetRow = sheetSeatByCode[code] || null;
+      let idWisudawan = sheetRow ? String(findValue_(sheetRow, ['ID_Wisudawan', 'ID Wisudawan']) || '').trim() : '';
+      const st = idWisudawan ? (studentById[normalize_(idWisudawan)] || null) : null;
+
+      let nama = '';
+      if (st) nama = findValue_(st, ['Nama_Lengkap', 'Nama Wisudawan', 'Nama']);
+      if (!nama && sheetRow) nama = findValue_(sheetRow, ['Nama_Lengkap', 'Nama_Wisudawan', 'Nama']);
+
+      const nim = st ? String(findValue_(st, ['NIM', 'Nomor Induk Mahasiswa']) || '').trim() : '';
+      const fakultas = st ? findValue_(st, ['Fakultas']) :
+        (sheetRow ? findValue_(sheetRow, ['Fakultas']) : inferFacultyFromSeatCode_(code));
+      const prodi = st ? findValue_(st, ['Program_Studi', 'Program Studi']) : '';
+      const jk = st ? findValue_(st, ['Jenis_Kelamin', 'Jenis Kelamin']) :
+        (sheetRow ? findValue_(sheetRow, ['Jenis_Kelamin', 'Jenis Kelamin']) : '');
+
+      let statusKursi = 'Kosong';
+      const sheetStatus = sheetRow ? normalize_(findValue_(sheetRow, ['Status_Kursi', 'Status'])) : '';
+      const isMarkedOccupied = ['terisi', 'terdaftar', 'dialokasikan', 'allocated', 'occupied'].indexOf(sheetStatus) !== -1;
+      const hasAllocationReference = Boolean(idWisudawan || nama || isMarkedOccupied);
+
+      if (!hasAllocationReference) {
+        statusKursi = 'Kosong';
+      } else if (idWisudawan && st) {
+        statusKursi = 'Terdaftar';
+      } else {
+        statusKursi = 'Perlu Verifikasi';
       }
-      return true;
-    }).forEach(function (sr) {
-      const code = String(findValue_(sr, ['Nomor_Kursi', 'Kode_Kursi', 'Kursi']) || '').trim();
-      if (code) sheetSeatByCode[code] = sr;
+
+      result.push({
+        ID_Kursi: sheetRow ? findValue_(sheetRow, ['ID_Kursi', 'ID Kursi']) : ('KRS-' + code),
+        ID_Wisudawan: idWisudawan,
+        Nama_Lengkap: nama,
+        Nama_Wisudawan: nama,
+        NIM: nim,
+        Fakultas: fakultas,
+        Program_Studi: prodi,
+        Jenis_Kelamin: jk,
+        Blok: blok,
+        Baris: baris,
+        Kolom: kolom,
+        Nomor_Kursi: code,
+        Status_Kursi: statusKursi,
+        Hari_Ke: dayFilter
+      });
     });
   }
 
-  // 4. Siapkan koordinat fisik denah resmi (UIN Ar-Raniry)
-  const officialLayouts = getOfficialDayLayouts_();
-  const dayLayout = officialLayouts[dayFilter] || [];
-
-  // 5. Susun data kursi dan tentukan status alokasi yang tepat
-  const result = dayLayout.map(function (item) {
-    const code = item[0];
-    const baris = item[1];
-    const isKanan = item[2];
-    const kolom = item[3];
-    const blok = isKanan === 1 ? 'Kanan' : 'Kiri';
-
-    const sheetRow = sheetSeatByCode[code] || null;
-    const callRow = callBySeat[normalize_(code)] || null;
-
-    let idWisudawan = '';
-    if (sheetRow) idWisudawan = String(findValue_(sheetRow, ['ID_Wisudawan', 'ID Wisudawan']) || '').trim();
-    if (!idWisudawan && callRow) idWisudawan = String(findValue_(callRow, ['ID_Wisudawan', 'ID Wisudawan']) || '').trim();
-
-    // Relasi mahasiswa HANYA melalui ID_Wisudawan
+  // Kasus B: Sertakan kursi di sheet yang belum tercakup dalam dayLayout (atau seluruhnya jika dayLayout kosong)
+  Object.keys(sheetSeatByCode).forEach(function (code) {
+    if (layoutSeatCodes[code]) return;
+    const sheetRow = sheetSeatByCode[code];
+    let idWisudawan = String(findValue_(sheetRow, ['ID_Wisudawan', 'ID Wisudawan']) || '').trim();
     const st = idWisudawan ? (studentById[normalize_(idWisudawan)] || null) : null;
 
-    let nama = '';
-    if (st) nama = findValue_(st, ['Nama_Lengkap', 'Nama Wisudawan', 'Nama']);
-    if (!nama && sheetRow) nama = findValue_(sheetRow, ['Nama_Lengkap', 'Nama_Wisudawan', 'Nama']);
-    if (!nama && callRow) nama = findValue_(callRow, ['Nama_Wisudawan', 'Nama_Lengkap', 'Nama']);
-
-    // NIM diambil HANYA dari DATA_WISUDAWAN via relasi ID_Wisudawan yang valid
+    let nama = st ? findValue_(st, ['Nama_Lengkap', 'Nama Wisudawan', 'Nama']) : findValue_(sheetRow, ['Nama_Lengkap', 'Nama_Wisudawan', 'Nama']);
     const nim = st ? String(findValue_(st, ['NIM', 'Nomor Induk Mahasiswa']) || '').trim() : '';
+    const fakultas = st ? findValue_(st, ['Fakultas']) : (findValue_(sheetRow, ['Fakultas']) || inferFacultyFromSeatCode_(code));
+    const prodi = st ? findValue_(st, ['Program_Studi', 'Program Studi']) : '';
+    const jk = st ? findValue_(st, ['Jenis_Kelamin', 'Jenis Kelamin']) : findValue_(sheetRow, ['Jenis_Kelamin', 'Jenis Kelamin']);
 
-    const fakultas = st ? findValue_(st, ['Fakultas']) :
-      (sheetRow ? findValue_(sheetRow, ['Fakultas']) :
-      (callRow ? findValue_(callRow, ['Fakultas']) : inferFacultyFromSeatCode_(code)));
-    const prodi = st ? findValue_(st, ['Program_Studi', 'Program Studi']) :
-      (callRow ? findValue_(callRow, ['Program_Studi', 'Program Studi']) : '');
-    const jk = st ? findValue_(st, ['Jenis_Kelamin', 'Jenis Kelamin']) :
-      (callRow ? findValue_(callRow, ['Jenis_Kelamin', 'JK']) : '');
+    const blok = findValue_(sheetRow, ['Blok']);
+    const baris = findValue_(sheetRow, ['Baris']);
+    const kolom = findValue_(sheetRow, ['Kolom']);
 
-    // 6. Penentuan Status Kursi Sesuai Kaidah Audit:
-    // - Terdaftar: alokasi memiliki ID_Wisudawan yang valid dan relasinya ditemukan di DATA_WISUDAWAN
-    // - Kosong: tidak ada peserta yang dialokasikan
-    // - Perlu Verifikasi: ada referensi alokasi atau ID peserta tetapi relasinya tidak ditemukan / tidak konsisten
     let statusKursi = 'Kosong';
-    const sheetStatus = sheetRow ? normalize_(findValue_(sheetRow, ['Status_Kursi', 'Status'])) : '';
+    const sheetStatus = normalize_(findValue_(sheetRow, ['Status_Kursi', 'Status']));
     const isMarkedOccupied = ['terisi', 'terdaftar', 'dialokasikan', 'allocated', 'occupied'].indexOf(sheetStatus) !== -1;
-    const hasAllocationReference = Boolean(idWisudawan || nama || callRow || isMarkedOccupied);
+    const hasAllocationReference = Boolean(idWisudawan || nama || isMarkedOccupied);
 
     if (!hasAllocationReference) {
       statusKursi = 'Kosong';
@@ -277,8 +337,8 @@ function getSeatMap(filters) {
       statusKursi = 'Perlu Verifikasi';
     }
 
-    return {
-      ID_Kursi: sheetRow ? findValue_(sheetRow, ['ID_Kursi', 'ID Kursi']) : ('KRS-' + code),
+    result.push({
+      ID_Kursi: findValue_(sheetRow, ['ID_Kursi', 'ID Kursi']) || ('KRS-' + code),
       ID_Wisudawan: idWisudawan,
       Nama_Lengkap: nama,
       Nama_Wisudawan: nama,
@@ -292,18 +352,25 @@ function getSeatMap(filters) {
       Nomor_Kursi: code,
       Status_Kursi: statusKursi,
       Hari_Ke: dayFilter
-    };
+    });
   });
 
-  return {
+  Logger.log('[getSeatMap] Selesai pemetaan koordinat - totalSeats: ' + result.length + ', dayLayoutCount: ' + dayLayout.length);
+
+  const response = {
     day: dayFilter,
     period: periodFilter,
     total: result.length,
     allocated: result.filter(function (s) { return s.Status_Kursi === 'Terdaftar'; }).length,
     needsVerification: result.filter(function (s) { return s.Status_Kursi === 'Perlu Verifikasi'; }).length,
+    hasCoordinates: result.some(function (s) { return Boolean(s.Baris && s.Blok && s.Kolom); }),
     seats: result
   };
+
+  Logger.log('[getSeatMap] Return response - total: ' + response.total + ', allocated: ' + response.allocated + ', needsVerification: ' + response.needsVerification + ', hasCoordinates: ' + response.hasCoordinates);
+  return response;
 }
+
 
 function inferDayFromSeatCode_(seatCode) {
   if (!seatCode) return '';

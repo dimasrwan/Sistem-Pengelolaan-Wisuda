@@ -1,6 +1,12 @@
+var _cachedSpreadsheet_ = null;
+
 function getSpreadsheet_() {
-  return SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  if (!_cachedSpreadsheet_) {
+    _cachedSpreadsheet_ = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  }
+  return _cachedSpreadsheet_;
 }
+
 
 
 function getSheet_(sheetName) {

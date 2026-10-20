@@ -156,10 +156,35 @@
 
       google.script.run
         .withSuccessHandler(function (response) {
-          APP.currentSeatMapResponse = response;
-          drawSeatMapView();
+          try {
+            APP.currentSeatMapResponse = response;
+            drawSeatMapView();
+          } catch (renderErr) {
+            console.error('Error saat membangun tampilan denah kursi:', renderErr);
+            const target = document.getElementById('seat-main-view');
+            if (target) {
+              target.innerHTML =
+                '<div class="notice notice-danger" style="margin-top:15px; padding:18px;">' +
+                '<h3 style="margin:0 0 8px 0; color:var(--red);">Gagal Merender Denah Kursi</h3>' +
+                '<p style="margin:0 0 12px 0;">Terjadi kesalahan saat memproses data denah: ' + escapeHtml(renderErr.message || String(renderErr)) + '</p>' +
+                '<button class="btn btn-sm btn-outline" onclick="renderSeats()">Coba Lagi</button>' +
+                '</div>';
+            }
+          }
         })
-        .withFailureHandler(showError)
+        .withFailureHandler(function (error) {
+          showError(error);
+          const target = document.getElementById('seat-main-view');
+          if (target) {
+            const msg = getErrorMessage(error);
+            target.innerHTML =
+              '<div class="notice notice-danger" style="margin-top:15px; padding:18px;">' +
+              '<h3 style="margin:0 0 8px 0; color:var(--red);">Gagal Memuat Denah Kursi</h3>' +
+              '<p style="margin:0 0 12px 0;">' + escapeHtml(msg) + '</p>' +
+              '<button class="btn btn-sm btn-outline" onclick="renderSeats()">Coba Lagi</button>' +
+              '</div>';
+          }
+        })
         .getSeatMap(APP.seatMapFilters);
     }
 
@@ -178,31 +203,73 @@
       if (!target) return;
 
       const resp = APP.currentSeatMapResponse;
-      if (!resp || !resp.seats) {
-        target.innerHTML = '<div class="notice notice-warn">Data denah belum tersedia.</div>';
+      if (!resp) {
+        target.innerHTML = '<div class="notice notice-warn">Data denah belum tersedia. Silakan klik Muat Ulang.</div>';
+        return;
+      }
+
+      if (resp.error) {
+        target.innerHTML = '<div class="notice notice-danger" style="padding:15px;"><strong>Kesalahan:</strong> ' + escapeHtml(resp.error) + '</div>';
+        return;
+      }
+
+      if (!resp.seats || resp.seats.length === 0) {
+        target.innerHTML = '<div class="notice notice-warn">Tidak ada data penempatan kursi untuk filter yang dipilih.</div>';
         return;
       }
 
       if (APP.seatViewMode === 'table') {
+        const tableData = resp.seats.map(function (s) {
+          const hasCoord = Boolean(s.Baris && s.Blok && s.Kolom);
+          return {
+            Nomor_Kursi: s.Nomor_Kursi || '—',
+            Blok: s.Blok || '—',
+            Baris: s.Baris || '—',
+            Kolom: s.Kolom || '—',
+            Status_Koordinat: hasCoord ? 'Tersedia' : 'Belum Ada',
+            Nama_Wisudawan: s.Nama_Wisudawan || '—',
+            NIM: s.NIM || '—',
+            Fakultas: s.Fakultas || '—',
+            Program_Studi: s.Program_Studi || '—',
+            Jenis_Kelamin: s.Jenis_Kelamin || '—',
+            Status_Kursi: s.Status_Kursi || '—'
+          };
+        });
+
         target.innerHTML =
           '<div class="panel"><div class="panel-head"><h2>Data Penempatan Kursi (Administrasi)</h2>' +
           '<span style="font-size:12px; font-weight:700; color:var(--muted);">Total ' + resp.seats.length + ' Kursi Terdaftar</span></div>' +
-          '<div class="panel-body">' + buildTable(resp.seats, [
+          '<div class="panel-body">' + buildTable(tableData, [
             ['Nomor_Kursi', 'Nomor Kursi'],
             ['Blok', 'Blok'],
             ['Baris', 'Baris'],
             ['Kolom', 'Kolom'],
+            ['Status_Koordinat', 'Status Koordinat'],
             ['Nama_Wisudawan', 'Nama Wisudawan'],
             ['NIM', 'NIM'],
             ['Fakultas', 'Fakultas'],
             ['Program_Studi', 'Program Studi'],
             ['Jenis_Kelamin', 'Jenis Kelamin'],
-            ['Status_Kursi', 'Status']
+            ['Status_Kursi', 'Status Alokasi']
           ]) + '</div></div>';
         return;
       }
 
       // Mode Visual Denah 2D
+      const hasValidCoords = resp.seats.some(function (s) {
+        return Boolean(s.Baris && s.Blok && s.Kolom);
+      });
+
+      if (!hasValidCoords) {
+        target.innerHTML =
+          '<div class="notice notice-warn" style="margin-bottom:16px; padding:18px;">' +
+          '<h3 style="margin:0 0 8px 0; color:#856404;">Data Koordinat Visual Belum Tersedia</h3>' +
+          '<p style="margin:0 0 12px 0;">Data alokasi kursi untuk periode dan hari ini berhasil dimuat (<strong>' + resp.seats.length + ' kursi</strong>), namun koordinat fisik (Blok, Baris, Kolom) belum terpetakan ke denah visual gedung. Silakan beralih ke <strong>Tabel Administrasi</strong> untuk melihat daftar alokasi kursi peserta secara lengkap.</p>' +
+          '<button class="btn btn-green btn-sm" onclick="switchSeatViewMode(\'table\')">Buka Tabel Administrasi</button>' +
+          '</div>';
+        return;
+      }
+
       const dayNum = String(resp.day || '1');
       const dayLabels = {
         '1': 'DENAH WISUDA GELOMBANG III TAHUN 2026 HARI PERTAMA',
@@ -217,6 +284,7 @@
       resp.seats.forEach(function (s) {
         seatLookup[s.Baris + '-' + s.Blok + '-' + s.Kolom] = s;
       });
+
 
       let html = '<div class="seat-plan-wrapper">';
       html += '<div class="seat-plan-header-title">' + escapeHtml(title) + '</div>';
