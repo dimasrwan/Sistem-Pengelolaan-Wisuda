@@ -49,6 +49,8 @@
         '<span id="calls-count" style="font-size:12px; font-weight:700; color:var(--muted);"></span></div>' +
         '<div class="panel-body"><div id="calls-table">Memuat data...</div></div></div>';
 
+      syncCustomSelect('call-filter-day');
+
       google.script.run
         .withSuccessHandler(function (rows) {
           const target = document.getElementById('calls-table');
@@ -153,6 +155,8 @@
         '</div>' +
         '</div></div>' +
         '<div id="seat-main-view">Memuat data denah kursi...</div>';
+
+      syncCustomSelect('seat-filter-day');
 
       google.script.run
         .withSuccessHandler(function (response) {

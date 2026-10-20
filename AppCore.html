@@ -135,6 +135,7 @@
 
       if (renderers[page]) {
         renderers[page]();
+        initCustomSelects(target);
       } else {
         target.innerHTML = '<div class="panel panel-body">Halaman tidak ditemukan.</div>';
       }
@@ -243,7 +244,293 @@
       return '';
     }
 
-    /* =========================
-       DATA WISUDAWAN DAN IMPORT
-       ========================= */
+    /* =========================================================
+       GLOBAL CUSTOM DROPDOWN COMPONENT (UIN AR-RANIRY THEME)
+       ========================================================= */
+    if (typeof escapeHtml !== 'function') {
+      function escapeHtml(value) {
+        return String(value == null ? '' : value)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+    }
+
+    function closeAllCustomSelects() {
+      document.querySelectorAll('.custom-select-menu.open').forEach(function(m) {
+        m.classList.remove('open');
+      });
+      document.querySelectorAll('.custom-select-trigger.open').forEach(function(t) {
+        t.classList.remove('open', 'active');
+        t.setAttribute('aria-expanded', 'false');
+      });
+    }
+
+    function navigateCustomSelectMenu(menu, direction) {
+      const options = Array.from(menu.querySelectorAll('.custom-select-option:not(.disabled)'));
+      if (!options.length) return;
+      let focusedIdx = options.findIndex(function(opt) {
+        return opt.classList.contains('focused');
+      });
+      if (focusedIdx === -1) {
+        focusedIdx = options.findIndex(function(opt) {
+          return opt.classList.contains('selected');
+        });
+      }
+      if (focusedIdx === -1) {
+        focusedIdx = direction > 0 ? 0 : options.length - 1;
+      } else {
+        focusedIdx = (focusedIdx + direction + options.length) % options.length;
+      }
+      options.forEach(function(opt) { opt.classList.remove('focused'); });
+      const target = options[focusedIdx];
+      target.classList.add('focused');
+      target.scrollIntoView({ block: 'nearest' });
+    }
+
+    function syncCustomSelect(selectOrId) {
+      const select = (typeof selectOrId === 'string') ? document.getElementById(selectOrId) : selectOrId;
+      if (!select || select.tagName !== 'SELECT') return;
+      if (select.multiple || select.size > 1 || select.classList.contains('no-custom-select')) return;
+
+      if (!select.id) {
+        select.id = 'select-' + Math.random().toString(36).slice(2, 9);
+      }
+      const selectId = select.id;
+
+      let wrapper = select.closest('.custom-select-wrapper');
+      if (!wrapper) {
+        wrapper = document.createElement('div');
+        wrapper.className = 'custom-select-wrapper';
+
+        if (select.id === 'student-page-size' || select.classList.contains('field-sm') || select.style.width === 'auto') {
+          wrapper.classList.add('custom-select-compact');
+        }
+
+        if (select.style.minWidth) {
+          wrapper.style.minWidth = select.style.minWidth;
+        }
+        if (select.style.width && select.style.width !== 'auto' && select.style.width !== '100%') {
+          wrapper.style.width = select.style.width;
+        }
+
+        if (select.parentNode) {
+          select.parentNode.insertBefore(wrapper, select);
+        }
+        wrapper.appendChild(select);
+      }
+
+      select.classList.add('custom-select-native');
+      select.setAttribute('tabindex', '-1');
+      select.setAttribute('aria-hidden', 'true');
+
+      let trigger = wrapper.querySelector('.custom-select-trigger');
+      let menu = wrapper.querySelector('.custom-select-menu');
+
+      if (!trigger) {
+        trigger = document.createElement('button');
+        trigger.type = 'button';
+        trigger.id = 'trigger-' + selectId;
+        trigger.className = 'custom-select-trigger';
+        trigger.setAttribute('aria-haspopup', 'listbox');
+        trigger.setAttribute('aria-expanded', 'false');
+        trigger.setAttribute('aria-controls', 'menu-' + selectId);
+
+        let accessibleLabel = '';
+        const explicitLabel = document.querySelector('label[for="' + selectId + '"]');
+        if (explicitLabel) {
+          accessibleLabel = explicitLabel.textContent.trim();
+        } else {
+          const parentLabel = select.closest('label');
+          if (parentLabel) {
+            accessibleLabel = parentLabel.textContent.replace(select.textContent, '').trim();
+          } else if (wrapper.parentElement) {
+            const prevLabel = wrapper.parentElement.querySelector('label');
+            if (prevLabel) accessibleLabel = prevLabel.textContent.trim();
+          }
+        }
+        if (accessibleLabel) {
+          trigger.setAttribute('aria-label', accessibleLabel);
+        }
+
+        if (select.style.fontWeight) {
+          trigger.style.fontWeight = select.style.fontWeight;
+        }
+
+        trigger.innerHTML = '<span class="custom-select-label"></span>' +
+          '<svg class="custom-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+          '<polyline points="6 9 12 15 18 9"></polyline></svg>';
+        wrapper.appendChild(trigger);
+
+        menu = document.createElement('div');
+        menu.id = 'menu-' + selectId;
+        menu.className = 'custom-select-menu';
+        menu.setAttribute('role', 'listbox');
+        menu.setAttribute('aria-labelledby', trigger.id);
+        wrapper.appendChild(menu);
+
+        trigger.addEventListener('click', function(e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          if (trigger.disabled) return;
+          const isOpen = menu.classList.contains('open');
+          closeAllCustomSelects();
+          if (!isOpen) {
+            menu.classList.add('open');
+            trigger.classList.add('open', 'active');
+            trigger.setAttribute('aria-expanded', 'true');
+            menu.querySelectorAll('.custom-select-option.focused').forEach(function(el) {
+              el.classList.remove('focused');
+            });
+            const activeItem = menu.querySelector('.custom-select-option.selected') || menu.querySelector('.custom-select-option');
+            if (activeItem) {
+              activeItem.classList.add('focused');
+              activeItem.scrollIntoView({ block: 'nearest' });
+            }
+          }
+        });
+
+        trigger.addEventListener('keydown', function(e) {
+          if (trigger.disabled) return;
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (!menu.classList.contains('open')) {
+              trigger.click();
+            } else {
+              navigateCustomSelectMenu(menu, e.key === 'ArrowUp' ? -1 : 1);
+            }
+          } else if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            if (!menu.classList.contains('open')) {
+              trigger.click();
+            } else {
+              const focused = menu.querySelector('.custom-select-option.focused');
+              if (focused) focused.click();
+            }
+          } else if (e.key === 'Escape') {
+            if (menu.classList.contains('open')) {
+              e.preventDefault();
+              closeAllCustomSelects();
+            }
+          } else if (e.key === 'Tab') {
+            closeAllCustomSelects();
+          } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            const char = e.key.toLowerCase();
+            const options = Array.from(menu.querySelectorAll('.custom-select-option:not(.disabled)'));
+            const match = options.find(function(opt) {
+              return opt.textContent.trim().toLowerCase().startsWith(char);
+            });
+            if (match) {
+              if (!menu.classList.contains('open')) {
+                menu.classList.add('open');
+                trigger.classList.add('open', 'active');
+                trigger.setAttribute('aria-expanded', 'true');
+              }
+              options.forEach(function(o) { o.classList.remove('focused'); });
+              match.classList.add('focused');
+              match.scrollIntoView({ block: 'nearest' });
+            }
+          }
+        });
+      }
+
+      menu.innerHTML = '';
+      const currentVal = select.value;
+      let selectedLabel = '';
+      let isPlaceholder = false;
+
+      function renderOption(opt, isUnderGroup) {
+        const item = document.createElement('div');
+        item.className = 'custom-select-option' + (isUnderGroup ? ' is-grouped' : '');
+        item.setAttribute('role', 'option');
+        item.dataset.value = opt.value;
+        if (opt.disabled) {
+          item.classList.add('disabled');
+          item.setAttribute('aria-disabled', 'true');
+        }
+        const isSelected = (opt.value === currentVal || (!currentVal && opt.selected));
+        if (isSelected && !selectedLabel) {
+          item.classList.add('selected');
+          item.setAttribute('aria-selected', 'true');
+          selectedLabel = opt.textContent;
+          if (!opt.value) isPlaceholder = true;
+        } else {
+          item.setAttribute('aria-selected', 'false');
+        }
+        if (!opt.value) {
+          item.classList.add('is-placeholder');
+        }
+
+        item.innerHTML = '<span class="custom-select-option-text">' + escapeHtml(opt.textContent) + '</span>' +
+          '<svg class="custom-select-option-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+          '<polyline points="20 6 9 17 4 12"></polyline></svg>';
+
+        item.addEventListener('click', function(e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          if (opt.disabled) return;
+          select.value = opt.value;
+          closeAllCustomSelects();
+          syncCustomSelect(select);
+          const evt = new Event('change', { bubbles: true });
+          select.dispatchEvent(evt);
+          if (trigger && trigger.focus) trigger.focus();
+        });
+
+        item.addEventListener('mouseenter', function() {
+          if (opt.disabled) return;
+          menu.querySelectorAll('.custom-select-option.focused').forEach(function(el) {
+            el.classList.remove('focused');
+          });
+          item.classList.add('focused');
+        });
+
+        menu.appendChild(item);
+      }
+
+      Array.from(select.children).forEach(function(child) {
+        if (child.tagName === 'OPTGROUP') {
+          const header = document.createElement('div');
+          header.className = 'custom-select-group-header';
+          header.textContent = child.label || '';
+          menu.appendChild(header);
+
+          Array.from(child.children).forEach(function(opt) {
+            renderOption(opt, true);
+          });
+        } else if (child.tagName === 'OPTION') {
+          renderOption(child, false);
+        }
+      });
+
+      if (!selectedLabel && select.options && select.options.length > 0) {
+        selectedLabel = select.options[0].textContent;
+        isPlaceholder = !select.options[0].value;
+      }
+
+      const labelEl = trigger.querySelector('.custom-select-label');
+      if (labelEl) {
+        labelEl.textContent = selectedLabel || '';
+      }
+      trigger.classList.toggle('is-placeholder', Boolean(isPlaceholder));
+      trigger.disabled = Boolean(select.disabled);
+      trigger.classList.toggle('disabled', Boolean(select.disabled));
+    }
+
+    function initCustomSelects(container) {
+      const root = container || document;
+      const selects = root.querySelectorAll('select:not(.custom-select-native):not(.no-custom-select)');
+      selects.forEach(function(sel) {
+        syncCustomSelect(sel);
+      });
+    }
+
+    if (!window._customSelectListenerAdded) {
+      document.addEventListener('click', function(e) {
+        if (!e.target.closest('.custom-select-wrapper')) {
+          closeAllCustomSelects();
+        }
+      });
+      window._customSelectListenerAdded = true;
+    }
 </script>
