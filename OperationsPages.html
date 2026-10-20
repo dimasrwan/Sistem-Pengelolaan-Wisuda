@@ -219,7 +219,31 @@
       }
 
       if (APP.seatViewMode === 'table') {
-        const tableData = resp.seats.map(function (s) {
+        const UNIT_ORDER = ['S3', 'S2', 'S', 'U', 'D', 'T', 'A', 'E', 'ST', 'IP', 'P'];
+
+        const sortedSeats = resp.seats.slice().sort(function (a, b) {
+          const codeA = String(a.Nomor_Kursi || '').trim();
+          const codeB = String(b.Nomor_Kursi || '').trim();
+          const partsA = codeA.split('-');
+          const partsB = codeB.split('-');
+          const numA = parseInt(partsA[0], 10) || 0;
+          const numB = parseInt(partsB[0], 10) || 0;
+          const unitA = (partsA[1] || '').toUpperCase();
+          const unitB = (partsB[1] || '').toUpperCase();
+
+          if (unitA !== unitB) {
+            const idxA = UNIT_ORDER.indexOf(unitA);
+            const idxB = UNIT_ORDER.indexOf(unitB);
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if (idxA !== -1) return -1;
+            if (idxB !== -1) return 1;
+            return unitA.localeCompare(unitB);
+          }
+
+          return numA - numB;
+        });
+
+        const tableData = sortedSeats.map(function (s) {
           const hasCoord = Boolean(s.Baris && s.Blok && s.Kolom);
           return {
             Nomor_Kursi: s.Nomor_Kursi || '—',
@@ -238,7 +262,7 @@
 
         target.innerHTML =
           '<div class="panel"><div class="panel-head"><h2>Data Penempatan Kursi (Administrasi)</h2>' +
-          '<span style="font-size:12px; font-weight:700; color:var(--muted);">Total ' + resp.seats.length + ' Kursi Terdaftar</span></div>' +
+          '<span style="font-size:12px; font-weight:700; color:var(--muted);">Total ' + tableData.length + ' Kursi Terdaftar</span></div>' +
           '<div class="panel-body">' + buildTable(tableData, [
             ['Nomor_Kursi', 'Nomor Kursi'],
             ['Blok', 'Blok'],
