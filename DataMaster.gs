@@ -405,8 +405,19 @@ function inferFacultyFromSeatCode_(seatCode) {
 
 function getBestGraduates() {
   requireRole_(['Admin']);
-  return getRows_(CONFIG.SHEETS.BEST);
+  const rows = getRows_(CONFIG.SHEETS.BEST);
+  return rows.map(function (row) {
+    const nama = findValue_(row, ['Nama', 'Nama_Lengkap', 'Nama Lengkap']);
+    const predikat = findValue_(row, ['Predikat', 'Keterangan']);
+    if (nama) {
+      if (!row.Nama) row.Nama = nama;
+      if (!row.Nama_Lengkap) row.Nama_Lengkap = nama;
+    }
+    if (predikat && !row.Predikat) row.Predikat = predikat;
+    return row;
+  });
 }
+
 
 
 function getGuests() {

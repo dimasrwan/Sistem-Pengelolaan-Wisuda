@@ -218,33 +218,86 @@
         return;
       }
 
+      // Helper validasi koordinat fisik gedung (Baris 1..25, Kolom 1..17, Blok Kanan/Kiri)
+      const isValidCoord_ = function (seat) {
+        if (!seat) return false;
+        const sBaris = String(seat.Baris == null ? '' : seat.Baris).trim();
+        const sKolom = String(seat.Kolom == null ? '' : seat.Kolom).trim();
+        if (!sBaris || !sKolom) return false;
+        if (!/^\d+$/.test(sBaris) || !/^\d+$/.test(sKolom)) return false;
+        const baris = parseInt(sBaris, 10);
+        const kolom = parseInt(sKolom, 10);
+        if (baris < 1 || baris > 25) return false;
+        if (kolom < 1 || kolom > 17) return false;
+        const blok = String(seat.Blok || '').trim().toLowerCase();
+        return blok === 'kanan' || blok === 'kiri';
+      };
+
       if (APP.seatViewMode === 'table') {
-        const UNIT_ORDER = ['S3', 'S2', 'S', 'U', 'D', 'T', 'A', 'E', 'ST', 'IP', 'P'];
+        const blokOrder_ = function (b) {
+          const s = String(b || '').trim().toLowerCase();
+          if (s === 'kanan') return 0;
+          if (s === 'kiri') return 1;
+          return 2;
+        };
 
         const sortedSeats = resp.seats.slice().sort(function (a, b) {
-          const codeA = String(a.Nomor_Kursi || '').trim();
-          const codeB = String(b.Nomor_Kursi || '').trim();
-          const partsA = codeA.split('-');
-          const partsB = codeB.split('-');
-          const numA = parseInt(partsA[0], 10) || 0;
-          const numB = parseInt(partsB[0], 10) || 0;
-          const unitA = (partsA[1] || '').toUpperCase();
-          const unitB = (partsB[1] || '').toUpperCase();
+          const hasA = isValidCoord_(a);
+          const hasB = isValidCoord_(b);
 
-          if (unitA !== unitB) {
-            const idxA = UNIT_ORDER.indexOf(unitA);
-            const idxB = UNIT_ORDER.indexOf(unitB);
-            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-            if (idxA !== -1) return -1;
-            if (idxB !== -1) return 1;
-            return unitA.localeCompare(unitB);
+          // Kursi tanpa koordinat valid ditempatkan di akhir tabel
+          if (hasA && !hasB) return -1;
+          if (!hasA && hasB) return 1;
+          if (!hasA && !hasB) {
+            const partsA = String(a.Nomor_Kursi || '').trim().split('-');
+            const partsB = String(b.Nomor_Kursi || '').trim().split('-');
+            const numA = parseInt(partsA[0], 10) || 0;
+            const numB = parseInt(partsB[0], 10) || 0;
+            const unitA = (partsA[1] || '').toUpperCase();
+            const unitB = (partsB[1] || '').toUpperCase();
+            if (unitA !== unitB) return unitA.localeCompare(unitB);
+            return numA - numB;
           }
 
-          return numA - numB;
+          // 1. Urutkan berdasarkan Baris dari kecil ke besar (1, 2, ..., 25)
+          const barisA = parseInt(a.Baris, 10) || 0;
+          const barisB = parseInt(b.Baris, 10) || 0;
+          if (barisA !== barisB) return barisA - barisB;
+
+          // 2. Pada setiap baris: Blok Kanan terlebih dahulu (0), kemudian Blok Kiri (1)
+          const bA = blokOrder_(a.Blok);
+          const bB = blokOrder_(b.Blok);
+          if (bA !== bB) return bA - bB;
+
+          // 3. Pada setiap blok: Kolom dari 17 turun ke 1 (descending)
+          const kolA = parseInt(a.Kolom, 10) || 0;
+          const kolB = parseInt(b.Kolom, 10) || 0;
+          return kolB - kolA;
         });
 
+        // Pemeriksaan diagnostik untuk mendeteksi dua kursi yang memiliki kombinasi koordinat sama
+        const seenCoords = {};
+        const duplicateCoords = [];
+        sortedSeats.forEach(function (s) {
+          if (!isValidCoord_(s)) return;
+          const key = parseInt(s.Baris, 10) + '-' + String(s.Blok).trim().toLowerCase() + '-' + parseInt(s.Kolom, 10);
+          if (seenCoords[key]) {
+            duplicateCoords.push({
+              posisi: 'Blok ' + s.Blok + ', Baris ' + s.Baris + ', Kolom ' + s.Kolom,
+              kursi1: seenCoords[key].Nomor_Kursi,
+              kursi2: s.Nomor_Kursi
+            });
+          } else {
+            seenCoords[key] = s;
+          }
+        });
+
+        if (duplicateCoords.length > 0) {
+          console.warn('[Diagnostik Denah Kursi] Ditemukan duplikasi koordinat:', duplicateCoords);
+        }
+
         const tableData = sortedSeats.map(function (s) {
-          const hasCoord = Boolean(s.Baris && s.Blok && s.Kolom);
+          const hasCoord = isValidCoord_(s);
           return {
             Nomor_Kursi: s.Nomor_Kursi || '—',
             Blok: s.Blok || '—',
@@ -260,7 +313,18 @@
           };
         });
 
+        let duplicateNotice = '';
+        if (duplicateCoords.length > 0) {
+          duplicateNotice = '<div class="notice notice-warn" style="margin-bottom:12px;">' +
+            '<strong>Peringatan Diagnostik:</strong> Terdeteksi ' + duplicateCoords.length + ' posisi koordinat ganda pada data alokasi: ' +
+            duplicateCoords.map(function (d) {
+              return escapeHtml(d.kursi1 + ' dan ' + d.kursi2 + ' (' + d.posisi + ')');
+            }).join(', ') +
+            '</div>';
+        }
+
         target.innerHTML =
+          duplicateNotice +
           '<div class="panel"><div class="panel-head"><h2>Data Penempatan Kursi (Administrasi)</h2>' +
           '<span style="font-size:12px; font-weight:700; color:var(--muted);">Total ' + tableData.length + ' Kursi Terdaftar</span></div>' +
           '<div class="panel-body">' + buildTable(tableData, [
@@ -280,9 +344,8 @@
       }
 
       // Mode Visual Denah 2D
-      const hasValidCoords = resp.seats.some(function (s) {
-        return Boolean(s.Baris && s.Blok && s.Kolom);
-      });
+      const hasValidCoords = resp.seats.some(isValidCoord_);
+
 
       if (!hasValidCoords) {
         target.innerHTML =
@@ -640,15 +703,23 @@
           if (!target) return;
 
           target.innerHTML = buildTable(rows, [
-            ['Peringkat','Peringkat'],
-            ['Nama_Lengkap','Nama'],
-            ['Fakultas','Fakultas'],
-            ['Program_Studi','Program Studi'],
-            ['IPK','IPK'],
-            ['Keterangan','Keterangan']
+            ['Peringkat', 'Peringkat'],
+            ['Nama', 'Nama'],
+            ['Fakultas', 'Fakultas'],
+            ['Program_Studi', 'Program Studi'],
+            ['IPK', 'IPK'],
+            ['Predikat', 'Predikat'],
+            ['Catatan', 'Catatan']
           ]);
         })
-        .withFailureHandler(showError)
+        .withFailureHandler(function (error) {
+          showError(error);
+          const target = document.getElementById('best-table');
+          if (target) {
+            target.innerHTML = '<div class="notice notice-danger">' +
+              escapeHtml(getErrorMessage(error)) + '</div>';
+          }
+        })
         .getBestGraduates();
     }
 
