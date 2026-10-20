@@ -1040,8 +1040,14 @@
     .student-filter-grid {
       display: grid;
       grid-template-columns: 1.3fr 1fr 1.2fr 1.4fr 0.9fr;
-      gap: 10px;
+      gap: 12px;
       align-items: center;
+    }
+    .student-filter-grid input.field {
+      min-height: 42px;
+      height: 42px;
+      border-radius: 10px;
+      border: 1px solid #c8dcc9;
     }
     .student-pagination { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; }
     .student-page-btn { min-width:36px; min-height:34px; padding:6px 10px; border:1px solid #dfe6dd; border-radius:8px; background:#fff; color:var(--green-dark); cursor:pointer; }
@@ -1050,6 +1056,220 @@
     @media(max-width:1200px){.student-filter-grid{grid-template-columns:repeat(3,minmax(0,1fr));}}
     @media(max-width:800px){.student-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
     @media(max-width:520px){.student-filter-grid{grid-template-columns:1fr}.student-pagination{align-items:flex-start;flex-direction:column}}
+
+    /* =========================================================
+       CUSTOM DROPDOWN FILTER (UIN AR-RANIRY THEME)
+       ========================================================= */
+    .custom-select-wrapper {
+      position: relative;
+      width: 100%;
+    }
+
+    .custom-select-native {
+      position: absolute !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      width: 1px !important;
+      height: 1px !important;
+      margin: -1px !important;
+      border: 0 !important;
+      padding: 0 !important;
+      clip: rect(0, 0, 0, 0) !important;
+      overflow: hidden !important;
+      outline: none !important;
+    }
+
+    .custom-select-trigger {
+      min-height: 42px;
+      height: 42px;
+      width: 100%;
+      padding: 0 34px 0 13px;
+      border: 1px solid #c8dcc9;
+      border-radius: 10px;
+      background: #ffffff;
+      color: var(--ink);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      text-align: left;
+      cursor: pointer;
+      outline: none;
+      display: flex;
+      align-items: center;
+      position: relative;
+      user-select: none;
+      box-sizing: border-box;
+      transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+    }
+
+    .custom-select-trigger:hover {
+      border-color: #81c784;
+      background: #fbfdfa;
+    }
+
+    .custom-select-trigger:focus-visible,
+    .custom-select-trigger.active {
+      border-color: #07851b;
+      box-shadow: 0 0 0 3px rgba(7, 133, 27, 0.15);
+      background: #ffffff;
+    }
+
+    .custom-select-trigger:disabled,
+    .custom-select-trigger.disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      background: #f8faf8;
+      border-color: #dfe6dd;
+    }
+
+    .custom-select-label {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+      text-align: left;
+      color: var(--ink);
+    }
+
+    .custom-select-trigger.is-placeholder .custom-select-label {
+      color: #64748b;
+      font-weight: 400;
+    }
+
+    .custom-select-chevron {
+      position: absolute;
+      right: 11px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 15px;
+      height: 15px;
+      pointer-events: none;
+      color: #07851b;
+      transition: transform .2s ease;
+    }
+
+    .custom-select-trigger.open .custom-select-chevron {
+      transform: translateY(-50%) rotate(180deg);
+    }
+
+    .custom-select-menu {
+      position: absolute;
+      top: calc(100% + 5px);
+      left: 0;
+      right: 0;
+      z-index: 1050;
+      background: #ffffff;
+      border: 1px solid #c8dcc9;
+      border-radius: 12px;
+      box-shadow: 0 12px 32px rgba(15, 28, 17, 0.14), 0 2px 6px rgba(0, 0, 0, 0.04);
+      max-height: 320px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 6px;
+      display: none;
+      box-sizing: border-box;
+      animation: selectMenuFade .15s ease-out;
+    }
+
+    @keyframes selectMenuFade {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .custom-select-menu.open {
+      display: block;
+    }
+
+    .custom-select-menu::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-select-menu::-webkit-scrollbar-track {
+      background: #f4f8f4;
+      border-radius: 8px;
+    }
+    .custom-select-menu::-webkit-scrollbar-thumb {
+      background: #a3cda6;
+      border-radius: 8px;
+    }
+    .custom-select-menu::-webkit-scrollbar-thumb:hover {
+      background: #07851b;
+    }
+
+    .custom-select-group-header {
+      font-size: 11.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #17682a;
+      background: #eef7f0;
+      padding: 7px 12px;
+      margin: 8px 0 4px 0;
+      border-radius: 6px;
+      border-left: 3px solid #07851b;
+      user-select: none;
+    }
+
+    .custom-select-group-header:first-child {
+      margin-top: 0;
+    }
+
+    .custom-select-option {
+      padding: 8px 12px;
+      font-size: 13px;
+      line-height: 1.4;
+      color: #1f2937;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      transition: background-color .12s ease, color .12s ease;
+      user-select: none;
+    }
+
+    .custom-select-option-text {
+      flex: 1;
+      white-space: normal;
+      word-break: break-word;
+    }
+
+    .custom-select-option.is-grouped {
+      padding-left: 18px;
+    }
+
+    .custom-select-option:hover,
+    .custom-select-option.focused {
+      background-color: #f0f9f1;
+      color: #17682a;
+    }
+
+    .custom-select-option.selected {
+      background-color: #dcf0de;
+      color: #0d5b1f;
+      font-weight: 600;
+    }
+
+    .custom-select-option-check {
+      display: none;
+      width: 14px;
+      height: 14px;
+      color: #07851b;
+      flex-shrink: 0;
+    }
+
+    .custom-select-option.selected .custom-select-option-check {
+      display: block;
+    }
+
+    .custom-select-option.is-placeholder {
+      font-weight: 600;
+      color: #07851b;
+      border-bottom: 1px solid #eef3ed;
+      margin-bottom: 4px;
+      border-radius: 8px 8px 0 0;
+    }
     .student-modal-overlay { position:fixed; inset:0; z-index:100; background:rgba(15,28,17,.6); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; padding:16px; }
     .student-modal-card { width:min(640px,100%); max-height:90vh; overflow-y:auto; background:#fff; border-radius:16px; border:1px solid var(--line); box-shadow:0 20px 60px rgba(0,0,0,.18); }
 

@@ -59,6 +59,8 @@
               '<label style="display:flex;align-items:center;gap:8px">Baris <select id="student-page-size" class="field" style="width:auto" onchange="searchStudentRows()"><option>25</option><option>50</option><option>100</option></select></label>' +
             '</div><div id="student-table"><div class="table-empty">Memuat data...</div></div><div id="student-pagination" class="student-pagination"></div></div></div>';
 
+      ['filter-period', 'filter-faculty', 'filter-program', 'filter-level'].forEach(syncCustomSelect);
+
       loadStudentImportSetup(null, function () {
         loadStudentFilterOptions();
         searchStudentRows(true);
@@ -730,6 +732,7 @@
       } else {
         el.value = '';
       }
+      syncCustomSelect('filter-program');
     }
 
     function onStudentFacultyFilterChange() {
@@ -738,6 +741,227 @@
       const selectedFac = facEl ? facEl.value : '';
       const currentProdi = prodiEl ? prodiEl.value : '';
       populateStudentProgramOptions(selectedFac, currentProdi);
+      syncCustomSelect('filter-faculty');
+    }
+
+    /* =========================================================
+       CUSTOM DROPDOWN UI HELPER (UIN AR-RANIRY THEME)
+       ========================================================= */
+    function closeAllCustomSelects() {
+      document.querySelectorAll('.custom-select-menu.open').forEach(function(m) {
+        m.classList.remove('open');
+      });
+      document.querySelectorAll('.custom-select-trigger.open').forEach(function(t) {
+        t.classList.remove('open', 'active');
+        t.setAttribute('aria-expanded', 'false');
+      });
+    }
+
+    function navigateCustomSelectMenu(menu, direction) {
+      const options = Array.from(menu.querySelectorAll('.custom-select-option'));
+      if (!options.length) return;
+      let focusedIdx = options.findIndex(function(opt) {
+        return opt.classList.contains('focused');
+      });
+      if (focusedIdx === -1) {
+        focusedIdx = options.findIndex(function(opt) {
+          return opt.classList.contains('selected');
+        });
+      }
+      if (focusedIdx === -1) {
+        focusedIdx = direction > 0 ? 0 : options.length - 1;
+      } else {
+        focusedIdx = (focusedIdx + direction + options.length) % options.length;
+      }
+      options.forEach(function(opt) { opt.classList.remove('focused'); });
+      const target = options[focusedIdx];
+      target.classList.add('focused');
+      target.scrollIntoView({ block: 'nearest' });
+    }
+
+    function syncCustomSelect(selectId) {
+      const select = document.getElementById(selectId);
+      if (!select) return;
+
+      let wrapper = select.closest('.custom-select-wrapper');
+      if (!wrapper) {
+        wrapper = document.createElement('div');
+        wrapper.className = 'custom-select-wrapper';
+        if (select.parentNode) {
+          select.parentNode.insertBefore(wrapper, select);
+        }
+        wrapper.appendChild(select);
+        select.classList.add('custom-select-native');
+        select.setAttribute('tabindex', '-1');
+        select.setAttribute('aria-hidden', 'true');
+      }
+
+      let trigger = wrapper.querySelector('.custom-select-trigger');
+      let menu = wrapper.querySelector('.custom-select-menu');
+
+      if (!trigger) {
+        trigger = document.createElement('button');
+        trigger.type = 'button';
+        trigger.id = 'trigger-' + selectId;
+        trigger.className = 'custom-select-trigger';
+        trigger.setAttribute('aria-haspopup', 'listbox');
+        trigger.setAttribute('aria-expanded', 'false');
+        trigger.setAttribute('aria-controls', 'menu-' + selectId);
+        trigger.innerHTML = '<span class="custom-select-label"></span>' +
+          '<svg class="custom-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+          '<polyline points="6 9 12 15 18 9"></polyline></svg>';
+        wrapper.appendChild(trigger);
+
+        menu = document.createElement('div');
+        menu.id = 'menu-' + selectId;
+        menu.className = 'custom-select-menu';
+        menu.setAttribute('role', 'listbox');
+        menu.setAttribute('aria-labelledby', 'trigger-' + selectId);
+        wrapper.appendChild(menu);
+
+        trigger.addEventListener('click', function(e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          const isOpen = menu.classList.contains('open');
+          closeAllCustomSelects();
+          if (!isOpen) {
+            menu.classList.add('open');
+            trigger.classList.add('open', 'active');
+            trigger.setAttribute('aria-expanded', 'true');
+            menu.querySelectorAll('.custom-select-option.focused').forEach(function(el) {
+              el.classList.remove('focused');
+            });
+            const activeItem = menu.querySelector('.custom-select-option.selected') || menu.querySelector('.custom-select-option');
+            if (activeItem) {
+              activeItem.classList.add('focused');
+              activeItem.scrollIntoView({ block: 'nearest' });
+            }
+          }
+        });
+
+        trigger.addEventListener('keydown', function(e) {
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (!menu.classList.contains('open')) {
+              trigger.click();
+            } else {
+              navigateCustomSelectMenu(menu, e.key === 'ArrowUp' ? -1 : 1);
+            }
+          } else if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            if (!menu.classList.contains('open')) {
+              trigger.click();
+            } else {
+              const focused = menu.querySelector('.custom-select-option.focused');
+              if (focused) focused.click();
+            }
+          } else if (e.key === 'Escape') {
+            if (menu.classList.contains('open')) {
+              e.preventDefault();
+              closeAllCustomSelects();
+            }
+          } else if (e.key === 'Tab') {
+            closeAllCustomSelects();
+          } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            const char = e.key.toLowerCase();
+            const options = Array.from(menu.querySelectorAll('.custom-select-option'));
+            const match = options.find(function(opt) {
+              return opt.textContent.trim().toLowerCase().startsWith(char);
+            });
+            if (match) {
+              if (!menu.classList.contains('open')) {
+                menu.classList.add('open');
+                trigger.classList.add('open', 'active');
+                trigger.setAttribute('aria-expanded', 'true');
+              }
+              options.forEach(function(o) { o.classList.remove('focused'); });
+              match.classList.add('focused');
+              match.scrollIntoView({ block: 'nearest' });
+            }
+          }
+        });
+      }
+
+      menu.innerHTML = '';
+      const currentVal = select.value;
+      let selectedLabel = '';
+      let isPlaceholder = false;
+
+      function renderOption(opt, isUnderGroup) {
+        const item = document.createElement('div');
+        item.className = 'custom-select-option' + (isUnderGroup ? ' is-grouped' : '');
+        item.setAttribute('role', 'option');
+        item.dataset.value = opt.value;
+        const isSelected = (opt.value === currentVal);
+        if (isSelected) {
+          item.classList.add('selected');
+          item.setAttribute('aria-selected', 'true');
+          selectedLabel = opt.textContent;
+          if (!opt.value) isPlaceholder = true;
+        } else {
+          item.setAttribute('aria-selected', 'false');
+        }
+        if (!opt.value) {
+          item.classList.add('is-placeholder');
+        }
+
+        item.innerHTML = '<span class="custom-select-option-text">' + escapeHtml(opt.textContent) + '</span>' +
+          '<svg class="custom-select-option-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+          '<polyline points="20 6 9 17 4 12"></polyline></svg>';
+
+        item.addEventListener('click', function(e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          select.value = opt.value;
+          closeAllCustomSelects();
+          syncCustomSelect(selectId);
+          const evt = new Event('change', { bubbles: true });
+          select.dispatchEvent(evt);
+          if (trigger && trigger.focus) trigger.focus();
+        });
+
+        item.addEventListener('mouseenter', function() {
+          menu.querySelectorAll('.custom-select-option.focused').forEach(function(el) {
+            el.classList.remove('focused');
+          });
+          item.classList.add('focused');
+        });
+
+        menu.appendChild(item);
+      }
+
+      Array.from(select.children).forEach(function(child) {
+        if (child.tagName === 'OPTGROUP') {
+          const header = document.createElement('div');
+          header.className = 'custom-select-group-header';
+          header.textContent = child.label || '';
+          menu.appendChild(header);
+
+          Array.from(child.children).forEach(function(opt) {
+            renderOption(opt, true);
+          });
+        } else if (child.tagName === 'OPTION') {
+          renderOption(child, false);
+        }
+      });
+
+      if (!selectedLabel && select.options && select.options.length > 0) {
+        selectedLabel = select.options[0].textContent;
+        isPlaceholder = !select.options[0].value;
+      }
+
+      const labelEl = trigger.querySelector('.custom-select-label');
+      if (labelEl) {
+        labelEl.textContent = selectedLabel || '';
+      }
+      trigger.classList.toggle('is-placeholder', Boolean(isPlaceholder));
+    }
+
+    if (!window._customSelectListenerAdded) {
+      document.addEventListener('click', function(e) {
+        if (!e.target.closest('.custom-select-wrapper')) {
+          closeAllCustomSelects();
+        }
+      });
+      window._customSelectListenerAdded = true;
     }
 
     function loadStudentFilterOptions() {
@@ -807,6 +1031,9 @@
             levelEl.value = currentLevel;
           }
         }
+
+        // 6. Sinkronisasi tampilan dropdown kustom
+        ['filter-period', 'filter-faculty', 'filter-program', 'filter-level'].forEach(syncCustomSelect);
       }).withFailureHandler(showError).searchStudents('');
     }
 
@@ -815,6 +1042,7 @@
       if (reset) {
         ['student-search','filter-period','filter-faculty','filter-program','filter-level'].forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
         populateStudentProgramOptions('', '');
+        ['filter-period', 'filter-faculty', 'filter-program', 'filter-level'].forEach(syncCustomSelect);
         studentCurrentPage = 1;
       }
       const query = (document.getElementById('student-search') || {}).value || '';
