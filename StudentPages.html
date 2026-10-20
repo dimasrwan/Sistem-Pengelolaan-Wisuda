@@ -50,7 +50,7 @@
             '<div class="student-filter-grid">' +
               '<input id="student-search" class="field" placeholder="Cari nama, NIM, atau prodi" onkeydown="if(event.key===\'Enter\')searchStudentRows()">' +
               '<select id="filter-period" class="field"><option value="">Semua gelombang</option></select>' +
-              '<select id="filter-faculty" class="field"><option value="">Semua fakultas</option></select>' +
+              '<select id="filter-faculty" class="field" onchange="onStudentFacultyFilterChange()"><option value="">Semua fakultas</option></select>' +
               '<select id="filter-program" class="field"><option value="">Semua program studi</option></select>' +
               '<select id="filter-level" class="field"><option value="">Semua jenjang</option></select>' +
             '</div><div class="toolbar" style="margin:12px 0 16px">' +
@@ -462,9 +462,287 @@
 
     let studentRowsCache = [];
     let studentCurrentPage = 1;
+    let studentFilterData = null;
+
+    // Daftar urutan fakultas resmi berdasarkan PDF Informasi Penting bagi Wisudawan Gel III 2026
+    // (tabel jadwal halaman 49 & daftar panggil tiap unit).
+    // Catatan:
+    // 1. Program Profesi tidak tercantum sebagai unit tersendiri pada jadwal PDF; jika ada di master data,
+    //    diletakkan setelah Pascasarjana dan sebelum Sarjana tanpa menggeser urutan fakultas terverifikasi.
+    // 2. Fakultas Kedokteran - S1 belum terverifikasi sebagai unit tersendiri dari PDF Gel III 2026;
+    //    jika ada di master data, diletakkan setelah fakultas terverifikasi (setelah Fakultas Psikologi - S1).
+    const ORDERED_FACULTIES = [
+      'Pascasarjana - S3',
+      'Pascasarjana - S2',
+      // Program Profesi (tambahan jika ada di master data): setelah Pascasarjana, sebelum Sarjana
+      'Program Profesi',
+      'Profesi',
+      'Fakultas Syari\'ah dan Hukum - S1',
+      'Fakultas Ushuluddin dan Filsafat - S1',
+      'Fakultas Dakwah dan Komunikasi - S1',
+      'Fakultas Tarbiyah dan Keguruan - S1',
+      'Fakultas Adab dan Humaniora - S1',
+      'Fakultas Ekonomi dan Bisnis Islam - S1',
+      'Fakultas Sains dan Teknologi - S1',
+      'Fakultas Ilmu Sosial dan Ilmu Pemerintahan - S1',
+      'Fakultas Psikologi - S1',
+      // Fakultas Kedokteran - S1: belum terverifikasi dari PDF Gelombang III 2026;
+      // Diletakkan setelah fakultas terverifikasi jika tersedia di master data
+      'Fakultas Kedokteran - S1',
+      'Fakultas Kedokteran'
+    ];
+
+    // Urutan program studi resmi per unit/fakultas berdasarkan Section B referensi PDF Gelombang III 2026
+    const ORDERED_PRODIS_BY_FACULTY = {
+      'Pascasarjana - S3': [
+        'S3 Fiqh Modern',
+        'S3 Pendidikan Agama Islam',
+        'S3 Ekonomi Syariah',
+        'S3 Studi Islam'
+      ],
+      'Pascasarjana - S2': [
+        'S2 Ilmu Agama Islam',
+        'S2 Hukum Keluarga',
+        'S2 Pendidikan Agama Islam',
+        'S2 Pendidikan Bahasa Arab',
+        "S2 Ilmu Al-Qur'an dan Tafsir",
+        'S2 Komunikasi dan Penyiaran Islam',
+        'S2 Ekonomi Syariah'
+      ],
+      "Fakultas Syari'ah dan Hukum - S1": [
+        'S1 Hukum Keluarga',
+        'S1 Hukum Ekonomi Syariah',
+        'S1 Hukum Pidana Islam',
+        'S1 Hukum Tata Negara',
+        'S1 Perbandingan Mazhab',
+        'S1 Ilmu Hukum'
+      ],
+      'Fakultas Ushuluddin dan Filsafat - S1': [
+        "S1 Ilmu Al-Qur'an dan Tafsir",
+        'S1 Ilmu Hadis',
+        'S1 Aqidah dan Filsafat Islam',
+        'S1 Studi Agama-Agama',
+        'S1 Sosiologi Agama'
+      ],
+      'Fakultas Dakwah dan Komunikasi - S1': [
+        'S1 Komunikasi dan Penyiaran Islam',
+        'S1 Bimbingan Konseling Islam',
+        'S1 Manajemen Dakwah',
+        'S1 Pengembangan Masyarakat Islam',
+        'S1 Kesejahteraan Sosial',
+        'S1 Manajemen Haji dan Umrah'
+      ],
+      'Fakultas Tarbiyah dan Keguruan - S1': [
+        'S1 Pendidikan Agama Islam',
+        'S1 Pendidikan Bahasa Arab',
+        'S1 Pendidikan Bahasa Inggris',
+        'S1 Manajemen Pendidikan Islam',
+        'S1 Pendidikan Matematika',
+        'S1 Pendidikan Biologi',
+        'S1 Pendidikan Kimia',
+        'S1 Pendidikan Fisika',
+        'S1 Pendidikan Guru Madrasah Ibtidaiyah',
+        'S1 Pendidikan Islam Anak Usia Dini',
+        'S1 Bimbingan dan Konseling',
+        'S1 Pendidikan Teknik Elektro',
+        'S1 Pendidikan Teknologi Informasi'
+      ],
+      'Fakultas Adab dan Humaniora - S1': [
+        'S1 Bahasa dan Sastra Arab',
+        'S1 Sejarah dan Kebudayaan Islam',
+        'S1 Ilmu Perpustakaan'
+      ],
+      'Fakultas Ekonomi dan Bisnis Islam - S1': [
+        'S1 Ekonomi Syariah',
+        'S1 Perbankan Syariah',
+        'S1 Ilmu Ekonomi',
+        'S1 Manajemen Bisnis Syariah',
+        'D4 Manajemen Industri Halal'
+      ],
+      'Fakultas Sains dan Teknologi - S1': [
+        'S1 Teknik Lingkungan',
+        'S1 Arsitektur',
+        'S1 Kimia',
+        'S1 Biologi',
+        'S1 Teknologi Informasi',
+        'S1 Teknik Fisika'
+      ],
+      'Fakultas Ilmu Sosial dan Ilmu Pemerintahan - S1': [
+        'S1 Ilmu Politik',
+        'S1 Ilmu Administrasi Negara'
+      ],
+      'Fakultas Psikologi - S1': [
+        'S1 Psikologi'
+      ],
+      // Fakultas Kedokteran - S1: belum terverifikasi dari PDF Gelombang III 2026
+      'Fakultas Kedokteran - S1': [
+        'S1 Kedokteran'
+      ],
+      'Fakultas Kedokteran': [
+        'S1 Kedokteran'
+      ],
+      // Program Profesi (tambahan): belum terverifikasi dari tabel jadwal PDF Gelombang III 2026
+      'Program Profesi': [
+        'Pendidikan Profesi Guru',
+        'Pendidikan Profesi Dokter'
+      ],
+      'Profesi': [
+        'Pendidikan Profesi Guru',
+        'Pendidikan Profesi Dokter'
+      ]
+    };
+
+    function formatCleanProdiLabel(raw) {
+      if (!raw) return '';
+      let clean = String(raw).replace(/\s*\([^)]*\)/g, '').trim();
+      clean = clean.replace(/^(S[123]|D[34])\s*[-–]\s*/i, '$1 ');
+      clean = clean.replace(/[`’]/g, "'");
+      return clean;
+    }
+
+    function normalizeProdiForMatch(str) {
+      return String(str || '')
+        .toLowerCase()
+        .replace(/\s*\([^)]*\)/g, '')
+        .replace(/^(s[123]|d[34])\s*[-–]\s*/i, '$1 ')
+        .replace(/\bdan\b/g, '')
+        .replace(/[`'’\-–]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function matchProdiToRef(rawProdi, refList) {
+      if (!refList || !refList.length) return -1;
+      const normRaw = normalizeProdiForMatch(rawProdi);
+      let idx = refList.findIndex(function(ref) {
+        return normalizeProdiForMatch(ref) === normRaw;
+      });
+      if (idx !== -1) return idx;
+
+      idx = refList.findIndex(function(ref) {
+        const normRef = normalizeProdiForMatch(ref);
+        return normRaw.startsWith(normRef) || normRef.startsWith(normRaw);
+      });
+      return idx;
+    }
+
+    function getFacultyRank(facName) {
+      const norm = String(facName || '').trim().toLowerCase();
+      for (let i = 0; i < ORDERED_FACULTIES.length; i++) {
+        if (ORDERED_FACULTIES[i].toLowerCase() === norm) return i;
+      }
+      for (let i = 0; i < ORDERED_FACULTIES.length; i++) {
+        const cNorm = ORDERED_FACULTIES[i].toLowerCase();
+        if (norm.includes(cNorm) || cNorm.includes(norm)) return i;
+      }
+      return 999;
+    }
+
+    function buildStudentFilterData(rows) {
+      rows = rows || [];
+      const facultiesSet = new Set();
+      const prodiByFac = {};
+      const facByProdi = {};
+
+      rows.forEach(function(r) {
+        const fac = String(value(r, ['Fakultas']) || '').trim();
+        const prodi = String(value(r, ['Program_Studi', 'Program Studi']) || '').trim();
+        if (!fac || !prodi) return;
+
+        facultiesSet.add(fac);
+        if (!prodiByFac[fac]) prodiByFac[fac] = new Map();
+
+        if (!prodiByFac[fac].has(prodi)) {
+          const refList = ORDERED_PRODIS_BY_FACULTY[fac] || [];
+          const matchedIdx = matchProdiToRef(prodi, refList);
+          const label = matchedIdx !== -1 ? refList[matchedIdx] : formatCleanProdiLabel(prodi);
+          const rank = matchedIdx !== -1 ? matchedIdx : 999;
+          prodiByFac[fac].set(prodi, { raw: prodi, label: label, rank: rank });
+        }
+        facByProdi[prodi] = fac;
+      });
+
+      const sortedFaculties = Array.from(facultiesSet).sort(function(a, b) {
+        const rankA = getFacultyRank(a);
+        const rankB = getFacultyRank(b);
+        if (rankA !== rankB) return rankA - rankB;
+        return a.localeCompare(b);
+      });
+
+      const sortedProdisByFac = {};
+      sortedFaculties.forEach(function(fac) {
+        const map = prodiByFac[fac] || new Map();
+        const list = Array.from(map.values()).sort(function(a, b) {
+          if (a.rank !== b.rank) return a.rank - b.rank;
+          return a.label.localeCompare(b.label);
+        });
+        sortedProdisByFac[fac] = list;
+      });
+
+      return {
+        faculties: sortedFaculties,
+        prodisByFac: sortedProdisByFac,
+        facByProdi: facByProdi
+      };
+    }
+
+    function populateStudentProgramOptions(selectedFaculty, preserveValue) {
+      const el = document.getElementById('filter-program');
+      if (!el || !studentFilterData) return;
+
+      selectedFaculty = String(selectedFaculty || '').trim();
+      let html = '<option value="">Semua program studi</option>';
+
+      if (selectedFaculty) {
+        // Menampilkan program studi untuk fakultas yang dipilih
+        const prodis = studentFilterData.prodisByFac[selectedFaculty] || [];
+        prodis.forEach(function(p) {
+          html += '<option value="' + escapeAttr(p.raw) + '">' + escapeHtml(p.label) + '</option>';
+        });
+      } else {
+        // "Semua fakultas" dipilih: tampilkan semua program studi dikelompokkan per fakultas
+        studentFilterData.faculties.forEach(function(fac) {
+          const prodis = studentFilterData.prodisByFac[fac] || [];
+          if (!prodis.length) return;
+          html += '<optgroup label="' + escapeAttr(fac) + '">';
+          prodis.forEach(function(p) {
+            html += '<option value="' + escapeAttr(p.raw) + '">' + escapeHtml(p.label) + '</option>';
+          });
+          html += '</optgroup>';
+        });
+      }
+
+      el.innerHTML = html;
+
+      // Cek apakah prodi yang dipilih sebelumnya masih berlaku dalam opsi baru
+      let isValid = false;
+      if (preserveValue) {
+        if (selectedFaculty) {
+          const prodis = studentFilterData.prodisByFac[selectedFaculty] || [];
+          isValid = prodis.some(function(p) { return p.raw === preserveValue; });
+        } else {
+          isValid = Boolean(studentFilterData.facByProdi[preserveValue]);
+        }
+      }
+
+      if (isValid) {
+        el.value = preserveValue;
+      } else {
+        el.value = '';
+      }
+    }
+
+    function onStudentFacultyFilterChange() {
+      const facEl = document.getElementById('filter-faculty');
+      const prodiEl = document.getElementById('filter-program');
+      const selectedFac = facEl ? facEl.value : '';
+      const currentProdi = prodiEl ? prodiEl.value : '';
+      populateStudentProgramOptions(selectedFac, currentProdi);
+    }
 
     function loadStudentFilterOptions() {
       google.script.run.withSuccessHandler(function(rows) {
+        // 1. Filter Gelombang (Periode)
         const periodEl = document.getElementById('filter-period');
         if (periodEl) {
           const currentVal = periodEl.value;
@@ -485,22 +763,50 @@
           }
         }
 
-        const definitions = [
-          ['filter-faculty', ['Fakultas'], 'Semua fakultas'],
-          ['filter-program', ['Program_Studi','Program Studi'], 'Semua program studi'],
-          ['filter-level', ['Jenjang'], 'Semua jenjang']
-        ];
-        definitions.forEach(function(def) {
-          const el = document.getElementById(def[0]); if (!el) return;
-          const currentVal = el.value;
-          const vals = Array.from(new Set(rows.map(function(r){ return String(value(r,def[1]) || '').trim(); }).filter(Boolean))).sort();
-          el.innerHTML = '<option value="">' + escapeHtml(def[2]) + '</option>' + vals.map(function(v){
-            return '<option value="'+escapeAttr(v)+'">'+escapeHtml(v)+'</option>';
-          }).join('');
-          if (currentVal && vals.includes(currentVal)) {
-            el.value = currentVal;
+        // 2. Olah data filter fakultas dan program studi
+        studentFilterData = buildStudentFilterData(rows || []);
+
+        // 3. Dropdown Fakultas (Semua fakultas di urutan pertama)
+        const facultyEl = document.getElementById('filter-faculty');
+        if (facultyEl) {
+          const currentFac = facultyEl.value;
+          let facultyHtml = '<option value="">Semua fakultas</option>';
+          studentFilterData.faculties.forEach(function(fac) {
+            facultyHtml += '<option value="' + escapeAttr(fac) + '">' + escapeHtml(fac) + '</option>';
+          });
+          facultyEl.innerHTML = facultyHtml;
+          if (currentFac && studentFilterData.faculties.includes(currentFac)) {
+            facultyEl.value = currentFac;
           }
-        });
+        }
+
+        // 4. Dropdown Program Studi (Semua program studi di urutan pertama)
+        const programEl = document.getElementById('filter-program');
+        const currentProgram = programEl ? programEl.value : '';
+        populateStudentProgramOptions(facultyEl ? facultyEl.value : '', currentProgram);
+
+        // 5. Dropdown Jenjang (Semua jenjang di urutan pertama)
+        const levelEl = document.getElementById('filter-level');
+        if (levelEl) {
+          const currentLevel = levelEl.value;
+          const levelOrder = ['S3', 'S2', 'Profesi', 'S1', 'D4', 'D3'];
+          const levels = Array.from(new Set((rows || []).map(function(r) {
+            return String(value(r, ['Jenjang']) || '').trim();
+          }).filter(Boolean))).sort(function(a, b) {
+            const idxA = levelOrder.indexOf(a);
+            const idxB = levelOrder.indexOf(b);
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if (idxA !== -1) return -1;
+            if (idxB !== -1) return 1;
+            return a.localeCompare(b);
+          });
+          levelEl.innerHTML = '<option value="">Semua jenjang</option>' + levels.map(function(l) {
+            return '<option value="' + escapeAttr(l) + '">' + escapeHtml(l) + '</option>';
+          }).join('');
+          if (currentLevel && levels.includes(currentLevel)) {
+            levelEl.value = currentLevel;
+          }
+        }
       }).withFailureHandler(showError).searchStudents('');
     }
 
@@ -508,6 +814,7 @@
       if (APP.session.role !== 'Admin') return showToast('Akses ditolak.');
       if (reset) {
         ['student-search','filter-period','filter-faculty','filter-program','filter-level'].forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
+        populateStudentProgramOptions('', '');
         studentCurrentPage = 1;
       }
       const query = (document.getElementById('student-search') || {}).value || '';

@@ -715,12 +715,25 @@
       background-position: right 11px center;
       background-size: 14px 14px;
       cursor: pointer;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      overflow: hidden;
+      max-width: 100%;
+    }
+
+    select.field optgroup {
+      font-weight: 700;
+      color: #17682a;
+      background: #f4f8f4;
+      padding: 6px 10px;
+      font-style: normal;
     }
 
     select.field option {
       background: #fff;
       color: var(--ink);
       padding: 8px 12px;
+      font-weight: 400;
     }
 
     .search-field { min-width: min(280px,100%); }
@@ -1024,12 +1037,18 @@
       .import-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
     }
 
-    .student-filter-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+    .student-filter-grid {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr 1.2fr 1.4fr 0.9fr;
+      gap: 10px;
+      align-items: center;
+    }
     .student-pagination { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; }
     .student-page-btn { min-width:36px; min-height:34px; padding:6px 10px; border:1px solid #dfe6dd; border-radius:8px; background:#fff; color:var(--green-dark); cursor:pointer; }
     .student-page-btn.active { background:var(--green); border-color:var(--green); color:#fff; }
     .student-page-btn:disabled { opacity:.45; cursor:not-allowed; }
-    @media(max-width:900px){.student-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+    @media(max-width:1200px){.student-filter-grid{grid-template-columns:repeat(3,minmax(0,1fr));}}
+    @media(max-width:800px){.student-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
     @media(max-width:520px){.student-filter-grid{grid-template-columns:1fr}.student-pagination{align-items:flex-start;flex-direction:column}}
     .student-modal-overlay { position:fixed; inset:0; z-index:100; background:rgba(15,28,17,.6); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; padding:16px; }
     .student-modal-card { width:min(640px,100%); max-height:90vh; overflow-y:auto; background:#fff; border-radius:16px; border:1px solid var(--line); box-shadow:0 20px 60px rgba(0,0,0,.18); }
