@@ -420,9 +420,11 @@ function getBestGraduates() {
 
 
 
-function getGuests() {
-  requireRole_(['Admin']);
-  return getRows_(CONFIG.SHEETS.GUESTS).slice(0, 500);
+function getGuests(periodFilter) {
+  requireRole_(['Admin', 'Panitia']);
+  return typeof getGuestAttendanceList === 'function'
+    ? getGuestAttendanceList(periodFilter)
+    : getRows_(CONFIG.SHEETS.GUESTS).slice(0, 500);
 }
 
 /* =========================

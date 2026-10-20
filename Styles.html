@@ -765,7 +765,7 @@
 
     .scanner-layout {
       display: grid;
-      grid-template-columns: minmax(0,1fr) minmax(250px,.8fr);
+      grid-template-columns: minmax(0,1fr) minmax(280px,.9fr);
       gap: 17px;
     }
 
@@ -776,13 +776,99 @@
     }
 
     .scanner-result {
-      min-height: 85px;
-      padding: 14px;
-      border-radius: 10px;
+      min-height: 120px;
+      padding: 16px;
+      border-radius: 12px;
       background: #f6f8f5;
       color: var(--muted);
       font-size: 13px;
     }
+
+
+    .scan-result-card {
+      padding: 16px;
+      border-radius: 12px;
+      animation: fadeIn .2s ease-in-out;
+    }
+
+    .scan-badge-banner {
+      display: block;
+      padding: 12px 14px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: .04em;
+      text-align: center;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .scan-badge-success-in {
+      background: #d4edd6;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .scan-badge-success-out {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+
+    .scan-badge-danger {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .scan-badge-warning {
+      background: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeeba;
+    }
+
+    .scan-badge-neutral {
+      background: #e2e3e5;
+      color: #383d41;
+      border: 1px solid #d6d8db;
+    }
+
+    .scan-identity-card {
+      margin-top: 12px;
+      padding: 14px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+
+    .scan-identity-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 6px 0;
+      border-bottom: 1px solid #f0f3ef;
+      font-size: 12px;
+    }
+
+    .scan-identity-row:last-child {
+      border-bottom: none;
+    }
+
+    .scan-identity-label {
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .scan-identity-val {
+      font-weight: 700;
+      color: var(--ink);
+      text-align: right;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
 
     .mobile-menu { display: none; }
 

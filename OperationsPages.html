@@ -729,23 +729,82 @@
       if (APP.session.role !== 'Admin') return showToast('Akses ditolak.');
 
       document.getElementById('page-content').innerHTML =
-        pageHeader('Data Tamu','Daftar tamu yang tercatat pada periode wisuda.') +
-        '<div class="panel"><div class="panel-head"><h2>Data tamu</h2></div>' +
-        '<div class="panel-body"><div id="guests-table">Memuat data...</div></div></div>';
+        pageHeader('Data Tamu', 'Daftar riwayat akses dan kehadiran tamu wisudawan.') +
+        '<div id="guest-stats-container" class="stat-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 20px;">' +
+          '<div class="stat-card"><span class="stat-label">Total Tamu Masuk</span><strong id="stat-total-tamu">—</strong><div class="stat-foot">Periode ini</div></div>' +
+          '<div class="stat-card"><span class="stat-label">Sedang di Dalam</span><strong id="stat-tamu-dalam" style="color:#2e7d32">—</strong><div class="stat-foot">Status DI_DALAM</div></div>' +
+          '<div class="stat-card"><span class="stat-label">Sudah Keluar</span><strong id="stat-tamu-luar" style="color:#1976d2">—</strong><div class="stat-foot">Status DI_LUAR</div></div>' +
+        '</div>' +
+        '<div class="panel">' +
+          '<div class="panel-head">' +
+            '<h2>Riwayat Akses Tamu</h2>' +
+            '<button class="btn btn-outline" onclick="renderGuests()" style="font-size:12px;padding:6px 12px">Segarkan Data</button>' +
+          '</div>' +
+          '<div class="panel-body"><div id="guests-table">Memuat data...</div></div>' +
+        '</div>';
 
       google.script.run
         .withSuccessHandler(function (rows) {
           const target = document.getElementById('guests-table');
           if (!target) return;
 
-          target.innerHTML = buildTable(rows, [
-            ['ID_Tamu','ID Tamu'],
-            ['Nama_Tamu','Nama'],
-            ['Instansi','Instansi'],
-            ['Jabatan','Jabatan'],
-            ['Kategori','Kategori'],
-            ['Status_Undangan','Status Undangan']
-          ]);
+          rows = rows || [];
+
+          let totalCount = rows.length;
+          let insideCount = 0;
+          let outsideCount = 0;
+
+          rows.forEach(function (r) {
+            const st = normalize_(r.Status);
+            if (st === 'di_dalam') insideCount++;
+            else outsideCount++;
+          });
+
+          const statTotal = document.getElementById('stat-total-tamu');
+          const statInside = document.getElementById('stat-tamu-dalam');
+          const statOutside = document.getElementById('stat-tamu-luar');
+
+          if (statTotal) statTotal.textContent = totalCount;
+          if (statInside) statInside.textContent = insideCount;
+          if (statOutside) statOutside.textContent = outsideCount;
+
+          if (rows.length === 0) {
+            target.innerHTML = '<div class="table-empty">Belum ada riwayat pemindaian tamu pada periode ini.</div>';
+            return;
+          }
+
+          let html = '<div class="table-wrap"><table><thead><tr>' +
+            '<th>No</th>' +
+            '<th>NIM</th>' +
+            '<th>Nama Wisudawan</th>' +
+            '<th>Fakultas / Prodi</th>' +
+            '<th>No Kursi</th>' +
+            '<th>Status</th>' +
+            '<th>Waktu Masuk</th>' +
+            '<th>Waktu Keluar</th>' +
+            '<th>Petugas</th>' +
+          '</tr></thead><tbody>';
+
+          rows.forEach(function (row, idx) {
+            const isInside = normalize_(row.Status) === 'di_dalam';
+            const badgeClass = isInside ? 'badge-green' : 'badge-yellow';
+            const statusText = isInside ? 'DI_DALAM' : 'DI_LUAR';
+
+            html += '<tr>' +
+              '<td>' + (idx + 1) + '</td>' +
+              '<td><strong>' + escapeHtml(row.NIM || '—') + '</strong></td>' +
+              '<td>' + escapeHtml(row.Nama_Wisudawan || '—') + '</td>' +
+              '<td>' + escapeHtml((row.Fakultas || '') + (row.Program_Studi ? ' / ' + row.Program_Studi : '')) + '</td>' +
+              '<td>' + escapeHtml(row.Nomor_Kursi || '—') + '</td>' +
+              '<td><span class="badge ' + badgeClass + '">' + statusText + '</span></td>' +
+              '<td>' + escapeHtml(row.Waktu_Checkin || row.Waktu_Masuk || '—') + '</td>' +
+              '<td>' + escapeHtml(row.Waktu_Keluar || '—') + '</td>' +
+              '<td>' + escapeHtml(row.Petugas || '—') + '</td>' +
+            '</tr>';
+          });
+
+          html += '</tbody></table></div>';
+          target.innerHTML = html;
         })
         .withFailureHandler(showError)
         .getGuests();
@@ -760,23 +819,41 @@
       }
 
       document.getElementById('page-content').innerHTML =
-        pageHeader('Scan QR Tamu','Pindai QR pada undangan untuk mencatat kehadiran tamu.') +
-        '<div class="notice notice-warn">Izinkan akses kamera pada browser. QR harus berisi ID_Tamu yang cocok dengan sheet DATA_TAMU.</div>' +
+        pageHeader('Scan QR Tamu', 'Pindai QR undangan untuk memverifikasi dan mencatat kedatangan tamu.') +
         '<div class="scanner-layout">' +
-          '<div class="panel"><div class="panel-head"><h2>Pemindai QR</h2></div>' +
-            '<div class="panel-body"><div id="qr-reader"></div>' +
-            '<div class="toolbar" style="margin-top:14px">' +
-              '<button class="btn" onclick="startScanner()">Aktifkan kamera</button>' +
-              '<button class="btn btn-outline" onclick="stopScanner()">Hentikan kamera</button>' +
+          '<div class="panel">' +
+            '<div class="panel-head"><h2>Kamera Pemindai QR</h2></div>' +
+            '<div class="panel-body">' +
+              '<div id="qr-reader"></div>' +
+              '<div class="toolbar" style="margin-top:14px">' +
+                '<button class="btn" onclick="startScanner()">Aktifkan kamera</button>' +
+                '<button class="btn btn-outline" onclick="stopScanner()">Hentikan kamera</button>' +
+              '</div>' +
+              '<div style="margin-top:18px;border-top:1px solid #edf0ec;padding-top:14px">' +
+                '<label for="manual-guest-id" style="font-weight:700;font-size:12px;color:var(--ink)">Input Manual (NIM / ID Wisudawan)</label>' +
+                '<div class="toolbar" style="margin-top:7px">' +
+                  '<input id="manual-guest-id" class="field" style="flex:1;min-width:180px" placeholder="NIM atau ID Wisudawan (Contoh: WSD-0001)">' +
+                  '<button id="btn-manual-submit" class="btn" onclick="submitManualGuest()">Verifikasi Tamu</button>' +
+                '</div>' +
+              '</div>' +
             '</div>' +
-            '<div style="margin-top:15px"><label for="manual-guest-id">Masukkan ID tamu secara manual</label>' +
-              '<div class="toolbar" style="margin-top:7px">' +
-                '<input id="manual-guest-id" class="field" style="flex:1;min-width:180px" placeholder="Contoh: TAM-0001">' +
-                '<button class="btn" onclick="submitManualGuest()">Catat</button>' +
-              '</div></div>' +
-            '</div></div>' +
-          '<div class="panel"><div class="panel-head"><h2>Hasil pemindaian</h2></div>' +
-            '<div class="panel-body"><div id="scanner-result" class="scanner-result">Belum ada QR yang dipindai.</div></div>' +
+          '</div>' +
+
+          '<div class="panel">' +
+            '<div class="panel-head"><h2>Hasil Pemindaian</h2></div>' +
+            '<div class="panel-body">' +
+              '<div id="scanner-result" class="scanner-result">' +
+                '<div style="text-align:center;padding:24px 10px;color:var(--muted)">' +
+                  '<div style="font-size:32px;margin-bottom:8px">📷</div>' +
+                  '<strong>Belum ada QR yang dipindai</strong>' +
+                  '<div style="font-size:12px;margin-top:4px">Arahkan kamera ke QR undangan tamu atau masukkan ID/NIM secara manual.</div>' +
+                '</div>' +
+              '</div>' +
+              '<div id="scanner-history-box" style="margin-top:16px;display:none;">' +
+                '<div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Riwayat Sesi Ini</div>' +
+                '<div id="scanner-history-list" style="font-size:11px;color:var(--ink);display:flex;flex-direction:column;gap:5px"></div>' +
+              '</div>' +
+            '</div>' +
           '</div>' +
         '</div>';
     }
@@ -788,12 +865,21 @@
       if (APP.scanner) stopScanner();
 
       APP.scanner = new Html5Qrcode('qr-reader');
+      APP.lastScannedText = '';
+      APP.lastScannedTime = 0;
 
       APP.scanner.start(
         { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 230, height: 230 } },
+        { fps: 10, qrbox: { width: 240, height: 240 } },
         function (text) {
           if (APP.scanBusy) return;
+          const now = Date.now();
+          // Debounce: abaikan pembacaan frame berulang dalam rentang 3 detik untuk QR yang persis sama
+          if (APP.lastScannedText === text && (now - APP.lastScannedTime) < 3000) {
+            return;
+          }
+          APP.lastScannedText = text;
+          APP.lastScannedTime = now;
           APP.scanBusy = true;
           handleScannedGuest(text);
         },
@@ -820,65 +906,245 @@
       APP.scanBusy = false;
     }
 
+    function displayScanProcessing_(text) {
+      const box = document.getElementById('scanner-result');
+      if (!box) return;
+
+      box.innerHTML =
+        '<div style="padding:24px 10px;text-align:center;">' +
+          '<div style="display:inline-flex;align-items:center;gap:10px;font-weight:700;color:var(--ink);font-size:14px">' +
+            '<span style="display:inline-block;width:18px;height:18px;border:3px solid #2e7d32;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;"></span>' +
+            'Memproses QR undangan... Mohon tunggu' +
+          '</div>' +
+          '<div style="margin-top:8px;font-size:11px;color:var(--muted);overflow-wrap:anywhere">' + escapeHtml(text) + '</div>' +
+        '</div>';
+    }
+
+    function renderScanResult(result) {
+      const target = document.getElementById('scanner-result');
+      if (!target) return;
+
+      const code = result.resultCode || (result.success ? 'BERHASIL_MASUK' : 'QR_TIDAK_VALID');
+
+      let bannerClass = 'scan-badge-neutral';
+      let badgeText = result.badge || 'HASIL SCAN';
+
+      if (code === 'BERHASIL_MASUK') {
+        bannerClass = 'scan-badge-success-in';
+        badgeText = 'BERHASIL MASUK';
+      } else if (code === 'DITOLAK_TAMU_SUDAH_DI_DALAM') {
+        bannerClass = 'scan-badge-danger';
+        badgeText = 'DITOLAK — TAMU SUDAH DI DALAM GEDUNG';
+      } else if (code === 'BERHASIL_KELUAR') {
+        bannerClass = 'scan-badge-success-out';
+        badgeText = 'BERHASIL KELUAR';
+      } else if (code === 'DITOLAK_TIDAK_ADA_SESI_MASUK') {
+        bannerClass = 'scan-badge-warning';
+        badgeText = 'DITOLAK — TIDAK ADA SESI MASUK AKTIF';
+      } else if (code === 'QR_TIDAK_VALID') {
+        bannerClass = 'scan-badge-danger';
+        badgeText = 'QR TIDAK VALID';
+      }
+
+      let studentHtml = '';
+      let exitActionHtml = '';
+
+      if (result.student) {
+        const s = result.student;
+        const isInside = result.currentStatus === 'DI_DALAM';
+        const statusBadge = isInside
+          ? '<span class="badge badge-green">DI DALAM GEDUNG</span>'
+          : '<span class="badge" style="background:#e1f0fa;color:#124d80;">DI LUAR GEDUNG</span>';
+
+        let checkinTimeRow = '';
+        if (isInside && result.previousCheckinTime) {
+          checkinTimeRow =
+            '<div class="scan-identity-row">' +
+              '<span class="scan-identity-label">Waktu Masuk Sebelumnya</span>' +
+              '<span class="scan-identity-val">' + escapeHtml(result.previousCheckinTime) + '</span>' +
+            '</div>';
+        } else if (result.time) {
+          checkinTimeRow =
+            '<div class="scan-identity-row">' +
+              '<span class="scan-identity-label">' + (code === 'BERHASIL_KELUAR' ? 'Waktu Keluar' : 'Waktu Masuk') + '</span>' +
+              '<span class="scan-identity-val">' + escapeHtml(result.time) + '</span>' +
+            '</div>';
+        }
+
+        studentHtml =
+          '<div class="scan-identity-card">' +
+            '<div class="scan-identity-row">' +
+              '<span class="scan-identity-label">Wisudawan</span>' +
+              '<span class="scan-identity-val" style="font-size:13px;color:#185a25">' + escapeHtml(s.name || '—') + '</span>' +
+            '</div>' +
+            '<div class="scan-identity-row">' +
+              '<span class="scan-identity-label">NIM</span>' +
+              '<span class="scan-identity-val">' + escapeHtml(s.nim || s.id || '—') + '</span>' +
+            '</div>' +
+            '<div class="scan-identity-row">' +
+              '<span class="scan-identity-label">Fakultas / Prodi</span>' +
+              '<span class="scan-identity-val">' + escapeHtml((s.faculty || '') + (s.prodi ? ' / ' + s.prodi : '')) + '</span>' +
+            '</div>' +
+            '<div class="scan-identity-row">' +
+              '<span class="scan-identity-label">Nomor Kursi</span>' +
+              '<span class="scan-identity-val"><strong>' + escapeHtml(s.seat || '—') + '</strong></span>' +
+            '</div>' +
+            checkinTimeRow +
+            '<div class="scan-identity-row">' +
+              '<span class="scan-identity-label">Status Terkini</span>' +
+              '<span class="scan-identity-val">' + statusBadge + '</span>' +
+            '</div>' +
+          '</div>';
+
+        // Mekanisme keluar terkontrol jika tamu terdeteksi sedang di dalam gedung
+        if (isInside) {
+          exitActionHtml =
+            '<div style="margin-top:14px;padding:14px;background:#f0f7ff;border:1px solid #b8daff;border-radius:10px;text-align:center;">' +
+              '<div style="font-size:12px;color:#004085;margin-bottom:8px;font-weight:600;">' +
+                'Tamu sedang berada di dalam gedung. Hendak mencatat tamu keluar?' +
+              '</div>' +
+              '<button type="button" class="btn btn-outline" style="border-color:#1976d2;color:#1976d2;font-size:13px;font-weight:700;padding:8px 18px;" onclick="confirmGuestExit(\'' + escapeHtml(s.id) + '\', \'' + escapeHtml(s.name) + '\')">' +
+                '🚪 Catat Tamu Keluar' +
+              '</button>' +
+            '</div>';
+        }
+      }
+
+      const noticeClass = result.success ? 'notice-success' : (code === 'DITOLAK_TIDAK_ADA_SESI_MASUK' ? 'notice-warn' : 'notice-error');
+
+      target.innerHTML =
+        '<div class="scan-result-card">' +
+          '<div class="scan-badge-banner ' + bannerClass + '">' + escapeHtml(badgeText) + '</div>' +
+          '<div class="notice ' + noticeClass + '" style="margin-bottom:0">' +
+            escapeHtml(result.message || 'Pemindaian selesai.') +
+          '</div>' +
+          studentHtml +
+          exitActionHtml +
+        '</div>';
+
+      // Update riwayat lokal sesi ini
+      addScanToHistoryList_(badgeText, result.student ? result.student.name : 'QR', result.success);
+    }
+
+    function confirmGuestExit(studentId, studentName) {
+      if (!studentId) return;
+      if (confirm('Konfirmasi: Catat tamu dari ' + (studentName || studentId) + ' keluar dari gedung?')) {
+        executeControlledExit(studentId);
+      }
+    }
+
+    function executeControlledExit(studentId) {
+      if (APP.scanBusy) return;
+      APP.scanBusy = true;
+      displayScanProcessing_('Mencatat keluar: ' + studentId);
+
+      google.script.run
+        .withSuccessHandler(function (result) {
+          renderScanResult(result);
+          showToast(result.message || 'Sesi keluar berhasil dicatat.');
+          setTimeout(function () {
+            APP.scanBusy = false;
+          }, 1800);
+        })
+        .withFailureHandler(function (error) {
+          const errorMsg = getErrorMessage(error);
+          showToast(errorMsg);
+          renderScanResult({
+            success: false,
+            resultCode: 'QR_TIDAK_VALID',
+            badge: 'GAGAL MENCATAT KELUAR',
+            message: errorMsg
+          });
+          setTimeout(function () {
+            APP.scanBusy = false;
+          }, 1800);
+        })
+        .recordGuestExit(studentId, 'Manual Petugas');
+    }
+
+    function addScanToHistoryList_(badgeText, studentName, isSuccess) {
+      APP.scanHistory = APP.scanHistory || [];
+      const timeStr = new Date().toLocaleTimeString('id-ID');
+      APP.scanHistory.unshift({
+        time: timeStr,
+        badge: badgeText,
+        name: studentName,
+        success: isSuccess
+      });
+      if (APP.scanHistory.length > 5) APP.scanHistory.pop();
+
+      const box = document.getElementById('scanner-history-box');
+      const list = document.getElementById('scanner-history-list');
+      if (!box || !list) return;
+
+      box.style.display = 'block';
+      let html = '';
+      APP.scanHistory.forEach(function (h) {
+        const color = h.success ? '#155724' : '#721c24';
+        html += '<div style="padding:4px 8px;background:#fff;border-radius:6px;border:1px solid #edf0ec;display:flex;justify-content:space-between;align-items:center;">' +
+          '<span><strong style="color:' + color + '">[' + escapeHtml(h.badge) + ']</strong> ' + escapeHtml(h.name) + '</span>' +
+          '<span style="color:var(--muted)">' + h.time + '</span>' +
+        '</div>';
+      });
+      list.innerHTML = html;
+    }
+
     function handleScannedGuest(text) {
       if (!['Admin','Panitia'].includes(APP.session.role)) {
         APP.scanBusy = false;
         return showToast('Akses ditolak.');
       }
 
-      let id = String(text || '').trim();
-
-      try {
-        const parsed = JSON.parse(id);
-        id = parsed.ID_Tamu || parsed.idTamu || parsed.id || id;
-      } catch (e) {}
-
-      if (id.indexOf('TAMU:') === 0) id = id.slice(5).trim();
-
-      const box = document.getElementById('scanner-result');
-      if (!box) {
+      const raw = String(text || '').trim();
+      if (!raw) {
         APP.scanBusy = false;
-        return;
+        return showToast('Data QR kosong.');
       }
 
-      box.textContent = 'Memproses ID tamu: ' + id;
+      displayScanProcessing_(raw);
 
-      google.script.run
-        .withSuccessHandler(function (result) {
-          const target = document.getElementById('scanner-result');
-
-          if (target) {
-            target.innerHTML = '<div class="notice ' +
-              (result.success ? 'notice-success' : 'notice-warn') +
-              '">' + escapeHtml(result.message || 'Pemindaian selesai.') + '</div>';
-          }
-
-          showToast(result.message || 'Pemindaian selesai.');
-          setTimeout(function () { APP.scanBusy = false; }, 1800);
-        })
-        .withFailureHandler(function (error) {
-          const target = document.getElementById('scanner-result');
-
-          if (target) {
-            target.innerHTML = '<div class="notice notice-error">' +
-              escapeHtml(getErrorMessage(error)) + '</div>';
-          }
-
+      const successCallback = function (result) {
+        renderScanResult(result);
+        showToast(result.message || 'Pemindaian selesai.');
+        setTimeout(function () {
           APP.scanBusy = false;
-        })
-        .recordGuestAttendance(id, 'QR Code');
+        }, 1800);
+      };
+
+      const failureCallback = function (error) {
+        const errorMsg = getErrorMessage(error);
+        renderScanResult({
+          success: false,
+          resultCode: 'QR_TIDAK_VALID',
+          badge: 'QR TIDAK VALID',
+          message: errorMsg
+        });
+
+        showToast(errorMsg);
+        setTimeout(function () {
+          APP.scanBusy = false;
+        }, 1800);
+      };
+
+      // Alur otomatis selalu memverifikasi kedatangan / entry
+      google.script.run
+        .withSuccessHandler(successCallback)
+        .withFailureHandler(failureCallback)
+        .recordGuestEntry(raw, 'QR Code');
     }
 
     function submitManualGuest() {
       const input = document.getElementById('manual-guest-id');
-      const id = input ? input.value.trim() : '';
+      const val = input ? input.value.trim() : '';
 
-      if (!id) return showToast('Masukkan ID tamu terlebih dahulu.');
+      if (!val) return showToast('Masukkan NIM atau ID wisudawan terlebih dahulu.');
       if (APP.scanBusy) return;
 
       APP.scanBusy = true;
-      handleScannedGuest(id);
+      handleScannedGuest(val);
     }
+
+
 
     /* LAPORAN */
 
