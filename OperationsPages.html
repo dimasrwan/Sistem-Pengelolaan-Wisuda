@@ -321,10 +321,41 @@
 
       if (role === 'Wisudawan') {
         const rows = (APP.dashboard && APP.dashboard.seats) || [];
+        const firstSeat = rows[0] || null;
+
+        let locationNotice = '';
+        if (firstSeat) {
+          const hasCoord = firstSeat.Koordinat_Tersedia && firstSeat.Blok && firstSeat.Blok !== 'Belum terpetakan';
+          if (hasCoord) {
+            locationNotice =
+              '<div class="notice notice-info" style="margin-bottom:18px;">' +
+              '<h3 style="margin:0 0 6px 0; font-size:15px; font-weight:700; color:var(--primary-dark);">' +
+              'Informasi Denah Fisik Gedung Wisuda</h3>' +
+              '<p style="margin:0; font-size:14px; line-height:1.5;">' +
+              'Tempat duduk Anda berada di <strong>Blok ' + escapeHtml(firstSeat.Blok) + '</strong>, ' +
+              '<strong>Baris ' + escapeHtml(firstSeat.Baris) + '</strong>, ' +
+              '<strong>Kolom ' + escapeHtml(firstSeat.Kolom) + '</strong> ' +
+              '(Nomor Kursi: <strong>' + escapeHtml(firstSeat.Nomor_Kursi || '—') + '</strong>' +
+              (firstSeat.Hari_Ke ? ', Hari Ke-' + escapeHtml(firstSeat.Hari_Ke) : '') + ').' +
+              '</p></div>';
+          } else {
+            locationNotice =
+              '<div class="notice notice-warn" style="margin-bottom:18px;">' +
+              '<h3 style="margin:0 0 6px 0; font-size:15px; font-weight:700; color:#b45309;">' +
+              'Koordinat Denah Fisik Belum Tersedia</h3>' +
+              '<p style="margin:0; font-size:14px; line-height:1.5;">' +
+              escapeHtml(firstSeat.Catatan_Koordinat || 'Koordinat denah fisik belum terpetakan untuk nomor kursi ini.') +
+              ' Nomor kursi resmi Anda tetap terdaftar: <strong>' + escapeHtml(firstSeat.Nomor_Kursi || '—') + '</strong>.' +
+              '</p></div>';
+          }
+        }
 
         document.getElementById('page-content').innerHTML =
           pageHeader('Denah Kursi','Informasi tempat duduk milik akun ini.') +
-          '<div class="panel"><div class="panel-head"><h2>Informasi tempat duduk</h2></div>' +
+          locationNotice +
+          '<div class="panel"><div class="panel-head"><h2>Informasi Tempat Duduk</h2>' +
+          '<button class="btn btn-outline btn-sm" onclick="loadDashboard()">Muat Ulang</button>' +
+          '</div>' +
           '<div class="panel-body">' + buildTable(rows, [
             ['Blok','Blok'],
             ['Baris','Baris'],
