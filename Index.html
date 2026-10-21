@@ -163,6 +163,7 @@
         <h1>Masuk ke sistem</h1>
         <p>Sistem memeriksa akun Google yang sedang aktif. Hanya akun yang terdaftar dan aktif yang dapat mengakses portal.</p>
         <div id="login-status" class="notice notice-info">Tekan tombol di bawah untuk memeriksa akun Google.</div>
+        <div id="role-selection" class="hidden" style="margin-top:16px;"></div>
         <div class="login-actions">
           <button class="btn" id="login-btn" onclick="checkLogin()">Periksa Akun Google</button>
           <button class="btn btn-outline" onclick="showLanding()">Kembali ke halaman utama</button>
@@ -181,6 +182,7 @@
         </div>
         <div class="toolbar">
           <button class="btn btn-outline btn-sm mobile-menu" onclick="toggleMobileMenu()">Menu</button>
+          <button id="btn-switch-role" class="btn btn-outline btn-sm hidden" onclick="switchRole()">Ganti Peran</button>
           <span id="top-role" class="role-pill">Pengguna</span>
           <button class="btn btn-outline btn-sm" onclick="logout()">Keluar</button>
         </div>

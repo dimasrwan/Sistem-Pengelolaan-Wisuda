@@ -1,5 +1,5 @@
-function getDashboardData() {
-  const session = requireRole_(['Admin', 'Panitia', 'Wisudawan']);
+function getDashboardData(targetRole) {
+  const session = requireRole_(['Admin', 'Panitia', 'Wisudawan'], targetRole);
 
   const result = {
     session: session,
@@ -47,8 +47,8 @@ function getStudentProfile_(session) {
 
   return getRows_(CONFIG.SHEETS.STUDENTS).find(function (row) {
     return [
-      findValue_(row, ['ID_Wisudawan']),
-      findValue_(row, ['NIM'])
+      findValue_(row, ['ID_Wisudawan', 'ID Wisudawan']),
+      findValue_(row, ['NIM', 'Nomor Induk Mahasiswa'])
     ].some(function (value) {
       return normalize_(value) === id;
     });
@@ -60,15 +60,18 @@ function getStudentCallList_(session, profile) {
   profile = profile || getStudentProfile_(session);
   if (!profile) return [];
 
-  const studentId = normalize_(findValue_(profile, ['ID_Wisudawan']));
-  const nim = normalize_(findValue_(profile, ['NIM']));
+  const studentId = normalize_(findValue_(profile, ['ID_Wisudawan', 'ID Wisudawan']));
+  const nim = normalize_(findValue_(profile, ['NIM', 'Nomor Induk Mahasiswa']));
+  const name = normalize_(findValue_(profile, ['Nama_Lengkap', 'Nama']));
 
   return getRows_(CONFIG.SHEETS.CALL_LIST).filter(function (row) {
-    const rowId = normalize_(findValue_(row, ['ID_Wisudawan']));
-    const rowNim = normalize_(findValue_(row, ['NIM']));
+    const rowId = normalize_(findValue_(row, ['ID_Wisudawan', 'ID Wisudawan']));
+    const rowNim = normalize_(findValue_(row, ['NIM', 'Nomor Induk Mahasiswa']));
+    const rowName = normalize_(findValue_(row, ['Nama_Lengkap', 'Nama', 'Nama_Wisudawan']));
 
     return (studentId && rowId === studentId) ||
-      (nim && rowNim === nim);
+      (nim && rowNim === nim) ||
+      (!rowId && !rowNim && name && rowName === name);
   });
 }
 
@@ -77,15 +80,18 @@ function getStudentSeats_(session, profile) {
   profile = profile || getStudentProfile_(session);
   if (!profile) return [];
 
-  const studentId = normalize_(findValue_(profile, ['ID_Wisudawan']));
-  const nim = normalize_(findValue_(profile, ['NIM']));
+  const studentId = normalize_(findValue_(profile, ['ID_Wisudawan', 'ID Wisudawan']));
+  const nim = normalize_(findValue_(profile, ['NIM', 'Nomor Induk Mahasiswa']));
+  const name = normalize_(findValue_(profile, ['Nama_Lengkap', 'Nama']));
 
   return getRows_(CONFIG.SHEETS.SEATS).filter(function (row) {
-    const rowId = normalize_(findValue_(row, ['ID_Wisudawan']));
-    const rowNim = normalize_(findValue_(row, ['NIM']));
+    const rowId = normalize_(findValue_(row, ['ID_Wisudawan', 'ID Wisudawan']));
+    const rowNim = normalize_(findValue_(row, ['NIM', 'Nomor Induk Mahasiswa']));
+    const rowName = normalize_(findValue_(row, ['Nama_Lengkap', 'Nama', 'Nama_Wisudawan']));
 
     return (studentId && rowId === studentId) ||
-      (nim && rowNim === nim);
+      (nim && rowNim === nim) ||
+      (!rowId && !rowNim && name && rowName === name);
   });
 }
 

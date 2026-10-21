@@ -6,12 +6,29 @@
       window.scrollTo(0, 0);
     }
 
+    function resetLoginView() {
+      const btn = document.getElementById('login-btn');
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Periksa Akun Google';
+        btn.classList.remove('hidden');
+      }
+      const roleSelection = document.getElementById('role-selection');
+      if (roleSelection) {
+        roleSelection.innerHTML = '';
+        roleSelection.classList.add('hidden');
+      }
+      const status = document.getElementById('login-status');
+      if (status) {
+        status.className = 'notice notice-info';
+        status.textContent = 'Tekan tombol di bawah untuk memeriksa akun Google.';
+      }
+    }
+
     function openLogin() {
       stopScanner();
       showOnly('login-view');
-      const status = document.getElementById('login-status');
-      status.className = 'notice notice-info';
-      status.textContent = 'Tekan tombol di bawah untuk memeriksa akun Google.';
+      resetLoginView();
     }
 
     function showLanding() {
@@ -42,8 +59,13 @@
             return;
           }
 
+          if (result.requiresRoleSelection && Array.isArray(result.availableRoles) && result.availableRoles.length > 1) {
+            showRoleSelection(result);
+            return;
+          }
+
           APP.session = result;
-          loadDashboard();
+          loadDashboard(result.role);
         })
         .withFailureHandler(function (error) {
           btn.disabled = false;
@@ -54,7 +76,74 @@
         .getSession();
     }
 
-    function loadDashboard() {
+    function showRoleSelection(result) {
+      const status = document.getElementById('login-status');
+      const btn = document.getElementById('login-btn');
+      const roleSelection = document.getElementById('role-selection');
+
+      if (btn) btn.classList.add('hidden');
+
+      status.className = 'notice notice-info';
+      status.textContent = 'Akun Google Anda memiliki beberapa peran terdaftar. Silakan pilih peran yang ingin digunakan:';
+
+      if (roleSelection) {
+        roleSelection.classList.remove('hidden');
+        let html = '<div style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;">';
+        result.availableRoles.forEach(function (role) {
+          const roleLabel = role === 'Wisudawan'
+            ? 'Masuk sebagai Wisudawan'
+            : (role === 'Admin' ? 'Masuk sebagai Admin' : 'Masuk sebagai ' + role);
+          html += '<button type="button" class="btn" style="width:100%; justify-content:center;" onclick="selectRole(\'' + escapeJs(role) + '\')">' +
+            escapeHtml(roleLabel) +
+            '</button>';
+        });
+        html += '<button type="button" class="btn btn-outline" style="width:100%; justify-content:center;" onclick="resetLoginView()">Batal</button>';
+        html += '</div>';
+        roleSelection.innerHTML = html;
+      }
+    }
+
+    function selectRole(role) {
+      const status = document.getElementById('login-status');
+      const roleSelection = document.getElementById('role-selection');
+
+      status.className = 'notice notice-info';
+      status.textContent = 'Menyiapkan sesi sebagai ' + role + '...';
+
+      if (roleSelection) {
+        roleSelection.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+      }
+
+      google.script.run
+        .withSuccessHandler(function (result) {
+          if (!result || !result.authenticated) {
+            if (roleSelection) {
+              roleSelection.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
+            }
+            status.className = 'notice notice-error';
+            status.textContent = (result && result.message) || 'Gagal memilih peran.';
+            return;
+          }
+
+          APP.session = result;
+          loadDashboard(role);
+        })
+        .withFailureHandler(function (error) {
+          if (roleSelection) {
+            roleSelection.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
+          }
+          status.className = 'notice notice-error';
+          status.textContent = getErrorMessage(error);
+        })
+        .getSession(role);
+    }
+
+    function switchRole() {
+      openLogin();
+      checkLogin();
+    }
+
+    function loadDashboard(targetRole) {
       google.script.run
         .withSuccessHandler(function (data) {
           if (!data || !data.session || !data.session.authenticated) {
@@ -75,13 +164,19 @@
           status.className = 'notice notice-error';
           status.textContent = getErrorMessage(error);
         })
-        .getDashboardData();
+        .getDashboardData(targetRole);
     }
 
     function configureRole() {
       if (!APP.session) return;
 
       document.getElementById('top-role').textContent = APP.session.role;
+
+      const switchBtn = document.getElementById('btn-switch-role');
+      if (switchBtn) {
+        const hasMultiple = APP.session.availableRoles && APP.session.availableRoles.length > 1;
+        switchBtn.classList.toggle('hidden', !hasMultiple);
+      }
 
       document.querySelectorAll('[data-roles]').forEach(function (element) {
         const roles = element.dataset.roles.split(',').map(function (value) {
@@ -185,8 +280,8 @@
               detailBox('NIM', value(student,['NIM'])) +
               detailBox('Fakultas', value(student,['Fakultas'])) +
               detailBox('Program studi', value(student,['Program_Studi','Program Studi'])) +
-              detailBox('Urutan panggil', value(call,['Urutan_Panggil'])) +
-              detailBox('Kode kursi', value(seat,['Nomor_Kursi','Kode_Kursi'])) +
+              detailBox('Urutan panggil', value(call,['Urutan_Panggil','Urutan','Urutan_Kursi','No','no'])) +
+              detailBox('Kode kursi', value(seat,['Nomor_Kursi','Kode_Kursi','Kursi','nomorKursi'])) +
               '</div></div></div>'
             : '<div class="notice notice-warn">Data pribadi belum terhubung ke akun ini. Admin perlu mengisi ID_Wisudawan pada sheet PENGGUNA.</div>') +
           '<div class="panel" style="margin-top:18px"><div class="panel-head"><h2>Periode Wisuda</h2></div>' +

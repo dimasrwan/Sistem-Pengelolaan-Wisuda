@@ -1558,6 +1558,9 @@
       APP.reportCache = null;
       APP.importRows = null;
       APP.importPreview = null;
+      if (typeof google !== 'undefined' && google.script && google.script.run && typeof google.script.run.logoutSession === 'function') {
+        google.script.run.logoutSession();
+      }
       showLanding();
     }
 

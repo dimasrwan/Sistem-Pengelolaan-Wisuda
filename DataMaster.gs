@@ -52,7 +52,7 @@ function resolveTargetPeriodId_(explicitPeriodId) {
 }
 
 function getCallList(filters) {
-  requireRole_(['Admin']);
+  requireRole_(['Admin', 'Wisudawan']);
   filters = filters || {};
 
   const callRows = getRows_(CONFIG.SHEETS.CALL_LIST);
@@ -247,7 +247,7 @@ function getSeatOrderIndexForCallRow_(seatOrderMap, row) {
 
 function getSeatMap(filters) {
   Logger.log('[getSeatMap] Mulai - filters: ' + JSON.stringify(filters || {}));
-  requireRole_(['Admin']);
+  requireRole_(['Admin', 'Wisudawan']);
   filters = filters || {};
 
   const periodFilter = resolveTargetPeriodId_(filters.period);
