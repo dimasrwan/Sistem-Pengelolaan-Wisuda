@@ -70,10 +70,7 @@
             ['Nomor_Kursi','Kursi'],
             ['Status_Panggil','Status']
           ], function (row) {
-            return '<button class="btn btn-outline btn-sm" data-id="' +
-              escapeAttr(value(row,['ID_Panggil'])) + '" data-status="' +
-              escapeAttr(value(row,['Status_Panggil'])) +
-              '" onclick="cycleCallStatus(this.dataset.id, this.dataset.status)">Ubah status</button>';
+            return renderCallActionButton(row);
           });
         })
         .withFailureHandler(showError)
@@ -81,29 +78,239 @@
     }
 
     function onCallDayFilterChange(val) {
+      closeCallStatusModal();
       APP.callListFilters.day = val;
       renderCalls();
     }
 
-    function cycleCallStatus(id, status) {
+    function renderCallActionButton(row) {
+      if (APP.session.role !== 'Admin') {
+        return '<span style="color:var(--muted);font-size:12px;">—</span>';
+      }
+
+      const id = value(row, ['ID_Panggil']);
+      const status = value(row, ['Status_Panggil']) || 'Belum Dipanggil';
+      const name = value(row, ['Nama_Wisudawan']) || '—';
+      const nim = value(row, ['NIM']) || '—';
+      const seat = value(row, ['Nomor_Kursi']) || '—';
+
+      let nextStatus = 'Siap Dipanggil';
+      let btnLabel = 'Siap Dipanggil';
+      let btnClass = 'btn-call-action btn-call-ready';
+      let iconSvg = '';
+
+      if (status === 'Belum Dipanggil') {
+        nextStatus = 'Siap Dipanggil';
+        btnLabel = 'Siap Dipanggil';
+        btnClass = 'btn-call-action btn-call-ready';
+        iconSvg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>';
+      } else if (status === 'Siap Dipanggil') {
+        nextStatus = 'Sudah Dipanggil';
+        btnLabel = 'Sudah Dipanggil';
+        btnClass = 'btn-call-action btn-call-called';
+        iconSvg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+      } else if (status === 'Sudah Dipanggil') {
+        nextStatus = 'Belum Dipanggil';
+        btnLabel = 'Reset Status';
+        btnClass = 'btn-call-action btn-call-reset';
+        iconSvg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>';
+      } else {
+        nextStatus = 'Belum Dipanggil';
+        btnLabel = 'Ubah Status';
+        btnClass = 'btn-call-action btn-call-reset';
+        iconSvg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>';
+      }
+
+      return '<button type="button" class="' + btnClass + '"' +
+        ' data-id="' + escapeAttr(id) + '"' +
+        ' data-name="' + escapeAttr(name) + '"' +
+        ' data-nim="' + escapeAttr(nim) + '"' +
+        ' data-seat="' + escapeAttr(seat) + '"' +
+        ' data-current="' + escapeAttr(status) + '"' +
+        ' data-next="' + escapeAttr(nextStatus) + '"' +
+        ' onclick="openCallStatusModal(this)">' +
+        iconSvg + '<span>' + escapeHtml(btnLabel) + '</span>' +
+        '</button>';
+    }
+
+    function getCallStatusBadgeHtml(status) {
+      const s = String(status || '').toLowerCase();
+      if (s.includes('sudah') || s.includes('hadir')) {
+        return '<span class="badge badge-green">' + escapeHtml(status) + '</span>';
+      } else if (s.includes('siap')) {
+        return '<span class="badge" style="background:#d9f2db;color:#0b6819;font-weight:800;">' + escapeHtml(status) + '</span>';
+      } else if (s.includes('belum')) {
+        return '<span class="badge badge-yellow">' + escapeHtml(status) + '</span>';
+      }
+      return '<span class="badge">' + escapeHtml(status) + '</span>';
+    }
+
+    function openCallStatusModal(btn) {
+      if (APP.session.role !== 'Admin') return showToast('Akses ditolak.');
+      if (!btn) return;
+
+      const id = btn.dataset.id;
+      const name = btn.dataset.name || '—';
+      const nim = btn.dataset.nim || '—';
+      const seat = btn.dataset.seat || '—';
+      const currentStatus = btn.dataset.current || 'Belum Dipanggil';
+      const nextStatus = btn.dataset.next || 'Siap Dipanggil';
+
+      APP.pendingCallStatus = {
+        id: id,
+        name: name,
+        currentStatus: currentStatus,
+        nextStatus: nextStatus,
+        isSubmitting: false
+      };
+
+      const prev = document.getElementById('call-status-modal-wrap');
+      if (prev) prev.remove();
+
+      let actionDesc = 'memperbarui status pemanggilan';
+      if (nextStatus === 'Siap Dipanggil') {
+        actionDesc = 'menandai wisudawan ini <strong>Siap Dipanggil</strong> ke panggung';
+      } else if (nextStatus === 'Sudah Dipanggil') {
+        actionDesc = 'mengonfirmasi bahwa wisudawan ini <strong>Sudah Dipanggil</strong>';
+      } else if (nextStatus === 'Belum Dipanggil') {
+        actionDesc = 'mengembalikan status pemanggilan menjadi <strong>Belum Dipanggil</strong>';
+      }
+
+      const modalHtml = '<div id="call-status-modal-wrap">' +
+        '<div id="call-status-modal" class="student-modal-overlay" onclick="if(event.target===this)closeCallStatusModal()">' +
+          '<div class="call-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="call-modal-title">' +
+            '<div class="call-confirm-header">' +
+              '<h3 id="call-modal-title" class="call-confirm-title">' +
+                '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="color:var(--green);"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>' +
+                'Konfirmasi Status Pemanggilan' +
+              '</h3>' +
+              '<button type="button" class="btn btn-outline btn-sm" id="btn-call-modal-close" onclick="closeCallStatusModal()" aria-label="Tutup" style="min-height:auto;padding:3px 8px;border-radius:6px;font-size:12px;">✕</button>' +
+            '</div>' +
+            '<div class="call-student-card">' +
+              '<div class="call-student-name">' + escapeHtml(name) + '</div>' +
+              '<div class="call-student-meta">' +
+                '<span><strong>NIM:</strong> ' + escapeHtml(nim) + '</span>' +
+                '<span>•</span>' +
+                '<span><strong>Nomor Kursi:</strong> <span class="badge badge-green" style="font-size:10px;padding:2px 7px;">' + escapeHtml(seat) + '</span></span>' +
+              '</div>' +
+            '</div>' +
+            '<div class="call-status-flow">' +
+              '<div class="call-status-box">' +
+                '<div class="call-status-label">Status Saat Ini</div>' +
+                getCallStatusBadgeHtml(currentStatus) +
+              '</div>' +
+              '<div class="call-status-arrow">' +
+                '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>' +
+              '</div>' +
+              '<div class="call-status-box">' +
+                '<div class="call-status-label">Status Tujuan</div>' +
+                getCallStatusBadgeHtml(nextStatus) +
+              '</div>' +
+            '</div>' +
+            '<p style="margin:0 0 20px 0;font-size:13px;color:var(--muted);text-align:center;line-height:1.5;">' +
+              'Apakah Anda yakin ingin ' + actionDesc + '?' +
+            '</p>' +
+            '<div style="display:flex;justify-content:flex-end;gap:10px;">' +
+              '<button type="button" class="btn btn-outline btn-sm" id="btn-call-modal-cancel" onclick="closeCallStatusModal()">Batal</button>' +
+              '<button type="button" class="btn btn-sm btn-call-ready" id="btn-call-modal-submit" onclick="confirmCallStatusUpdate()">' +
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
+                '<span>Konfirmasi</span>' +
+              '</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+      const wrap = document.createElement('div');
+      wrap.innerHTML = modalHtml;
+      document.body.appendChild(wrap.firstElementChild);
+
+      const submitBtn = document.getElementById('btn-call-modal-submit');
+      if (submitBtn) submitBtn.focus();
+    }
+
+    function closeCallStatusModal(force) {
+      if (!force && APP.pendingCallStatus && APP.pendingCallStatus.isSubmitting) return;
+      APP.pendingCallStatus = null;
+      const wrap = document.getElementById('call-status-modal-wrap');
+      if (wrap) wrap.remove();
+    }
+
+    function confirmCallStatusUpdate() {
+      if (!APP.pendingCallStatus || APP.pendingCallStatus.isSubmitting) return;
       if (APP.session.role !== 'Admin') return showToast('Akses ditolak.');
 
+      const submitBtn = document.getElementById('btn-call-modal-submit');
+      const cancelBtn = document.getElementById('btn-call-modal-cancel');
+      const closeBtn = document.getElementById('btn-call-modal-close');
+
+      APP.pendingCallStatus.isSubmitting = true;
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-sm"></span> <span>Menyimpan...</span>';
+      }
+      if (cancelBtn) cancelBtn.disabled = true;
+      if (closeBtn) closeBtn.disabled = true;
+
+      const callId = APP.pendingCallStatus.id;
+      const targetStatus = APP.pendingCallStatus.nextStatus;
+
+      google.script.run
+        .withSuccessHandler(function (result) {
+          closeCallStatusModal(true);
+          showToast(result && result.message ? result.message : 'Status pemanggilan berhasil diperbarui.');
+          renderCalls();
+        })
+        .withFailureHandler(function (error) {
+          if (APP.pendingCallStatus) {
+            APP.pendingCallStatus.isSubmitting = false;
+          }
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> <span>Konfirmasi</span>';
+          }
+          if (cancelBtn) cancelBtn.disabled = false;
+          if (closeBtn) closeBtn.disabled = false;
+          showError(error);
+        })
+        .updateCallStatus(callId, targetStatus);
+    }
+
+    function cycleCallStatus(id, status) {
       const next = status === 'Belum Dipanggil'
         ? 'Siap Dipanggil'
         : status === 'Siap Dipanggil'
           ? 'Sudah Dipanggil'
           : 'Belum Dipanggil';
 
-      if (!confirm('Ubah status menjadi "' + next + '"?')) return;
-
-      google.script.run
-        .withSuccessHandler(function (result) {
-          showToast(result.message || 'Status diperbarui.');
-          renderCalls();
-        })
-        .withFailureHandler(showError)
-        .updateCallStatus(id, next);
+      let row = null;
+      if (APP.currentCallsData && APP.currentCallsData.length) {
+        row = APP.currentCallsData.find(function (r) {
+          return String(value(r, ['ID_Panggil'])).trim() === String(id).trim();
+        });
+      }
+      const fakeBtn = {
+        dataset: {
+          id: id,
+          name: row ? value(row, ['Nama_Wisudawan']) : id,
+          nim: row ? value(row, ['NIM']) : '—',
+          seat: row ? value(row, ['Nomor_Kursi']) : '—',
+          current: status,
+          next: next
+        }
+      };
+      openCallStatusModal(fakeBtn);
     }
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        const modal = document.getElementById('call-status-modal');
+        if (modal && (!APP.pendingCallStatus || !APP.pendingCallStatus.isSubmitting)) {
+          closeCallStatusModal();
+        }
+      }
+    });
 
     /* =========================================================
        MODUL VISUAL DENAH KURSI
