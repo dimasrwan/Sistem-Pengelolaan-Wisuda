@@ -70,10 +70,10 @@
             ['Nomor_Kursi','Kursi'],
             ['Status_Panggil','Status']
           ], function (row) {
-            return '<button class="btn btn-outline btn-sm" onclick="cycleCallStatus(\'' +
-              escapeAttr(value(row,['ID_Panggil'])) + '\',\'' +
+            return '<button class="btn btn-outline btn-sm" data-id="' +
+              escapeAttr(value(row,['ID_Panggil'])) + '" data-status="' +
               escapeAttr(value(row,['Status_Panggil'])) +
-              '\')">Ubah status</button>';
+              '" onclick="cycleCallStatus(this.dataset.id, this.dataset.status)">Ubah status</button>';
           });
         })
         .withFailureHandler(showError)
@@ -476,7 +476,8 @@
       const nim = seat.NIM ? (' (' + seat.NIM + ')') : '';
       const tooltip = code + ': ' + name + nim + ' - ' + (seat.Fakultas || '') + ' [' + (seat.Jenis_Kelamin || '') + ']';
 
-      return '<div class="seat-cell ' + cls + '" title="' + escapeAttr(tooltip) + '" onclick="showSeatStudentDetail(\'' + escapeAttr(code) + '\')">' +
+      return '<div class="seat-cell ' + cls + '" title="' + escapeAttr(tooltip) + '" data-seat="' +
+        escapeAttr(code) + '" onclick="showSeatStudentDetail(this.dataset.seat)">' +
         escapeHtml(code) + '</div>';
     }
 
@@ -1007,7 +1008,9 @@
               '<div style="font-size:12px;color:#004085;margin-bottom:8px;font-weight:600;">' +
                 'Tamu sedang berada di dalam gedung. Hendak mencatat tamu keluar?' +
               '</div>' +
-              '<button type="button" class="btn btn-outline" style="border-color:#1976d2;color:#1976d2;font-size:13px;font-weight:700;padding:8px 18px;" onclick="confirmGuestExit(\'' + escapeHtml(s.id) + '\', \'' + escapeHtml(s.name) + '\')">' +
+              '<button type="button" class="btn btn-outline" style="border-color:#1976d2;color:#1976d2;font-size:13px;font-weight:700;padding:8px 18px;" data-id="' +
+                escapeAttr(s.id) + '" data-name="' + escapeAttr(s.name) +
+                '" onclick="confirmGuestExit(this.dataset.id, this.dataset.name)">' +
                 '🚪 Catat Tamu Keluar' +
               '</button>' +
             '</div>';
@@ -1304,8 +1307,17 @@
 
     function escapeAttr(value) {
       return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    function escapeJs(value) {
+      return String(value == null ? '' : value)
         .replace(/\\/g, '\\\\')
-        .replace(/'/g, "\\'");
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '\\"');
     }
 
     function getErrorMessage(error) {

@@ -258,6 +258,16 @@
       }
     }
 
+    if (typeof escapeAttr !== 'function') {
+      function escapeAttr(value) {
+        return String(value == null ? '' : value)
+          .replace(/&/g, '&amp;')
+          .replace(/"/g, '&quot;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+      }
+    }
+
     function closeAllCustomSelects() {
       document.querySelectorAll('.custom-select-menu.open').forEach(function(m) {
         m.classList.remove('open');
@@ -492,7 +502,7 @@
         if (child.tagName === 'OPTGROUP') {
           const header = document.createElement('div');
           header.className = 'custom-select-group-header';
-          header.textContent = child.label || '';
+          header.textContent = (child.label || '').replace(/\\'/g, "'");
           menu.appendChild(header);
 
           Array.from(child.children).forEach(function(opt) {

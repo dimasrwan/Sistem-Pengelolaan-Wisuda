@@ -486,7 +486,7 @@
       // Program Profesi (tambahan jika ada di master data): setelah Pascasarjana, sebelum Sarjana
       'Program Profesi',
       'Profesi',
-      'Fakultas Syari\'ah dan Hukum - S1',
+      "Fakultas Syari'ah dan Hukum - S1",
       'Fakultas Ushuluddin dan Filsafat - S1',
       'Fakultas Dakwah dan Komunikasi - S1',
       'Fakultas Tarbiyah dan Keguruan - S1',
@@ -635,13 +635,35 @@
       return idx;
     }
 
+    function normalizeFacultyKey_(value) {
+      return String(value == null ? '' : value)
+        .trim()
+        .toLowerCase()
+        .replace(/[`’'‘‛]/g, "'")
+        .replace(/\\'/g, "'")
+        .replace(/\s*[-–—]\s*/g, ' - ')
+        .replace(/\s+/g, ' ');
+    }
+
+    function getOrderedProdisForFaculty(facName) {
+      if (!facName) return [];
+      if (ORDERED_PRODIS_BY_FACULTY[facName]) return ORDERED_PRODIS_BY_FACULTY[facName];
+      const normFac = normalizeFacultyKey_(facName);
+      for (const key in ORDERED_PRODIS_BY_FACULTY) {
+        if (normalizeFacultyKey_(key) === normFac) {
+          return ORDERED_PRODIS_BY_FACULTY[key];
+        }
+      }
+      return [];
+    }
+
     function getFacultyRank(facName) {
-      const norm = String(facName || '').trim().toLowerCase();
+      const norm = normalizeFacultyKey_(facName);
       for (let i = 0; i < ORDERED_FACULTIES.length; i++) {
-        if (ORDERED_FACULTIES[i].toLowerCase() === norm) return i;
+        if (normalizeFacultyKey_(ORDERED_FACULTIES[i]) === norm) return i;
       }
       for (let i = 0; i < ORDERED_FACULTIES.length; i++) {
-        const cNorm = ORDERED_FACULTIES[i].toLowerCase();
+        const cNorm = normalizeFacultyKey_(ORDERED_FACULTIES[i]);
         if (norm.includes(cNorm) || cNorm.includes(norm)) return i;
       }
       return 999;
@@ -662,7 +684,7 @@
         if (!prodiByFac[fac]) prodiByFac[fac] = new Map();
 
         if (!prodiByFac[fac].has(prodi)) {
-          const refList = ORDERED_PRODIS_BY_FACULTY[fac] || [];
+          const refList = getOrderedProdisForFaculty(fac);
           const matchedIdx = matchProdiToRef(prodi, refList);
           const label = matchedIdx !== -1 ? refList[matchedIdx] : formatCleanProdiLabel(prodi);
           const rank = matchedIdx !== -1 ? matchedIdx : 999;
@@ -695,6 +717,20 @@
       };
     }
 
+    function getProdisForFaculty(selectedFaculty) {
+      if (!selectedFaculty || !studentFilterData) return [];
+      if (studentFilterData.prodisByFac[selectedFaculty]) {
+        return studentFilterData.prodisByFac[selectedFaculty];
+      }
+      const norm = normalizeFacultyKey_(selectedFaculty);
+      for (const fac in studentFilterData.prodisByFac) {
+        if (normalizeFacultyKey_(fac) === norm) {
+          return studentFilterData.prodisByFac[fac];
+        }
+      }
+      return [];
+    }
+
     function populateStudentProgramOptions(selectedFaculty, preserveValue) {
       const el = document.getElementById('filter-program');
       if (!el || !studentFilterData) return;
@@ -704,7 +740,7 @@
 
       if (selectedFaculty) {
         // Menampilkan program studi untuk fakultas yang dipilih
-        const prodis = studentFilterData.prodisByFac[selectedFaculty] || [];
+        const prodis = getProdisForFaculty(selectedFaculty);
         prodis.forEach(function(p) {
           html += '<option value="' + escapeAttr(p.raw) + '">' + escapeHtml(p.label) + '</option>';
         });
@@ -727,7 +763,7 @@
       let isValid = false;
       if (preserveValue) {
         if (selectedFaculty) {
-          const prodis = studentFilterData.prodisByFac[selectedFaculty] || [];
+          const prodis = getProdisForFaculty(selectedFaculty);
           isValid = prodis.some(function(p) { return p.raw === preserveValue; });
         } else {
           isValid = Boolean(studentFilterData.facByProdi[preserveValue]);
@@ -788,8 +824,12 @@
             facultyHtml += '<option value="' + escapeAttr(fac) + '">' + escapeHtml(fac) + '</option>';
           });
           facultyEl.innerHTML = facultyHtml;
-          if (currentFac && studentFilterData.faculties.includes(currentFac)) {
-            facultyEl.value = currentFac;
+          if (currentFac) {
+            const normCurrent = normalizeFacultyKey_(currentFac);
+            const matchedFac = studentFilterData.faculties.find(function(f) {
+              return normalizeFacultyKey_(f) === normCurrent;
+            });
+            if (matchedFac) facultyEl.value = matchedFac;
           }
         }
 

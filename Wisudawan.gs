@@ -10,7 +10,7 @@ function searchStudents(query, filters) {
     const checks = [
       !q || Object.keys(row).some(function (key) { return normalize_(row[key]).includes(q); }),
       !filters.period || normalize_(findValue_(row, ['ID_Periode','ID Periode'])) === normalize_(filters.period),
-      !filters.faculty || normalize_(findValue_(row, ['Fakultas'])) === normalize_(filters.faculty),
+      !filters.faculty || normalizeFacultyKey_(findValue_(row, ['Fakultas'])) === normalizeFacultyKey_(filters.faculty),
       !filters.program || normalize_(findValue_(row, ['Program_Studi','Program Studi'])) === normalize_(filters.program),
       !filters.level || normalize_(findValue_(row, ['Jenjang'])) === normalize_(filters.level),
       !filters.gender || normalizeGender_(findValue_(row, ['Jenis_Kelamin','Jenis Kelamin'])) === normalizeGender_(filters.gender),
@@ -20,6 +20,17 @@ function searchStudents(query, filters) {
     return checks.every(Boolean);
   });
 }
+
+function normalizeFacultyKey_(value) {
+  return String(value == null ? '' : value)
+    .trim()
+    .toLowerCase()
+    .replace(/[`’'‘‛]/g, "'")
+    .replace(/\\'/g, "'")
+    .replace(/\s*[-–—]\s*/g, ' - ')
+    .replace(/\s+/g, ' ');
+}
+
 
 function normalizeGender_(value) {
   if (!value) return '';
