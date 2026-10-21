@@ -118,16 +118,27 @@ function getSession(targetRole) {
     ]) || '').trim();
   }
 
+  const selectedUserId = String(findValue_(user, ['ID_Pengguna', 'ID Pengguna', 'ID_User', 'ID User']) || '').trim();
+
   const session = {
     authenticated: true,
     email: email,
+    userId: selectedUserId,
     name: String(findValue_(user, [
       'Nama_Pengguna', 'Nama_Lengkap', 'Nama'
     ]) || email),
     role: canonicalRole,
     studentId: studentId,
+    ID_Wisudawan: studentId,
     availableRoles: availableRoles
   };
+
+  logDiagnostic_('AUTH_SESSION', {
+    activeRole: session.role,
+    userId: selectedUserId,
+    studentId: studentId,
+    reason: 'Login berhasil sebagai ' + session.role
+  });
 
   logActivity_(
     email,
@@ -173,6 +184,64 @@ function logoutSession() {
     PropertiesService.getUserProperties().deleteProperty('ACTIVE_ROLE');
   } catch (e) {}
   return { success: true };
+}
+
+
+/* =========================
+   DIAGNOSTIC LOGGING (AMAN)
+   ========================= */
+
+function logDiagnostic_(category, data) {
+  try {
+    const timestamp = new Date().toISOString();
+    const entry = {
+      timestamp: timestamp,
+      category: category,
+      activeRole: (data && data.activeRole) || '',
+      userId: (data && data.userId) || '',
+      studentId: (data && data.studentId) || '',
+      matchedCount: data && typeof data.matchedCount === 'number' ? data.matchedCount : null,
+      reason: (data && data.reason) || ''
+    };
+
+    Logger.log('[DIAGNOSTIC][' + category + '] Role=' + entry.activeRole +
+      ', UserID=' + entry.userId +
+      ', StudentID=' + entry.studentId +
+      (entry.matchedCount !== null ? ', Matched=' + entry.matchedCount : '') +
+      (entry.reason ? ', Detail=' + entry.reason : ''));
+
+    // Simpan ringkasan sementara di UserProperties (maksimal 20 entri terakhir)
+    const userProps = PropertiesService.getUserProperties();
+    let logs = [];
+    try {
+      const raw = userProps.getProperty('DIAGNOSTIC_LOGS');
+      if (raw) logs = JSON.parse(raw);
+    } catch (e) { logs = []; }
+
+    logs.push(entry);
+    if (logs.length > 20) logs = logs.slice(logs.length - 20);
+    userProps.setProperty('DIAGNOSTIC_LOGS', JSON.stringify(logs));
+  } catch (err) {
+    Logger.log('[DIAGNOSTIC_ERR] ' + err.message);
+  }
+}
+
+function getDiagnosticLogs() {
+  try {
+    const raw = PropertiesService.getUserProperties().getProperty('DIAGNOSTIC_LOGS');
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function clearDiagnosticLogs() {
+  try {
+    PropertiesService.getUserProperties().deleteProperty('DIAGNOSTIC_LOGS');
+    return { success: true, message: 'Log diagnostik berhasil dibersihkan.' };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
 }
 
 

@@ -42,17 +42,57 @@ function getDashboardData(targetRole) {
 
 
 function getStudentProfile_(session) {
-  const id = normalize_(session.studentId);
-  if (!id) return null;
+  const targetId = String((session && (session.studentId || session.ID_Wisudawan)) || '').trim();
+  const id = normalize_(targetId);
 
-  return getRows_(CONFIG.SHEETS.STUDENTS).find(function (row) {
+  if (!id) {
+    if (typeof logDiagnostic_ === 'function') {
+      logDiagnostic_('STUDENT_PROFILE', {
+        activeRole: session && session.role,
+        userId: session && session.userId,
+        studentId: '',
+        matchedCount: 0,
+        reason: 'studentId / ID_Wisudawan kosong pada session'
+      });
+    }
+    return null;
+  }
+
+  const allStudents = getRows_(CONFIG.SHEETS.STUDENTS);
+  const matched = allStudents.filter(function (row) {
     return [
       findValue_(row, ['ID_Wisudawan', 'ID Wisudawan']),
       findValue_(row, ['NIM', 'Nomor Induk Mahasiswa'])
     ].some(function (value) {
       return normalize_(value) === id;
     });
-  }) || null;
+  });
+
+  if (!matched.length) {
+    if (typeof logDiagnostic_ === 'function') {
+      logDiagnostic_('STUDENT_PROFILE', {
+        activeRole: session && session.role,
+        userId: session && session.userId,
+        studentId: targetId,
+        matchedCount: 0,
+        reason: 'Tidak ada baris DATA_WISUDAWAN yang cocok dengan ID/NIM: ' + targetId + ' (total baris: ' + allStudents.length + ')'
+      });
+    }
+    return null;
+  }
+
+  const profile = matched[0];
+  if (typeof logDiagnostic_ === 'function') {
+    logDiagnostic_('STUDENT_PROFILE', {
+      activeRole: session && session.role,
+      userId: session && session.userId,
+      studentId: targetId,
+      matchedCount: matched.length,
+      reason: 'Profil wisudawan ditemukan: ' + (findValue_(profile, ['Nama_Lengkap', 'Nama']) || targetId)
+    });
+  }
+
+  return profile;
 }
 
 
