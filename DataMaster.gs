@@ -87,7 +87,7 @@ function getCallList(filters) {
     if (id) studentById[id] = st;
   });
 
-  return callRows.filter(function (row) {
+  const filtered = callRows.filter(function (row) {
     // Filter Periode: record dengan ID_Periode kosong atau berbeda harus dikeluarkan
     const rowPeriod = normalize_(findValue_(row, ['ID_Periode', 'ID Periode', 'Periode']));
     if (!rowPeriod || rowPeriod !== periodFilter) return false;
@@ -99,7 +99,35 @@ function getCallList(filters) {
     }
 
     return true;
-  }).map(function (row) {
+  });
+
+  // Urutkan daftar panggil mengikuti tata letak denah kursi fisik resmi UIN Ar-Raniry
+  const seatOrderMap = buildSeatOrderIndexMap_();
+
+  filtered.sort(function (a, b) {
+    const dayA = extractCanonicalDay_(a) || inferDayFromSeatCode_(findValue_(a, ['Nomor_Kursi', 'Kode_Kursi', 'Kursi'])) || '9';
+    const dayB = extractCanonicalDay_(b) || inferDayFromSeatCode_(findValue_(b, ['Nomor_Kursi', 'Kode_Kursi', 'Kursi'])) || '9';
+
+    if (dayA !== dayB) {
+      return dayA.localeCompare(dayB);
+    }
+
+    const orderA = getSeatOrderIndexForCallRow_(seatOrderMap, a);
+    const orderB = getSeatOrderIndexForCallRow_(seatOrderMap, b);
+
+    if (orderA !== orderB) {
+      return orderA - orderB;
+    }
+
+    const rawUrutanA = parseInt(findValue_(a, ['Urutan_Panggil', 'Urutan Panggil', 'Urutan', 'No']), 10) || 0;
+    const rawUrutanB = parseInt(findValue_(b, ['Urutan_Panggil', 'Urutan Panggil', 'Urutan', 'No']), 10) || 0;
+    return rawUrutanA - rawUrutanB;
+  });
+
+  // Pelacakan urutan panggilan global per hari wisuda
+  const dayCounters = {};
+
+  return filtered.map(function (row) {
     const rawIdWisudawan = String(findValue_(row, ['ID_Wisudawan', 'ID Wisudawan']) || '').trim();
     // Relasi eksklusif hanya melalui ID_Wisudawan
     const st = rawIdWisudawan ? (studentById[normalize_(rawIdWisudawan)] || null) : null;
@@ -119,11 +147,17 @@ function getCallList(filters) {
     const ipk = String(findValue_(row, ['IPK']) || (st ? findValue_(st, ['IPK']) : '')).trim();
     const predikat = String(findValue_(row, ['Predikat']) || (st ? findValue_(st, ['Predikat']) : '')).trim();
     const seatCode = String(findValue_(row, ['Nomor_Kursi', 'Kode_Kursi', 'Kursi']) || '').trim();
-    const day = extractCanonicalDay_(row);
+    let day = extractCanonicalDay_(row);
+    if (!day && seatCode) {
+      day = inferDayFromSeatCode_(seatCode);
+    }
+
+    dayCounters[day] = (dayCounters[day] || 0) + 1;
+    const globalUrutan = dayCounters[day];
 
     return {
       ID_Panggil: findValue_(row, ['ID_Panggil', 'ID Panggil']),
-      Urutan_Panggil: findValue_(row, ['Urutan_Panggil', 'Urutan Panggil', 'Urutan', 'No']),
+      Urutan_Panggil: globalUrutan,
       ID_Wisudawan: rawIdWisudawan,
       Nama_Lengkap: nama,
       Nama_Wisudawan: nama,
@@ -141,6 +175,73 @@ function getCallList(filters) {
       Waktu_Panggil: findValue_(row, ['Waktu_Panggil', 'Waktu Panggil'])
     };
   });
+}
+
+/**
+ * Membangun peta indeks urutan penempatan fisik kursi berdasarkan denah resmi (SeatLayoutData.gs).
+ * Urutan pengisian fisik per hari:
+ * 1. Baris ascending (1..25)
+ * 2. Blok isKanan descending (Kanan = 1 mendahului Kiri = 0)
+ * 3. Kolom descending (17 down to 1)
+ *
+ * Menghasilkan urutan pengisian:
+ * - Seluruh wisudawan perempuan (S3 -> S2 -> S1)
+ * - Jeda baris kosong / lorong denah
+ * - Seluruh wisudawan laki-laki (S3 -> S2 -> S1)
+ */
+function buildSeatOrderIndexMap_() {
+  let officialLayouts = {};
+  if (typeof getOfficialDayLayouts_ === 'function') {
+    try {
+      officialLayouts = getOfficialDayLayouts_() || {};
+    } catch (errLayout) {
+      Logger.log('[buildSeatOrderIndexMap_] Peringatan memanggil getOfficialDayLayouts_: ' + errLayout.message);
+    }
+  } else if (typeof OFFICIAL_DAY_LAYOUTS_ !== 'undefined') {
+    officialLayouts = OFFICIAL_DAY_LAYOUTS_ || {};
+  }
+
+  const orderMap = {};
+  ['1', '2', '3'].forEach(function (dayKey) {
+    const seats = (officialLayouts[dayKey] || []).slice();
+    seats.sort(function (a, b) {
+      // a: [Kode_Kursi, Baris, isKanan, Kolom]
+      if (a[1] !== b[1]) return a[1] - b[1]; // Baris ascending
+      if (a[2] !== b[2]) return b[2] - a[2]; // Kanan (1) mendahului Kiri (0)
+      return b[3] - a[3]; // Kolom 17 down to 1
+    });
+
+    seats.forEach(function (s, idx) {
+      const seatCode = String(s[0] || '').trim().toUpperCase();
+      if (seatCode) {
+        orderMap[dayKey + ':' + seatCode] = idx + 1;
+        // Simpan juga tanpa prefix hari sebagai fallback
+        if (orderMap[seatCode] === undefined) {
+          orderMap[seatCode] = idx + 1;
+        }
+      }
+    });
+  });
+
+  return orderMap;
+}
+
+function getSeatOrderIndexForCallRow_(seatOrderMap, row) {
+  const seatCode = String(findValue_(row, ['Nomor_Kursi', 'Kode_Kursi', 'Kursi']) || '').trim().toUpperCase();
+  let day = extractCanonicalDay_(row);
+  if (!day && seatCode) {
+    day = inferDayFromSeatCode_(seatCode);
+  }
+  if (day && seatCode) {
+    const key = day + ':' + seatCode;
+    if (seatOrderMap[key] !== undefined) {
+      return seatOrderMap[key];
+    }
+  }
+  if (seatCode && seatOrderMap[seatCode] !== undefined) {
+    return seatOrderMap[seatCode];
+  }
+  return 999999;
 }
 
 
