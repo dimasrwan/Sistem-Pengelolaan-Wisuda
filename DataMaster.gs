@@ -247,19 +247,79 @@ function getSeatOrderIndexForCallRow_(seatOrderMap, row) {
 
 function getSeatMap(filters) {
   Logger.log('[getSeatMap] Mulai - filters: ' + JSON.stringify(filters || {}));
-  requireRole_(['Admin', 'Wisudawan']);
+  const session = requireRole_(['Admin', 'Wisudawan']);
   filters = filters || {};
 
-  const periodFilter = resolveTargetPeriodId_(filters.period);
-
-  // Penanganan validasi filter hari:
-  // - Jika hari tidak diberikan: gunakan default Hari Pertama ('1')
-  // - Jika hari diberikan tetapi tidak valid: jangan dialihkan diam-diam ke Hari Pertama, kembalikan hasil kosong yang jelas
+  let periodFilter = '';
   let dayFilter = '1';
-  if (filters.day !== undefined && filters.day !== null && String(filters.day).trim() !== '') {
-    dayFilter = normalizeDay_(filters.day);
-    if (!dayFilter) {
-      Logger.log('[getSeatMap] Hari tidak valid: ' + filters.day);
+  let studentProfile = null;
+  let studentSeatCode = '';
+  let selfSeat = null;
+
+  if (session.role === 'Wisudawan') {
+    // Penentuan profil dan jadwal terautentikasi untuk role Wisudawan
+    studentProfile = (typeof getStudentProfile_ === 'function') ? getStudentProfile_(session) : null;
+    if (!studentProfile) {
+      Logger.log('[getSeatMap] Profil wisudawan tidak ditemukan untuk session user: ' + session.userId);
+      return {
+        day: '',
+        period: '',
+        total: 0,
+        allocated: 0,
+        needsVerification: 0,
+        hasCoordinates: false,
+        seats: [],
+        error: 'Data pribadi belum terhubung ke akun ini. Admin perlu mengisi ID_Wisudawan pada sheet PENGGUNA.'
+      };
+    }
+
+    const pVal = findValue_(studentProfile, ['ID_Periode', 'ID Periode', 'Periode']);
+    periodFilter = pVal ? normalize_(pVal) : resolveTargetPeriodId_('');
+    if (!periodFilter) {
+      return {
+        day: '',
+        period: '',
+        total: 0,
+        allocated: 0,
+        needsVerification: 0,
+        hasCoordinates: false,
+        seats: [],
+        error: 'Periode wisuda untuk akun Anda belum ditentukan atau tidak aktif.'
+      };
+    }
+
+    // Ambil data kursi resmi wisudawan
+    let stSeats = [];
+    if (typeof getStudentSeats_ === 'function') {
+      try {
+        stSeats = getStudentSeats_(session, studentProfile) || [];
+      } catch (errStSeats) {
+        Logger.log('[getSeatMap] Peringatan getStudentSeats_: ' + errStSeats.message);
+      }
+    }
+    if (stSeats && stSeats.length > 0) {
+      selfSeat = stSeats[0];
+      studentSeatCode = String(selfSeat.Nomor_Kursi || '').trim();
+    }
+    if (!studentSeatCode) {
+      studentSeatCode = String(findValue_(studentProfile, ['Nomor_Kursi', 'Kode_Kursi', 'Kursi']) || '').trim();
+    }
+
+    // Tentukan hari wisuda milik wisudawan secara ketat (tidak boleh dialihkan diam-diam ke hari lain)
+    let sDay = '';
+    if (selfSeat && selfSeat.Hari_Ke) {
+      sDay = typeof normalizeDay_ === 'function' ? normalizeDay_(selfSeat.Hari_Ke) : String(selfSeat.Hari_Ke).trim();
+    }
+    if (!sDay && typeof extractCanonicalDay_ === 'function') {
+      sDay = extractCanonicalDay_(studentProfile);
+    }
+    if (!sDay) {
+      const rawDay = findValue_(studentProfile, ['Hari_Ke', 'Hari Ke', 'Hari']);
+      sDay = typeof normalizeDay_ === 'function' ? normalizeDay_(rawDay) : String(rawDay || '').trim();
+    }
+
+    sDay = typeof normalizeDay_ === 'function' ? normalizeDay_(sDay) : sDay;
+    if (!sDay || ['1', '2', '3'].indexOf(sDay) === -1) {
       return {
         day: '',
         period: periodFilter,
@@ -268,24 +328,45 @@ function getSeatMap(filters) {
         needsVerification: 0,
         hasCoordinates: false,
         seats: [],
-        error: 'Hari tidak valid. Hari pelaksanaan wisuda hanya 1, 2, atau 3.'
+        error: 'Jadwal hari pelaksanaan wisuda belum ditentukan atau tidak valid untuk akun Anda.'
       };
     }
-  }
 
-  // Jika periode tidak ditemukan
-  if (!periodFilter) {
-    Logger.log('[getSeatMap] Periode aktif tidak ditemukan.');
-    return {
-      day: dayFilter,
-      period: '',
-      total: 0,
-      allocated: 0,
-      needsVerification: 0,
-      hasCoordinates: false,
-      seats: [],
-      error: 'Periode wisuda aktif tidak ditemukan.'
-    };
+    dayFilter = sDay;
+  } else {
+    // Alur untuk role Admin
+    periodFilter = resolveTargetPeriodId_(filters.period);
+
+    if (filters.day !== undefined && filters.day !== null && String(filters.day).trim() !== '') {
+      dayFilter = normalizeDay_(filters.day);
+      if (!dayFilter) {
+        Logger.log('[getSeatMap] Hari tidak valid: ' + filters.day);
+        return {
+          day: '',
+          period: periodFilter,
+          total: 0,
+          allocated: 0,
+          needsVerification: 0,
+          hasCoordinates: false,
+          seats: [],
+          error: 'Hari tidak valid. Hari pelaksanaan wisuda hanya 1, 2, atau 3.'
+        };
+      }
+    }
+
+    if (!periodFilter) {
+      Logger.log('[getSeatMap] Periode aktif tidak ditemukan.');
+      return {
+        day: dayFilter,
+        period: '',
+        total: 0,
+        allocated: 0,
+        needsVerification: 0,
+        hasCoordinates: false,
+        seats: [],
+        error: 'Periode wisuda aktif tidak ditemukan.'
+      };
+    }
   }
 
   // Baca sheet DENAH_KURSI dan DATA_WISUDAWAN (tidak perlu membaca DAFTAR_PANGGIL untuk efisiensi)
@@ -320,7 +401,7 @@ function getSeatMap(filters) {
   });
   Logger.log('[getSeatMap] Selesai filter - period: ' + periodFilter + ', day: ' + dayFilter + ', seatCount: ' + Object.keys(sheetSeatByCode).length);
 
-  // Jika tidak ada data alokasi kursi di sheet untuk periode dan hari yang dipilih, isolasi total: kembalikan kosong
+  // Jika tidak ada data alokasi kursi di sheet untuk periode dan hari yang dipilih, kembalikan kosong
   if (Object.keys(sheetSeatByCode).length === 0) {
     Logger.log('[getSeatMap] Tidak ada alokasi kursi untuk periode ' + periodFilter + ' dan hari ' + dayFilter);
     return {
@@ -330,6 +411,8 @@ function getSeatMap(filters) {
       allocated: 0,
       needsVerification: 0,
       hasCoordinates: false,
+      selfSeatCode: studentSeatCode,
+      selfSeat: selfSeat,
       seats: []
     };
   }
@@ -389,6 +472,30 @@ function getSeatMap(filters) {
         statusKursi = 'Perlu Verifikasi';
       }
 
+      const isSelf = Boolean(
+        (studentSeatCode && code.toUpperCase() === studentSeatCode.toUpperCase()) ||
+        (studentProfile && idWisudawan && normalize_(idWisudawan) === normalize_(findValue_(studentProfile, ['ID_Wisudawan', 'ID Wisudawan'])))
+      );
+
+      if (isSelf) {
+        if (!selfSeat) {
+          selfSeat = {
+            ID_Kursi: sheetRow ? findValue_(sheetRow, ['ID_Kursi', 'ID Kursi']) : ('KRS-' + code),
+            ID_Wisudawan: idWisudawan,
+            Nama_Wisudawan: nama,
+            NIM: nim,
+            Fakultas: fakultas,
+            Program_Studi: prodi,
+            Nomor_Kursi: code,
+            Hari_Ke: dayFilter
+          };
+        }
+        selfSeat.Blok = blok;
+        selfSeat.Baris = baris;
+        selfSeat.Kolom = kolom;
+        selfSeat.Koordinat_Tersedia = true;
+      }
+
       result.push({
         ID_Kursi: sheetRow ? findValue_(sheetRow, ['ID_Kursi', 'ID Kursi']) : ('KRS-' + code),
         ID_Wisudawan: idWisudawan,
@@ -403,7 +510,8 @@ function getSeatMap(filters) {
         Kolom: kolom,
         Nomor_Kursi: code,
         Status_Kursi: statusKursi,
-        Hari_Ke: dayFilter
+        Hari_Ke: dayFilter,
+        isSelf: isSelf
       });
     });
   }
@@ -438,6 +546,32 @@ function getSeatMap(filters) {
       statusKursi = 'Perlu Verifikasi';
     }
 
+    const isSelf = Boolean(
+      (studentSeatCode && code.toUpperCase() === studentSeatCode.toUpperCase()) ||
+      (studentProfile && idWisudawan && normalize_(idWisudawan) === normalize_(findValue_(studentProfile, ['ID_Wisudawan', 'ID Wisudawan'])))
+    );
+
+    if (isSelf) {
+      if (!selfSeat) {
+        selfSeat = {
+          ID_Kursi: findValue_(sheetRow, ['ID_Kursi', 'ID Kursi']) || ('KRS-' + code),
+          ID_Wisudawan: idWisudawan,
+          Nama_Wisudawan: nama,
+          NIM: nim,
+          Fakultas: fakultas,
+          Program_Studi: prodi,
+          Nomor_Kursi: code,
+          Hari_Ke: dayFilter
+        };
+      }
+      if (blok && baris && kolom) {
+        selfSeat.Blok = blok;
+        selfSeat.Baris = baris;
+        selfSeat.Kolom = kolom;
+        selfSeat.Koordinat_Tersedia = true;
+      }
+    }
+
     result.push({
       ID_Kursi: findValue_(sheetRow, ['ID_Kursi', 'ID Kursi']) || ('KRS-' + code),
       ID_Wisudawan: idWisudawan,
@@ -452,7 +586,8 @@ function getSeatMap(filters) {
       Kolom: kolom,
       Nomor_Kursi: code,
       Status_Kursi: statusKursi,
-      Hari_Ke: dayFilter
+      Hari_Ke: dayFilter,
+      isSelf: isSelf
     });
   });
 
@@ -465,10 +600,12 @@ function getSeatMap(filters) {
     allocated: result.filter(function (s) { return s.Status_Kursi === 'Terdaftar'; }).length,
     needsVerification: result.filter(function (s) { return s.Status_Kursi === 'Perlu Verifikasi'; }).length,
     hasCoordinates: result.some(function (s) { return Boolean(s.Baris && s.Blok && s.Kolom); }),
+    selfSeatCode: studentSeatCode,
+    selfSeat: selfSeat,
     seats: result
   };
 
-  Logger.log('[getSeatMap] Return response - total: ' + response.total + ', allocated: ' + response.allocated + ', needsVerification: ' + response.needsVerification + ', hasCoordinates: ' + response.hasCoordinates);
+  Logger.log('[getSeatMap] Return response - total: ' + response.total + ', allocated: ' + response.allocated + ', needsVerification: ' + response.needsVerification + ', hasCoordinates: ' + response.hasCoordinates + ', selfSeat: ' + studentSeatCode);
   return response;
 }
 

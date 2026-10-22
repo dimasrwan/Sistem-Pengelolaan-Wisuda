@@ -320,49 +320,47 @@
       const role = APP.session.role;
 
       if (role === 'Wisudawan') {
-        const rows = (APP.dashboard && APP.dashboard.seats) || [];
-        const firstSeat = rows[0] || null;
-
-        let locationNotice = '';
-        if (firstSeat) {
-          const hasCoord = firstSeat.Koordinat_Tersedia && firstSeat.Blok && firstSeat.Blok !== 'Belum terpetakan';
-          if (hasCoord) {
-            locationNotice =
-              '<div class="notice notice-info" style="margin-bottom:18px;">' +
-              '<h3 style="margin:0 0 6px 0; font-size:15px; font-weight:700; color:var(--primary-dark);">' +
-              'Informasi Denah Fisik Gedung Wisuda</h3>' +
-              '<p style="margin:0; font-size:14px; line-height:1.5;">' +
-              'Tempat duduk Anda berada di <strong>Blok ' + escapeHtml(firstSeat.Blok) + '</strong>, ' +
-              '<strong>Baris ' + escapeHtml(firstSeat.Baris) + '</strong>, ' +
-              '<strong>Kolom ' + escapeHtml(firstSeat.Kolom) + '</strong> ' +
-              '(Nomor Kursi: <strong>' + escapeHtml(firstSeat.Nomor_Kursi || '—') + '</strong>' +
-              (firstSeat.Hari_Ke ? ', Hari Ke-' + escapeHtml(firstSeat.Hari_Ke) : '') + ').' +
-              '</p></div>';
-          } else {
-            locationNotice =
-              '<div class="notice notice-warn" style="margin-bottom:18px;">' +
-              '<h3 style="margin:0 0 6px 0; font-size:15px; font-weight:700; color:#b45309;">' +
-              'Koordinat Denah Fisik Belum Tersedia</h3>' +
-              '<p style="margin:0; font-size:14px; line-height:1.5;">' +
-              escapeHtml(firstSeat.Catatan_Koordinat || 'Koordinat denah fisik belum terpetakan untuk nomor kursi ini.') +
-              ' Nomor kursi resmi Anda tetap terdaftar: <strong>' + escapeHtml(firstSeat.Nomor_Kursi || '—') + '</strong>.' +
-              '</p></div>';
-          }
-        }
-
         document.getElementById('page-content').innerHTML =
-          pageHeader('Denah Kursi','Informasi tempat duduk milik akun ini.') +
-          locationNotice +
-          '<div class="panel"><div class="panel-head"><h2>Informasi Tempat Duduk</h2>' +
-          '<button class="btn btn-outline btn-sm" onclick="loadDashboard()">Muat Ulang</button>' +
-          '</div>' +
-          '<div class="panel-body">' + buildTable(rows, [
-            ['Blok','Blok'],
-            ['Baris','Baris'],
-            ['Kolom','Kolom'],
-            ['Nomor_Kursi','Nomor Kursi'],
-            ['Status_Kursi','Status']
-          ]) + '</div></div>';
+          pageHeader('Denah Kursi', 'Denah visual tempat duduk dua dimensi gedung wisuda untuk sesi Anda.') +
+          '<div id="seat-wisudawan-summary"></div>' +
+          '<div id="seat-main-view"><div class="panel" style="padding:28px; text-align:center; color:var(--muted);"><span class="spinner" style="margin-right:8px;"></span>Memuat denah visual tempat duduk Anda...</div></div>';
+
+        google.script.run
+          .withSuccessHandler(function (response) {
+            try {
+              APP.currentSeatMapResponse = response;
+              if (response && response.selfSeatCode) {
+                APP.selfSeatCode = response.selfSeatCode;
+              }
+              renderWisudawanSeatSummary(response);
+              drawSeatMapView();
+            } catch (renderErr) {
+              console.error('Error saat membangun tampilan denah kursi wisudawan:', renderErr);
+              const target = document.getElementById('seat-main-view');
+              if (target) {
+                target.innerHTML =
+                  '<div class="notice notice-danger" style="margin-top:15px; padding:18px;">' +
+                  '<h3 style="margin:0 0 8px 0; color:var(--red);">Gagal Merender Denah Kursi</h3>' +
+                  '<p style="margin:0 0 12px 0;">Terjadi kesalahan saat memproses data denah: ' + escapeHtml(renderErr.message || String(renderErr)) + '</p>' +
+                  '<button class="btn btn-sm btn-outline" onclick="renderSeats()">Coba Lagi</button>' +
+                  '</div>';
+              }
+            }
+          })
+          .withFailureHandler(function (error) {
+            showError(error);
+            const target = document.getElementById('seat-main-view');
+            if (target) {
+              const msg = getErrorMessage(error);
+              target.innerHTML =
+                '<div class="notice notice-danger" style="margin-top:15px; padding:18px;">' +
+                '<h3 style="margin:0 0 8px 0; color:var(--red);">Gagal Memuat Denah Kursi</h3>' +
+                '<p style="margin:0 0 12px 0;">' + escapeHtml(msg) + '</p>' +
+                '<button class="btn btn-sm btn-outline" onclick="renderSeats()">Coba Lagi</button>' +
+                '</div>';
+            }
+          })
+          .getSeatMap({});
         return;
       }
 
@@ -430,6 +428,74 @@
         .getSeatMap(APP.seatMapFilters);
     }
 
+    function renderWisudawanSeatSummary(response) {
+      const target = document.getElementById('seat-wisudawan-summary');
+      if (!target) return;
+
+      if (!response || response.error) {
+        target.innerHTML = '';
+        return;
+      }
+
+      // Ambil data kursi wisudawan dari response backend atau session dashboard
+      let seat = response.selfSeat || null;
+      if (!seat && response.seats) {
+        seat = response.seats.find(function (s) { return s.isSelf; }) || null;
+      }
+      if (!seat && APP.dashboard && APP.dashboard.seats && APP.dashboard.seats.length > 0) {
+        seat = APP.dashboard.seats[0];
+      }
+
+      if (!seat) {
+        target.innerHTML =
+          '<div class="notice notice-warn" style="margin-bottom:18px;">' +
+          '<strong>Perhatian:</strong> Data nomor kursi belum teralokasi pada denah gedung untuk akun Anda.' +
+          '</div>';
+        return;
+      }
+
+      const seatCode = seat.Nomor_Kursi || '—';
+      const dayNum = String(seat.Hari_Ke || response.day || '1');
+      const dayNames = {
+        '1': 'Hari Pertama',
+        '2': 'Hari Kedua',
+        '3': 'Hari Ketiga'
+      };
+      const dayText = dayNames[dayNum] || ('Hari Ke-' + dayNum);
+
+      const hasCoord = seat.Baris && seat.Blok && seat.Kolom && seat.Blok !== 'Belum terpetakan';
+      let positionText = '';
+      if (hasCoord) {
+        positionText = dayText + ' — Blok ' + escapeHtml(seat.Blok) + ', Baris ' + escapeHtml(seat.Baris) + ', Kolom ' + escapeHtml(seat.Kolom);
+      } else {
+        positionText = dayText + ' — ' + escapeHtml(seat.Catatan_Koordinat || 'Koordinat denah fisik belum terpetakan.');
+      }
+
+      target.innerHTML =
+        '<div class="panel seat-self-summary-card">' +
+        '<div class="panel-body" style="padding:18px 22px;">' +
+        '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">' +
+        '<div style="display:flex; align-items:center; gap:16px;">' +
+        '<div class="seat-self-badge-icon">★</div>' +
+        '<div>' +
+        '<div style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; color:#c64000; margin-bottom:2px;">' +
+        'Tempat Duduk Anda' +
+        '</div>' +
+        '<div style="font-size:22px; font-weight:900; color:var(--ink); line-height:1.2;">' +
+        'Kursi Anda: ' + escapeHtml(seatCode) +
+        '</div>' +
+        '<div style="font-size:14px; font-weight:700; color:#495d46; margin-top:3px;">' +
+        positionText +
+        '</div>' +
+        '</div>' +
+        '</div>' +
+        '<div style="display:flex; gap:8px; align-items:center;">' +
+        '<button class="btn btn-outline btn-sm" onclick="renderSeats()">Muat Ulang</button>' +
+        '</div>' +
+        '</div>' +
+        '</div></div>';
+    }
+
     function onSeatDayFilterChange(val) {
       APP.seatMapFilters.day = val;
       renderSeats();
@@ -451,7 +517,11 @@
       }
 
       if (resp.error) {
-        target.innerHTML = '<div class="notice notice-danger" style="padding:15px;"><strong>Kesalahan:</strong> ' + escapeHtml(resp.error) + '</div>';
+        target.innerHTML =
+          '<div class="notice notice-danger" style="padding:18px; margin-top:12px;">' +
+          '<h3 style="margin:0 0 6px 0; color:var(--red);">Denah Kursi Tidak Tersedia</h3>' +
+          '<p style="margin:0;">' + escapeHtml(resp.error) + '</p>' +
+          '</div>';
         return;
       }
 
@@ -475,7 +545,7 @@
         return blok === 'kanan' || blok === 'kiri';
       };
 
-      if (APP.seatViewMode === 'table') {
+      if (APP.session.role === 'Admin' && APP.seatViewMode === 'table') {
         const blokOrder_ = function (b) {
           const s = String(b || '').trim().toLowerCase();
           if (s === 'kanan') return 0;
@@ -588,8 +658,16 @@
       // Mode Visual Denah 2D
       const hasValidCoords = resp.seats.some(isValidCoord_);
 
-
       if (!hasValidCoords) {
+        if (APP.session.role === 'Wisudawan') {
+          target.innerHTML =
+            '<div class="notice notice-warn" style="margin-bottom:16px; padding:18px;">' +
+            '<h3 style="margin:0 0 8px 0; color:#856404;">Koordinat Denah Visual Belum Tersedia</h3>' +
+            '<p style="margin:0;">Data alokasi denah fisik untuk jadwal wisuda Anda belum terpetakan ke denah visual gedung. Silakan hubungi panitia wisuda.</p>' +
+            '</div>';
+          return;
+        }
+
         target.innerHTML =
           '<div class="notice notice-warn" style="margin-bottom:16px; padding:18px;">' +
           '<h3 style="margin:0 0 8px 0; color:#856404;">Data Koordinat Visual Belum Tersedia</h3>' +
@@ -613,7 +691,6 @@
       resp.seats.forEach(function (s) {
         seatLookup[s.Baris + '-' + s.Blok + '-' + s.Kolom] = s;
       });
-
 
       let html = '<div class="seat-plan-wrapper">';
       html += '<div class="seat-plan-header-title">' + escapeHtml(title) + '</div>';
@@ -709,14 +786,26 @@
       const code = seat.Nomor_Kursi;
       const parts = code.split('-');
       const unit = (parts[1] || '').toLowerCase();
-      const cls = 'seat-unit-' + unit;
+      let cls = 'seat-unit-' + unit;
+
+      const isSelf = Boolean(
+        seat.isSelf ||
+        (APP.selfSeatCode && String(code).trim().toUpperCase() === String(APP.selfSeatCode).trim().toUpperCase())
+      );
+
+      if (isSelf) {
+        cls += ' seat-cell-self';
+      }
+
       const name = seat.Nama_Wisudawan || '—';
       const nim = seat.NIM ? (' (' + seat.NIM + ')') : '';
-      const tooltip = code + ': ' + name + nim + ' - ' + (seat.Fakultas || '') + ' [' + (seat.Jenis_Kelamin || '') + ']';
+      const tooltip = (isSelf ? '★ KURSI ANDA ★ ' : '') + code + ': ' + name + nim + ' - ' + (seat.Fakultas || '') + ' [' + (seat.Jenis_Kelamin || '') + ']';
+
+      const label = isSelf ? ('★ ' + code) : code;
 
       return '<div class="seat-cell ' + cls + '" title="' + escapeAttr(tooltip) + '" data-seat="' +
         escapeAttr(code) + '" onclick="showSeatStudentDetail(this.dataset.seat)">' +
-        escapeHtml(code) + '</div>';
+        escapeHtml(label) + '</div>';
     }
 
     function showSeatStudentDetail(seatCode) {
@@ -725,14 +814,22 @@
       const s = resp.seats.find(function (item) { return item.Nomor_Kursi === seatCode; });
       if (!s) return;
 
+      const isSelf = Boolean(
+        s.isSelf ||
+        (APP.selfSeatCode && String(s.Nomor_Kursi).trim().toUpperCase() === String(APP.selfSeatCode).trim().toUpperCase())
+      );
+
       const html = '<div class="student-modal-overlay" onclick="if(event.target===this)closeSeatModal()">' +
         '<div class="student-modal-card" style="padding:22px;">' +
         '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid var(--line); padding-bottom:10px;">' +
+        '<div style="display:flex; align-items:center; gap:8px;">' +
         '<h3 style="margin:0; font-size:18px; color:var(--ink);">Detail Penempatan Kursi</h3>' +
+        (isSelf ? '<span class="badge" style="background:#e65100; color:#fff; font-weight:800; font-size:11px;">★ KURSI ANDA</span>' : '') +
+        '</div>' +
         '<button class="btn btn-outline btn-sm" onclick="closeSeatModal()">✕ Tutup</button>' +
         '</div>' +
         '<div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; font-size:13px;">' +
-        '<div><strong>Nomor Kursi:</strong> <span class="badge badge-green">' + escapeHtml(s.Nomor_Kursi) + '</span></div>' +
+        '<div><strong>Nomor Kursi:</strong> <span class="badge ' + (isSelf ? '' : 'badge-green') + '" style="' + (isSelf ? 'background:#e65100; color:#fff; font-weight:800;' : '') + '">' + escapeHtml(s.Nomor_Kursi) + '</span></div>' +
         '<div><strong>Posisi Denah:</strong> Blok ' + escapeHtml(s.Blok) + ', Baris ' + s.Baris + ', Kolom ' + s.Kolom + '</div>' +
         '<div style="grid-column:span 2;"><strong>Nama Lengkap:</strong> ' + escapeHtml(s.Nama_Wisudawan || '—') + '</div>' +
         '<div><strong>NIM:</strong> ' + escapeHtml(s.NIM || '—') + '</div>' +
@@ -758,6 +855,7 @@
     }
 
     function buildSeatLegendHtml() {
+      const isWisudawan = APP.session && APP.session.role === 'Wisudawan';
       const items = [
         { code: 'S3', name: 'Pascasarjana S3', cls: 'seat-unit-s3' },
         { code: 'S2', name: 'Pascasarjana S2', cls: 'seat-unit-s2' },
@@ -771,6 +869,10 @@
         { code: 'IP', name: 'FISIP (Ilmu Sosial & Pemerintahan)', cls: 'seat-unit-ip' },
         { code: 'P', name: 'FPSI (Psikologi)', cls: 'seat-unit-p' }
       ];
+
+      if (isWisudawan || APP.selfSeatCode) {
+        items.unshift({ code: '★', name: 'KURSI ANDA', cls: 'seat-cell-self' });
+      }
 
       let h = '<div class="seat-legend-bar"><strong style="font-size:12px; color:var(--muted);">Legenda Unit:</strong>';
       items.forEach(function (it) {

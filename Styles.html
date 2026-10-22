@@ -1474,6 +1474,60 @@
     .seat-unit-ip { background: #c6c6c6 !important; color: #2e2e2e !important; border-color: #a8a8a8 !important; }
     .seat-unit-p  { background: #ea8df2 !important; color: #4e1254 !important; border-color: #cc6bd6 !important; }
 
+    /* Kursi Milik Wisudawan yang Sedang Login */
+    .seat-cell.seat-cell-self {
+      background: #e65100 !important;
+      color: #ffffff !important;
+      border: 2px solid #b71c1c !important;
+      font-weight: 900 !important;
+      font-size: 8.5px !important;
+      letter-spacing: -0.3px !important;
+      padding: 0 1px !important;
+      box-shadow: 0 0 0 2px #fff, 0 0 10px rgba(230, 81, 0, 0.85) !important;
+      position: relative;
+      z-index: 5;
+      animation: pulse-self-seat 2.2s infinite ease-in-out;
+    }
+    .seat-cell.seat-cell-self:hover {
+      transform: scale(1.18);
+      z-index: 25;
+      box-shadow: 0 0 0 2px #fff, 0 6px 16px rgba(230, 81, 0, 0.95) !important;
+    }
+    @keyframes pulse-self-seat {
+      0%, 100% {
+        box-shadow: 0 0 0 2px #ffffff, 0 0 8px rgba(230, 81, 0, 0.85);
+      }
+      50% {
+        box-shadow: 0 0 0 2px #ffffff, 0 0 16px rgba(255, 111, 0, 1), 0 0 22px rgba(230, 81, 0, 0.6);
+      }
+    }
+    .seat-legend-color.seat-cell-self {
+      background: #e65100 !important;
+      border: 2px solid #b71c1c !important;
+      box-shadow: 0 0 4px rgba(230, 81, 0, 0.8) !important;
+    }
+    .seat-self-summary-card {
+      margin-bottom: 18px;
+      border-left: 5px solid #e65100;
+      background: linear-gradient(135deg, #fffbf6 0%, #ffffff 100%);
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
+      border-radius: 12px;
+    }
+    .seat-self-badge-icon {
+      width: 46px;
+      height: 46px;
+      border-radius: 12px;
+      background: #e65100;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: 900;
+      box-shadow: 0 4px 14px rgba(230, 81, 0, 0.35);
+      flex-shrink: 0;
+    }
+
     /* Summary recap table */
     .seat-summary-table {
       width: 100%;
