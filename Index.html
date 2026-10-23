@@ -11,6 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
   <?!= include('Styles'); ?>
 </head>
@@ -196,6 +197,7 @@
         <button class="side-link" data-page="students" data-roles="Admin" onclick="navigate('students')"><span class="side-icon">02</span> Data Wisudawan</button>
         <button class="side-link" data-page="calls" data-roles="Admin,Wisudawan" onclick="navigate('calls')"><span class="side-icon">03</span> Daftar Panggil</button>
         <button class="side-link" data-page="seats" data-roles="Admin,Wisudawan" onclick="navigate('seats')"><span class="side-icon">04</span> Denah Kursi</button>
+        <button class="side-link" data-page="guest-qr" data-roles="Wisudawan" onclick="navigate('guest-qr')"><span class="side-icon">05</span> QR Undangan Tamu</button>
         <button class="side-link" data-page="best" data-roles="Admin" onclick="navigate('best')"><span class="side-icon">05</span> Lulusan Terbaik</button>
         <div class="sidebar-label" data-roles="Admin,Panitia">Operasional</div>
         <button class="side-link" data-page="scanner" data-roles="Admin,Panitia" onclick="navigate('scanner')"><span class="side-icon">06</span> Scan QR Tamu</button>

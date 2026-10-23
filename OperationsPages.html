@@ -231,6 +231,450 @@
       target.innerHTML = html;
     }
 
+    /* =========================================================
+       QR UNDANGAN TAMU (ROLE WISUDAWAN)
+       ========================================================= */
+
+    function renderGuestQr() {
+      if (APP.session.role !== 'Wisudawan') {
+        showToast('Akses ditolak.');
+        return;
+      }
+
+      document.getElementById('page-content').innerHTML =
+        pageHeader('QR Undangan Tamu', 'Unduh QR undangan untuk satu orang tamu yang mewakili Anda.') +
+        '<div id="guest-qr-container" class="guest-qr-container">' +
+          '<div class="panel" style="padding:32px 20px; text-align:center; color:var(--muted);">' +
+            '<span class="spinner" style="margin-right:8px;"></span>Memuat data QR undangan tamu...' +
+          '</div>' +
+        '</div>' +
+        '<div id="guest-qr-print-container" style="display:none;"></div>';
+
+      google.script.run
+        .withSuccessHandler(function (res) {
+          renderGuestQrView(res);
+        })
+        .withFailureHandler(function (error) {
+          renderGuestQrError(error);
+        })
+        .getMyGuestQrData();
+    }
+
+    function renderGuestQrError(error) {
+      const target = document.getElementById('guest-qr-container');
+      if (!target) return;
+      const msg = getErrorMessage(error);
+      target.innerHTML =
+        '<div class="notice notice-danger" style="margin-top:12px; padding:20px; border-radius:12px;">' +
+          '<h3 style="margin:0 0 8px 0; color:var(--red); font-size:16px;">Gagal Memuat Data QR Undangan</h3>' +
+          '<p style="margin:0 0 14px 0;">' + escapeHtml(msg) + '</p>' +
+          '<button class="btn btn-outline btn-sm" onclick="renderGuestQr()">Coba Lagi</button>' +
+        '</div>';
+    }
+
+    function renderGuestQrView(res) {
+      const target = document.getElementById('guest-qr-container');
+      if (!target) return;
+
+      if (!res || !res.success) {
+        const isMissingNim = res && res.code === 'EMPTY_NIM';
+        const isAmbiguous = res && res.code === 'AMBIGUOUS_NIM';
+        const msg = (res && res.message) ? res.message : 'Data QR undangan tidak dapat dimuat.';
+        const student = (res && res.student) || (APP.dashboard && APP.dashboard.student) || {};
+
+        let alertClass = isMissingNim ? 'notice notice-warn' : 'notice notice-danger';
+        let alertTitle = isMissingNim ? 'NIM Resmi Belum Tersedia' : (isAmbiguous ? 'Validasi Data Wisudawan' : 'Data Belum Tersedia');
+
+        let html = '<div class="' + alertClass + '" style="margin-bottom:20px; padding:18px 20px; border-radius:12px;">' +
+          '<h3 style="margin:0 0 6px 0; font-size:15px; font-weight:800;">' + escapeHtml(alertTitle) + '</h3>' +
+          '<p style="margin:0 0 12px 0; font-size:13.5px; line-height:1.5;">' + escapeHtml(msg) + '</p>' +
+          '<button class="btn btn-outline btn-sm" onclick="renderGuestQr()">Muat Ulang</button>' +
+        '</div>';
+
+        // Tampilkan kartu identitas dengan status nonaktif agar informatif
+        html += '<div class="guest-qr-grid">' +
+          '<div class="guest-qr-card">' +
+            '<div class="guest-qr-header">' +
+              '<span class="guest-qr-header-title">Identitas Wisudawan</span>' +
+              '<span class="badge badge-warn">Menunggu Data Resmi</span>' +
+            '</div>' +
+            '<div class="guest-qr-body">' +
+              '<div class="guest-qr-identity-card">' +
+                '<div class="guest-qr-identity-title">' + escapeHtml(student.nama || '—') + '</div>' +
+                '<div class="guest-qr-meta-list">' +
+                  '<div class="guest-qr-meta-row"><span class="guest-qr-meta-label">ID Wisudawan</span><span class="guest-qr-meta-value">' + escapeHtml(student.idWisudawan || '—') + '</span></div>' +
+                  '<div class="guest-qr-meta-row"><span class="guest-qr-meta-label">NIM</span><span class="guest-qr-meta-value" style="color:var(--red);font-weight:800;">Belum tersedia</span></div>' +
+                  '<div class="guest-qr-meta-row"><span class="guest-qr-meta-label">Fakultas</span><span class="guest-qr-meta-value">' + escapeHtml(student.fakultas || '—') + '</span></div>' +
+                  '<div class="guest-qr-meta-row"><span class="guest-qr-meta-label">Program Studi</span><span class="guest-qr-meta-value">' + escapeHtml(student.prodi || '—') + '</span></div>' +
+                  '<div class="guest-qr-meta-row"><span class="guest-qr-meta-label">Nomor Kursi</span><span class="guest-qr-meta-value">' + escapeHtml(student.kursi || '—') + '</span></div>' +
+                  '<div class="guest-qr-meta-row"><span class="guest-qr-meta-label">Periode</span><span class="guest-qr-meta-value">' + escapeHtml(student.periode || '—') + '</span></div>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="guest-qr-card">' +
+            '<div class="guest-qr-header">' +
+              '<span class="guest-qr-header-title">QR Code Undangan Tamu</span>' +
+              '<span class="badge badge-warn">Tidak Tersedia</span>' +
+            '</div>' +
+            '<div class="guest-qr-body">' +
+              '<div class="guest-qr-preview-box" style="background:#fffaf0;border-color:#feebc8;">' +
+                '<div style="font-size:36px;margin-bottom:8px;">⚠️</div>' +
+                '<div style="font-size:14px;font-weight:700;color:#9c4221;margin-bottom:6px;">QR Belum Dapat Dibuat</div>' +
+                '<p class="guest-qr-caption" style="color:#7b341e;">' + escapeHtml(msg) + '</p>' +
+              '</div>' +
+              '<div class="guest-qr-actions">' +
+                '<div class="guest-qr-actions-row">' +
+                  '<button class="btn btn-outline" disabled title="NIM resmi belum tersedia">Unduh QR PNG</button>' +
+                  '<button class="btn btn-outline" disabled title="NIM resmi belum tersedia">Cetak / Simpan PDF</button>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+
+        target.innerHTML = html;
+        return;
+      }
+
+      APP.guestQrData = res;
+      const student = res.student || {};
+      const qrPayload = res.qrPayload || ('NIM:' + student.nim);
+
+      let html = '<div class="guest-qr-grid">' +
+        // Kolom Kiri: Identitas Wisudawan & Kuota
+        '<div class="guest-qr-card">' +
+          '<div class="guest-qr-header">' +
+            '<span class="guest-qr-header-title">' +
+              '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--primary);"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>' +
+              'Identitas Wisudawan' +
+            '</span>' +
+            '<span class="badge badge-green">Wisudawan Terdaftar</span>' +
+          '</div>' +
+          '<div class="guest-qr-body">' +
+            '<div class="guest-qr-identity-card">' +
+              '<div class="guest-qr-identity-title">' + escapeHtml(student.nama || '—') + '</div>' +
+              '<div class="guest-qr-meta-list">' +
+                '<div class="guest-qr-meta-row"><span class="guest-qr-meta-label">NIM Resmi</span><span class="guest-qr-meta-value" style="font-family:monospace;font-size:14px;color:var(--primary);">' + escapeHtml(student.nim || '—') + '</span></div>' +
+                '<div class="guest-qr-meta-row"><span class="guest-qr-meta-label">ID Wisudawan</span><span class="guest-qr-meta-value">' + escapeHtml(student.idWisudawan || '—') + '</span></div>' +
+                '<div class="guest-qr-meta-row"><span class="guest-qr-meta-label">Fakultas</span><span class="guest-qr-meta-value">' + escapeHtml(student.fakultas || '—') + '</span></div>' +
+                '<div class="guest-qr-meta-row"><span class="guest-qr-meta-label">Program Studi</span><span class="guest-qr-meta-value">' + escapeHtml(student.prodi || '—') + '</span></div>' +
+                '<div class="guest-qr-meta-row"><span class="guest-qr-meta-label">Nomor Kursi</span><span class="guest-qr-meta-value"><span class="badge badge-green" style="font-size:11px;">' + escapeHtml(student.kursi || '—') + '</span></span></div>' +
+                '<div class="guest-qr-meta-row"><span class="guest-qr-meta-label">Periode Wisuda</span><span class="guest-qr-meta-value">' + escapeHtml(student.periode || '—') + '</span></div>' +
+              '</div>' +
+            '</div>' +
+            '<div class="guest-qr-quota-notice">' +
+              '<span style="font-size:18px;line-height:1;">ℹ️</span>' +
+              '<div>' +
+                '<strong>Ketentuan Tamu Undangan:</strong><br>' +
+                'Setiap wisudawan memiliki <strong>tepat satu QR undangan tamu</strong> yang berlaku untuk <strong>1 (satu) orang tamu pendamping</strong> memasuki gedung wisuda.' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+
+        // Kolom Kanan: Kartu QR Code Undangan
+        '<div class="guest-qr-card">' +
+          '<div class="guest-qr-header">' +
+            '<span class="guest-qr-header-title">' +
+              '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--primary);"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>' +
+              'QR Code Undangan Tamu' +
+            '</span>' +
+            '<span class="badge badge-green">✓ Siap Digunakan</span>' +
+          '</div>' +
+          '<div class="guest-qr-body">' +
+            '<div class="guest-qr-preview-box">' +
+              '<div class="guest-qr-canvas-wrap">' +
+                '<div id="guest-qr-code-element" style="display:flex;align-items:center;justify-content:center;min-width:240px;min-height:240px;">' +
+                  '<span class="spinner"></span>' +
+                '</div>' +
+              '</div>' +
+              '<div class="guest-qr-payload-badge">' + escapeHtml(qrPayload) + '</div>' +
+              '<p class="guest-qr-caption">' +
+                'Tunjukkan QR ini kepada panitia presensi saat memasuki gedung wisuda.' +
+              '</p>' +
+            '</div>' +
+            '<div class="guest-qr-actions">' +
+              '<div class="guest-qr-actions-row">' +
+                '<button type="button" class="btn btn-primary" onclick="downloadGuestQrPng()">' +
+                  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>' +
+                  '<span>Unduh QR PNG</span>' +
+                '</button>' +
+                '<button type="button" class="btn btn-outline" onclick="printGuestQr()">' +
+                  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>' +
+                  '<span>Cetak / Simpan PDF</span>' +
+                '</button>' +
+              '</div>' +
+              '<button type="button" class="btn btn-outline btn-sm" onclick="renderGuestQr()" style="margin-top:4px;">' +
+                'Muat Ulang Data QR' +
+              '</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+
+      // Panel Bawah: Panduan Penggunaan QR
+      '<div class="guest-qr-guide-box">' +
+        '<div class="guest-qr-guide-title">' +
+          '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--primary);"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>' +
+          'Panduan Penggunaan QR Undangan Tamu' +
+        '</div>' +
+        '<div class="guest-qr-guide-steps">' +
+          '<div class="guest-qr-guide-step-item">' +
+            '<div class="guest-qr-guide-step-num">1</div>' +
+            '<div class="guest-qr-guide-step-text"><strong>Unduh atau Cetak:</strong> Simpan gambar QR ke galeri HP atau cetak sebagai dokumen fisik sebelum hari pelaksanaan wisuda.</div>' +
+          '</div>' +
+          '<div class="guest-qr-guide-step-item">' +
+            '<div class="guest-qr-guide-step-num">2</div>' +
+            '<div class="guest-qr-guide-step-text"><strong>Berikan ke Tamu:</strong> Serahkan QR ini kepada 1 (satu) orang tamu yang mewakili atau mendampingi Anda di acara wisuda.</div>' +
+          '</div>' +
+          '<div class="guest-qr-guide-step-item">' +
+            '<div class="guest-qr-guide-step-num">3</div>' +
+            '<div class="guest-qr-guide-step-text"><strong>Pindai Saat Masuk:</strong> Tamu memperlihatkan QR kepada panitia di pintu masuk untuk discan dan diverifikasi keabsahannya.</div>' +
+          '</div>' +
+          '<div class="guest-qr-guide-step-item">' +
+            '<div class="guest-qr-guide-step-num">4</div>' +
+            '<div class="guest-qr-guide-step-text"><strong>Aturan Masuk-Keluar:</strong> Satu QR hanya berlaku untuk 1 tamu di dalam gedung. Jika keluar sementara, lapor ke petugas untuk scan keluar agar dapat masuk kembali.</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+      target.innerHTML = html;
+
+      // Render QR code
+      const qrElement = document.getElementById('guest-qr-code-element');
+      if (qrElement) {
+        generateGuestQrCode(qrElement, qrPayload);
+      }
+    }
+
+    function generateGuestQrCode(container, payload) {
+      if (!container) return;
+      container.innerHTML = '';
+
+      if (typeof QRCode !== 'undefined') {
+        try {
+          new QRCode(container, {
+            text: payload,
+            width: 240,
+            height: 240,
+            colorDark: '#000000',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.H
+          });
+          return;
+        } catch (e) {
+          console.warn('QRCode creation error:', e);
+        }
+      }
+
+      // Dynamic load fallback
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+      script.onload = function () {
+        if (typeof QRCode !== 'undefined') {
+          new QRCode(container, {
+            text: payload,
+            width: 240,
+            height: 240,
+            colorDark: '#000000',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.H
+          });
+        }
+      };
+      script.onerror = function () {
+        container.innerHTML = '<div style="padding:16px;color:var(--red);font-size:12px;">Pustaka QR tidak dapat dimuat. Silakan periksa koneksi internet Anda.</div>';
+      };
+      document.head.appendChild(script);
+    }
+
+    function downloadGuestQrPng() {
+      if (!APP.guestQrData || !APP.guestQrData.success) {
+        showToast('Data QR belum siap untuk diunduh.');
+        return;
+      }
+      const data = APP.guestQrData;
+      const student = data.student || {};
+
+      const qrWrap = document.getElementById('guest-qr-code-element');
+      const qrCanvasOrImg = qrWrap ? (qrWrap.querySelector('canvas') || qrWrap.querySelector('img')) : null;
+      if (!qrCanvasOrImg) {
+        showToast('Gambar QR sedang dipersiapkan, silakan coba sesaat lagi.');
+        return;
+      }
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const w = 900;
+      const h = 1200;
+      canvas.width = w;
+      canvas.height = h;
+
+      // Background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+
+      // Border luar
+      ctx.strokeStyle = '#e1e9e0';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(20, 20, w - 40, h - 40);
+
+      // Header pita hijau UIN Ar-Raniry
+      ctx.fillStyle = '#07851b';
+      ctx.fillRect(20, 20, w - 40, 160);
+
+      // Header Text
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 26px "DM Sans", Arial, sans-serif';
+      ctx.fillText('UNIVERSITAS ISLAM NEGERI AR-RANIRY BANDA ACEH', w / 2, 75);
+      ctx.font = '600 20px "DM Sans", Arial, sans-serif';
+      ctx.fillText('KARTU UNDANGAN RESMI TAMU WISUDA', w / 2, 115);
+      ctx.font = '15px "DM Sans", Arial, sans-serif';
+      ctx.fillText(student.periode ? ('PERIODE: ' + student.periode) : 'SISTEM PENGELOLAAN WISUDA', w / 2, 150);
+
+      // Box QR Frame
+      const qrBoxY = 220;
+      const qrBoxSize = 460;
+      ctx.fillStyle = '#f8faf7';
+      ctx.strokeStyle = '#cfe0ce';
+      ctx.lineWidth = 2;
+      ctx.fillRect((w - qrBoxSize) / 2, qrBoxY, qrBoxSize, qrBoxSize);
+      ctx.strokeRect((w - qrBoxSize) / 2, qrBoxY, qrBoxSize, qrBoxSize);
+
+      // Gambar QR
+      const qrDrawSize = 380;
+      const qrX = (w - qrDrawSize) / 2;
+      const qrY = qrBoxY + 36;
+      ctx.drawImage(qrCanvasOrImg, qrX, qrY, qrDrawSize, qrDrawSize);
+
+      // Payload Text
+      ctx.fillStyle = '#334155';
+      ctx.font = 'bold 18px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(data.qrPayload || ('NIM:' + student.nim), w / 2, qrBoxY + qrBoxSize - 12);
+
+      // Box Identitas Wisudawan
+      const infoY = 720;
+      const infoW = w - 100;
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#07851b';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(50, infoY, infoW, 330);
+
+      // Header Box Identitas
+      ctx.fillStyle = '#f0fdf4';
+      ctx.fillRect(51, infoY + 1, infoW - 2, 45);
+      ctx.fillStyle = '#166534';
+      ctx.font = 'bold 18px "DM Sans", Arial, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('IDENTITAS WISUDAWAN PENDAMPING', 70, infoY + 30);
+
+      // Rincian Identitas
+      ctx.fillStyle = '#1f2937';
+      ctx.font = 'bold 22px "DM Sans", Arial, sans-serif';
+      ctx.fillText(student.nama || '—', 70, infoY + 85);
+
+      ctx.font = '16px "DM Sans", Arial, sans-serif';
+      ctx.fillStyle = '#6b7280';
+      ctx.fillText('NIM:', 70, infoY + 125);
+      ctx.fillStyle = '#111827';
+      ctx.font = 'bold 17px "DM Sans", Arial, sans-serif';
+      ctx.fillText(student.nim || '—', 230, infoY + 125);
+
+      ctx.font = '16px "DM Sans", Arial, sans-serif';
+      ctx.fillStyle = '#6b7280';
+      ctx.fillText('Fakultas:', 70, infoY + 165);
+      ctx.fillStyle = '#111827';
+      ctx.font = 'bold 17px "DM Sans", Arial, sans-serif';
+      ctx.fillText(student.fakultas || '—', 230, infoY + 165);
+
+      ctx.font = '16px "DM Sans", Arial, sans-serif';
+      ctx.fillStyle = '#6b7280';
+      ctx.fillText('Program Studi:', 70, infoY + 205);
+      ctx.fillStyle = '#111827';
+      ctx.font = 'bold 17px "DM Sans", Arial, sans-serif';
+      ctx.fillText(student.prodi || '—', 230, infoY + 205);
+
+      ctx.font = '16px "DM Sans", Arial, sans-serif';
+      ctx.fillStyle = '#6b7280';
+      ctx.fillText('Nomor Kursi:', 70, infoY + 245);
+      ctx.fillStyle = '#07851b';
+      ctx.font = 'bold 18px "DM Sans", Arial, sans-serif';
+      ctx.fillText(student.kursi || '—', 230, infoY + 245);
+
+      ctx.font = '16px "DM Sans", Arial, sans-serif';
+      ctx.fillStyle = '#6b7280';
+      ctx.fillText('Ketentuan Tamu:', 70, infoY + 285);
+      ctx.fillStyle = '#111827';
+      ctx.font = 'bold 17px "DM Sans", Arial, sans-serif';
+      ctx.fillText('1 (Satu) Orang Tamu Pendamping', 230, infoY + 285);
+
+      // Petunjuk Bawah
+      ctx.fillStyle = '#64748b';
+      ctx.font = 'italic 13.5px "DM Sans", Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('* Tunjukkan QR ini kepada panitia saat memasuki gedung wisuda.', w / 2, 1090);
+      ctx.fillText('Tamu yang meninggalkan gedung wajib lapor ke panitia untuk scan keluar jika ingin masuk kembali.', w / 2, 1115);
+
+      // Download
+      const cleanName = String(student.nama || 'Wisudawan').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30);
+      const cleanNim = String(student.nim || '').replace(/[^a-zA-Z0-9]/g, '');
+      const fileName = 'QR_Tamu_' + cleanName + '_' + cleanNim + '.png';
+
+      const link = document.createElement('a');
+      link.download = fileName;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      showToast('Gambar QR Undangan Tamu berhasil diunduh.');
+    }
+
+    function printGuestQr() {
+      if (!APP.guestQrData || !APP.guestQrData.success) {
+        showToast('Data QR belum siap untuk dicetak.');
+        return;
+      }
+      const data = APP.guestQrData;
+      const student = data.student || {};
+      const qrWrap = document.getElementById('guest-qr-code-element');
+      const qrCanvasOrImg = qrWrap ? (qrWrap.querySelector('canvas') || qrWrap.querySelector('img')) : null;
+      const qrDataUrl = qrCanvasOrImg ? (qrCanvasOrImg.tagName === 'CANVAS' ? qrCanvasOrImg.toDataURL('image/png') : qrCanvasOrImg.src) : '';
+
+      const printContainer = document.getElementById('guest-qr-print-container');
+      if (!printContainer) return;
+
+      printContainer.innerHTML =
+        '<div class="guest-qr-print-card">' +
+          '<div class="guest-qr-print-header">' +
+            '<h1 class="guest-qr-print-title">UNIVERSITAS ISLAM NEGERI AR-RANIRY</h1>' +
+            '<div class="guest-qr-print-sub">KARTU UNDANGAN RESMI TAMU WISUDA</div>' +
+            '<div style="font-size:12px;color:#555;margin-top:4px;">' + escapeHtml(student.periode || 'Sistem Pengelolaan Wisuda') + '</div>' +
+          '</div>' +
+          '<div class="guest-qr-print-qr-wrap">' +
+            (qrDataUrl ? '<img src="' + qrDataUrl + '" alt="QR Code">' : '<div>[QR Code]</div>') +
+            '<div class="guest-qr-print-payload">' + escapeHtml(data.qrPayload || ('NIM:' + student.nim)) + '</div>' +
+          '</div>' +
+          '<table class="guest-qr-print-table">' +
+            '<tr><th>Nama Wisudawan</th><td><strong>' + escapeHtml(student.nama || '—') + '</strong></td></tr>' +
+            '<tr><th>NIM Resmi</th><td>' + escapeHtml(student.nim || '—') + '</td></tr>' +
+            '<tr><th>ID Wisudawan</th><td>' + escapeHtml(student.idWisudawan || '—') + '</td></tr>' +
+            '<tr><th>Fakultas</th><td>' + escapeHtml(student.fakultas || '—') + '</td></tr>' +
+            '<tr><th>Program Studi</th><td>' + escapeHtml(student.prodi || '—') + '</td></tr>' +
+            '<tr><th>Nomor Kursi</th><td><strong>' + escapeHtml(student.kursi || '—') + '</strong></td></tr>' +
+            '<tr><th>Ketentuan Kuota</th><td>1 (Satu) Orang Tamu Pendamping</td></tr>' +
+          '</table>' +
+          '<div class="guest-qr-print-footer">' +
+            '<strong>Petunjuk Penggunaan:</strong><br>' +
+            '1. Kartu ini merupakan akses masuk resmi bagi 1 (satu) orang tamu pendamping wisudawan.<br>' +
+            '2. Tunjukkan kartu ini kepada panitia presensi di pintu masuk gedung untuk dipindai.<br>' +
+            '3. Tamu yang keluar sementara dari gedung wajib melakukan pemindaian keluar agar dapat masuk kembali.' +
+          '</div>' +
+        '</div>';
+
+      window.print();
+    }
+
     function onCallDayFilterChange(val) {
       closeCallStatusModal();
       APP.callListFilters.day = val;

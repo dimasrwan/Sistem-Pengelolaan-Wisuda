@@ -328,5 +328,105 @@ function getStudentSeats_(session, profile) {
 }
 
 /* =========================
-   DAFTAR DAN PENCARIAN
+   QR UNDANGAN TAMU (ROLE WISUDAWAN)
    ========================= */
+
+function getMyGuestQrData() {
+  const session = requireRole_(['Wisudawan']);
+  const student = getStudentProfile_(session);
+
+  if (!student) {
+    return {
+      success: false,
+      code: 'NO_PROFILE',
+      message: 'Data pribadi belum terhubung ke akun ini. Admin perlu mengisi ID_Wisudawan pada sheet PENGGUNA.'
+    };
+  }
+
+  const idWisudawan = String(findValue_(student, ['ID_Wisudawan', 'ID Wisudawan']) || '').trim();
+  const rawNim = String(findValue_(student, ['NIM', 'Nomor Induk Mahasiswa']) || '').trim();
+  const nama = String(findValue_(student, ['Nama_Lengkap', 'Nama']) || '').trim();
+  const fakultas = String(findValue_(student, ['Fakultas']) || '').trim() || '—';
+  const prodi = String(findValue_(student, ['Program_Studi', 'Program Studi']) || '').trim() || '—';
+  const kursi = String(findValue_(student, ['Nomor_Kursi', 'Kode_Kursi', 'Kursi']) || '').trim() || '—';
+  const periode = String(findValue_(student, ['ID_Periode', 'ID Periode', 'Periode']) || '').trim();
+
+  // 1. Validasi NIM kosong / dummy
+  const normNim = normalize_(rawNim);
+  const isDummyNim = !rawNim || rawNim === '—' || rawNim === '-' || /^(0+|dummy|test|null|undefined)$/i.test(rawNim);
+
+  if (!normNim || isDummyNim) {
+    return {
+      success: false,
+      code: 'EMPTY_NIM',
+      message: 'NIM resmi Anda belum tersedia pada data wisudawan sehingga QR undangan belum dapat dibuat. Silakan hubungi administrator untuk melengkapi data.',
+      student: {
+        idWisudawan: idWisudawan,
+        nama: nama,
+        nim: '',
+        fakultas: fakultas,
+        prodi: prodi,
+        kursi: kursi,
+        periode: periode
+      }
+    };
+  }
+
+  // 2. Validasi Ambigu / Duplikat NIM di DATA_WISUDAWAN
+  const allStudents = getRows_(CONFIG.SHEETS.STUDENTS);
+  const sameNimStudents = allStudents.filter(function (row) {
+    const rowNim = normalize_(findValue_(row, ['NIM', 'Nomor Induk Mahasiswa']));
+    return rowNim && rowNim === normNim;
+  });
+
+  if (sameNimStudents.length > 1) {
+    const uniqueIds = {};
+    sameNimStudents.forEach(function (row) {
+      const rowId = normalize_(findValue_(row, ['ID_Wisudawan', 'ID Wisudawan']));
+      if (rowId) uniqueIds[rowId] = true;
+    });
+
+    if (Object.keys(uniqueIds).length > 1) {
+      return {
+        success: false,
+        code: 'AMBIGUOUS_NIM',
+        message: 'Ditemukan data duplikat untuk NIM Anda pada sistem. Silakan hubungi administrator untuk verifikasi data.',
+        student: {
+          idWisudawan: idWisudawan,
+          nama: nama,
+          nim: rawNim,
+          fakultas: fakultas,
+          prodi: prodi,
+          kursi: kursi,
+          periode: periode
+        }
+      };
+    }
+  }
+
+  // 3. Validasi Periode
+  let activePeriodId = '';
+  try {
+    const active = typeof getActivePeriod_ === 'function' ? getActivePeriod_() : null;
+    if (active && active.id) activePeriodId = String(active.id).trim();
+  } catch (e) {}
+
+  const finalPeriod = periode || activePeriodId;
+
+  return {
+    success: true,
+    code: 'OK',
+    student: {
+      idWisudawan: idWisudawan,
+      nama: nama,
+      nim: rawNim,
+      fakultas: fakultas,
+      prodi: prodi,
+      kursi: kursi,
+      periode: finalPeriod
+    },
+    qrPayload: 'NIM:' + rawNim,
+    guestQuota: 1,
+    note: 'Satu wisudawan hanya memiliki satu QR undangan tamu.'
+  };
+}
