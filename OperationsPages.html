@@ -8,17 +8,38 @@
       const role = APP.session.role;
 
       if (role === 'Wisudawan') {
-        const rows = (APP.dashboard && APP.dashboard.callList) || [];
-
         document.getElementById('page-content').innerHTML =
-          pageHeader('Daftar Panggil','Informasi pemanggilan untuk akun wisudawan ini.') +
-          '<div class="panel"><div class="panel-head"><h2>Daftar panggil pribadi</h2></div>' +
-          '<div class="panel-body">' + buildTable(rows, [
-            ['Urutan_Panggil','Urutan'],
-            ['Kelompok_Panggil','Kelompok'],
-            ['Status_Panggil','Status'],
-            ['Waktu_Panggil','Waktu']
-          ]) + '</div></div>';
+          pageHeader('Daftar Panggil Saya', 'Informasi pemanggilan wisuda Anda.') +
+          '<div id="wisudawan-call-container">' +
+          '<div class="panel" style="padding:32px 20px; text-align:center; color:var(--muted);">' +
+          '<span class="spinner" style="margin-right:8px;"></span>Memuat informasi pemanggilan Anda...' +
+          '</div>' +
+          '</div>';
+
+        // Render initial cached data if already present in APP.dashboard
+        if (APP.dashboard && APP.dashboard.callList && APP.dashboard.callList.length > 0) {
+          renderWisudawanCallCard(APP.dashboard.callList);
+        }
+
+        google.script.run
+          .withSuccessHandler(function (rows) {
+            APP.dashboard = APP.dashboard || {};
+            APP.dashboard.callList = rows || [];
+            renderWisudawanCallCard(rows);
+          })
+          .withFailureHandler(function (error) {
+            const target = document.getElementById('wisudawan-call-container');
+            if (target && (!APP.dashboard || !APP.dashboard.callList || !APP.dashboard.callList.length)) {
+              const msg = getErrorMessage(error);
+              target.innerHTML =
+                '<div class="notice notice-danger" style="margin-top:12px; padding:20px; border-radius:12px;">' +
+                '<h3 style="margin:0 0 8px 0; color:var(--red); font-size:16px;">Gagal Memuat Data Pemanggilan</h3>' +
+                '<p style="margin:0 0 14px 0;">' + escapeHtml(msg) + '</p>' +
+                '<button class="btn btn-outline btn-sm" onclick="renderCalls()">Coba Lagi</button>' +
+                '</div>';
+            }
+          })
+          .getCallList();
         return;
       }
 
@@ -75,6 +96,139 @@
         })
         .withFailureHandler(showError)
         .getCallList(APP.callListFilters);
+    }
+
+    function renderWisudawanCallCard(rows) {
+      const target = document.getElementById('wisudawan-call-container');
+      if (!target) return;
+
+      if (!rows || rows.length === 0) {
+        target.innerHTML =
+          '<div class="panel" style="padding:24px; border-radius:12px; border-left:4px solid #b45309; background:#fffdfa;">' +
+          '<div style="display:flex; align-items:flex-start; gap:16px;">' +
+          '<div style="font-size:24px; line-height:1;">ℹ️</div>' +
+          '<div style="flex:1;">' +
+          '<h3 style="margin:0 0 6px 0; font-size:16px; font-weight:700; color:#92400e;">Data Pemanggilan Belum Tersedia</h3>' +
+          '<p style="margin:0 0 14px 0; font-size:14px; color:#78350f; line-height:1.5;">' +
+          'Data pemanggilan Anda belum tersedia. Silakan hubungi panitia wisuda.' +
+          '</p>' +
+          '<button class="btn btn-outline btn-sm" onclick="renderCalls()">Muat Ulang</button>' +
+          '</div>' +
+          '</div>' +
+          '</div>';
+        return;
+      }
+
+      const call = rows[0];
+      const urutan = call.Urutan_Panggil ? escapeHtml(call.Urutan_Panggil) : '—';
+      const statusRaw = String(call.Status_Panggil || 'Belum Dipanggil').trim();
+      const sLower = statusRaw.toLowerCase();
+
+      // Kelompok / Fakultas
+      const kelompok = escapeHtml(call.Kelompok_Panggil || call.Fakultas ||
+        (APP.dashboard && APP.dashboard.student && APP.dashboard.student.Fakultas) || '—');
+
+      // Nomor Kursi
+      const kursi = escapeHtml(call.Nomor_Kursi ||
+        (APP.dashboard && APP.dashboard.seats && APP.dashboard.seats[0] && APP.dashboard.seats[0].Nomor_Kursi) ||
+        (APP.dashboard && APP.dashboard.student && APP.dashboard.student.Nomor_Kursi) || '—');
+
+      // Waktu Pemanggilan
+      let waktuText = 'Belum tersedia';
+      if (call.Waktu_Panggil && String(call.Waktu_Panggil).trim() !== '') {
+        waktuText = escapeHtml(call.Waktu_Panggil);
+      }
+
+      // Status Badge & Panduan
+      let statusBadgeClass = 'wisudawan-call-status-yellow';
+      let guideClass = 'wisudawan-call-guide-yellow';
+      let guideIcon = '⏳';
+      let guideText = 'Perhatikan arahan panitia dan tunggu nama Anda dipanggil.';
+
+      if (sLower.includes('sudah') || sLower.includes('hadir')) {
+        statusBadgeClass = 'wisudawan-call-status-green';
+        guideClass = 'wisudawan-call-guide-green';
+        guideIcon = '✅';
+        guideText = 'Pemanggilan Anda telah dikonfirmasi oleh panitia.';
+      } else if (sLower.includes('siap')) {
+        statusBadgeClass = 'wisudawan-call-status-blue';
+        guideClass = 'wisudawan-call-guide-blue';
+        guideIcon = '📢';
+        guideText = 'Bersiaplah mengikuti arahan panitia untuk proses pemanggilan.';
+      } else if (sLower.includes('belum')) {
+        statusBadgeClass = 'wisudawan-call-status-yellow';
+        guideClass = 'wisudawan-call-guide-yellow';
+        guideIcon = '⏳';
+        guideText = 'Perhatikan arahan panitia dan tunggu nama Anda dipanggil.';
+      } else {
+        statusBadgeClass = 'badge';
+        guideClass = 'wisudawan-call-guide-neutral';
+        guideIcon = 'ℹ️';
+        guideText = 'Ikuti arahan panitia wisuda pada saat prosesi pemanggilan berlangsung.';
+      }
+
+      let html = '<div class="wisudawan-call-card">';
+
+      // Header card
+      html += '<div class="wisudawan-call-header">' +
+        '<div style="display:flex; align-items:center; gap:8px;">' +
+        '<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--primary);"></span>' +
+        '<span style="font-size:13px; font-weight:800; color:var(--ink);">Informasi Pemanggilan Pribadi</span>' +
+        '</div>' +
+        '<button class="btn btn-outline btn-sm" onclick="renderCalls()">Muat Ulang</button>' +
+        '</div>';
+
+      // Body card
+      html += '<div class="wisudawan-call-body">';
+
+      // Main box: Giant Urutan Pemanggilan + Status Badge
+      html += '<div class="wisudawan-call-main-box">' +
+        '<div>' +
+        '<div class="wisudawan-call-seq-label">Urutan Pemanggilan Anda</div>' +
+        '<div class="wisudawan-call-seq-num">' + urutan + '</div>' +
+        '</div>' +
+        '<div style="text-align:right;">' +
+        '<div style="font-size:11px; font-weight:700; color:var(--muted); margin-bottom:6px; text-transform:uppercase;">Status Saat Ini</div>' +
+        '<span class="wisudawan-call-status-badge ' + statusBadgeClass + '">' +
+        escapeHtml(statusRaw) +
+        '</span>' +
+        '</div>' +
+        '</div>';
+
+      // Grid of Details: Kelompok, Kursi, Waktu
+      html += '<div class="wisudawan-call-grid">' +
+        '<div class="wisudawan-call-grid-item">' +
+        '<span class="wisudawan-call-grid-label">Kelompok Wisuda</span>' +
+        '<div class="wisudawan-call-grid-val">' + kelompok + '</div>' +
+        '</div>' +
+        '<div class="wisudawan-call-grid-item">' +
+        '<span class="wisudawan-call-grid-label">Nomor Kursi</span>' +
+        '<div class="wisudawan-call-grid-val" style="display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:6px;">' +
+        '<span>' + kursi + '</span>' +
+        '<button type="button" class="btn btn-outline btn-sm" onclick="navigate(\'seats\')" style="font-size:11px; padding:3px 8px; border-radius:6px; line-height:1.2;">Lihat Denah Kursi →</button>' +
+        '</div>' +
+        '</div>' +
+        '<div class="wisudawan-call-grid-item">' +
+        '<span class="wisudawan-call-grid-label">Waktu Pemanggilan</span>' +
+        '<div class="wisudawan-call-grid-val" style="font-size:14px; font-weight:600; color:' + (waktuText === 'Belum tersedia' ? 'var(--muted)' : 'var(--ink)') + ';">' +
+        waktuText +
+        '</div>' +
+        '</div>' +
+        '</div>';
+
+      html += '</div>'; // end wisudawan-call-body
+      html += '</div>'; // end wisudawan-call-card
+
+      // Panduan Pemanggilan Panel
+      html += '<div class="wisudawan-call-guide-panel ' + guideClass + '">' +
+        '<div style="font-size:22px; line-height:1; flex-shrink:0;">' + guideIcon + '</div>' +
+        '<div>' +
+        '<div style="font-size:14px; font-weight:800; margin-bottom:3px;">Panduan Pemanggilan</div>' +
+        '<div style="font-size:13.5px; line-height:1.5;">' + escapeHtml(guideText) + '</div>' +
+        '</div>' +
+        '</div>';
+
+      target.innerHTML = html;
     }
 
     function onCallDayFilterChange(val) {

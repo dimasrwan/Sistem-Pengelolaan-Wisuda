@@ -1528,6 +1528,135 @@
       flex-shrink: 0;
     }
 
+    /* =========================================================
+       DAFTAR PANGGIL SAYA (ROLE WISUDAWAN)
+       ========================================================= */
+    .wisudawan-call-card {
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .wisudawan-call-header {
+      padding: 16px 22px;
+      background: #fbfdfa;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .wisudawan-call-body {
+      padding: 24px;
+    }
+    .wisudawan-call-main-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 20px;
+      padding: 20px 24px;
+      background: linear-gradient(135deg, #f7faf7 0%, #ffffff 100%);
+      border: 1px solid #e1e9e0;
+      border-radius: 14px;
+      margin-bottom: 22px;
+    }
+    .wisudawan-call-seq-label {
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--primary-dark);
+      margin-bottom: 4px;
+    }
+    .wisudawan-call-seq-num {
+      font-size: clamp(48px, 8vw, 68px);
+      font-weight: 900;
+      color: var(--primary-dark);
+      line-height: 1;
+      letter-spacing: -1px;
+    }
+    .wisudawan-call-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 800;
+      padding: 6px 14px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .wisudawan-call-status-yellow {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fde68a;
+    }
+    .wisudawan-call-status-blue {
+      background: #e0f2fe;
+      color: #0369a1;
+      border: 1px solid #bae6fd;
+    }
+    .wisudawan-call-status-green {
+      background: #dcfce7;
+      color: #15803d;
+      border: 1px solid #bbf7d0;
+    }
+    .wisudawan-call-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 16px;
+    }
+    .wisudawan-call-grid-item {
+      padding: 14px 16px;
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+    .wisudawan-call-grid-label {
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--muted);
+      margin-bottom: 5px;
+      display: block;
+    }
+    .wisudawan-call-grid-val {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--ink);
+    }
+    .wisudawan-call-guide-panel {
+      padding: 18px 22px;
+      border-radius: 12px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      border: 1px solid transparent;
+    }
+    .wisudawan-call-guide-yellow {
+      background: #fffbeb;
+      border-color: #fef08a;
+      color: #92400e;
+    }
+    .wisudawan-call-guide-blue {
+      background: #f0f9ff;
+      border-color: #bae6fd;
+      color: #0369a1;
+    }
+    .wisudawan-call-guide-green {
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+      color: #15803d;
+    }
+    .wisudawan-call-guide-neutral {
+      background: #f8fafc;
+      border-color: #e2e8f0;
+      color: #334155;
+    }
+
     /* Summary recap table */
     .seat-summary-table {
       width: 100%;

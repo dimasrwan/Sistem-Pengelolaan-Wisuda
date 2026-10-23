@@ -52,8 +52,13 @@ function resolveTargetPeriodId_(explicitPeriodId) {
 }
 
 function getCallList(filters) {
-  requireRole_(['Admin', 'Wisudawan']);
+  const session = requireRole_(['Admin', 'Wisudawan']);
   filters = filters || {};
+
+  // Jika dipanggil oleh role Wisudawan, hanya kembalikan data pemanggilan wisudawan tersebut
+  if (session.role === 'Wisudawan') {
+    return (typeof getStudentCallList_ === 'function') ? getStudentCallList_(session) : [];
+  }
 
   const callRows = getRows_(CONFIG.SHEETS.CALL_LIST);
   const studentRows = getRows_(CONFIG.SHEETS.STUDENTS);

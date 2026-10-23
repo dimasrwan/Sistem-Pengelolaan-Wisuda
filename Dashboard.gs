@@ -104,7 +104,19 @@ function getStudentCallList_(session, profile) {
   const nim = normalize_(findValue_(profile, ['NIM', 'Nomor Induk Mahasiswa']));
   const name = normalize_(findValue_(profile, ['Nama_Lengkap', 'Nama']));
 
-  return getRows_(CONFIG.SHEETS.CALL_LIST).filter(function (row) {
+  let targetPeriod = normalize_(findValue_(profile, ['ID_Periode', 'ID Periode', 'Periode']));
+  if (!targetPeriod) {
+    try {
+      const active = typeof getActivePeriod_ === 'function' ? getActivePeriod_() : null;
+      if (active && active.id) targetPeriod = normalize_(active.id);
+    } catch (e) {}
+  }
+
+  const allCalls = getRows_(CONFIG.SHEETS.CALL_LIST);
+  const matched = allCalls.filter(function (row) {
+    const rowPeriod = normalize_(findValue_(row, ['ID_Periode', 'ID Periode', 'Periode']));
+    if (targetPeriod && rowPeriod && rowPeriod !== targetPeriod) return false;
+
     const rowId = normalize_(findValue_(row, ['ID_Wisudawan', 'ID Wisudawan']));
     const rowNim = normalize_(findValue_(row, ['NIM', 'Nomor Induk Mahasiswa']));
     const rowName = normalize_(findValue_(row, ['Nama_Lengkap', 'Nama', 'Nama_Wisudawan']));
@@ -112,6 +124,33 @@ function getStudentCallList_(session, profile) {
     return (studentId && rowId === studentId) ||
       (nim && rowNim === nim) ||
       (!rowId && !rowNim && name && rowName === name);
+  });
+
+  return matched.map(function (row) {
+    const urutan = findValue_(row, ['Urutan_Panggil', 'Urutan Panggil', 'Urutan', 'No']);
+    const kelompok = findValue_(row, ['Kelompok_Panggil', 'Kelompok Panggil', 'Kelompok', 'Fakultas']) ||
+      findValue_(profile, ['Fakultas', 'Kelompok']);
+    const kursi = findValue_(row, ['Nomor_Kursi', 'Kode_Kursi', 'Kursi']) ||
+      findValue_(profile, ['Nomor_Kursi', 'Kode_Kursi', 'Kursi']);
+    const status = findValue_(row, ['Status_Panggil', 'Status Panggil', 'Status']) || 'Belum Dipanggil';
+    const waktu = findValue_(row, ['Waktu_Panggil', 'Waktu Panggil', 'Waktu']);
+    const hari = findValue_(row, ['Hari_Ke', 'Hari Ke', 'Hari']) || findValue_(profile, ['Hari_Ke', 'Hari Ke', 'Hari']);
+
+    return {
+      ID_Panggil: findValue_(row, ['ID_Panggil', 'ID Panggil']),
+      ID_Periode: findValue_(row, ['ID_Periode', 'ID Periode', 'Periode']) || targetPeriod,
+      ID_Wisudawan: findValue_(row, ['ID_Wisudawan', 'ID Wisudawan']) || studentId,
+      Nama_Wisudawan: findValue_(row, ['Nama_Wisudawan', 'Nama Wisudawan', 'Nama_Lengkap', 'Nama']) || findValue_(profile, ['Nama_Lengkap', 'Nama']),
+      NIM: findValue_(profile, ['NIM', 'Nomor Induk Mahasiswa']) || findValue_(row, ['NIM', 'Nomor Induk Mahasiswa']),
+      Urutan_Panggil: urutan,
+      Kelompok_Panggil: kelompok,
+      Fakultas: kelompok,
+      Program_Studi: findValue_(row, ['Program_Studi', 'Program Studi']) || findValue_(profile, ['Program_Studi', 'Program Studi']),
+      Nomor_Kursi: kursi,
+      Hari_Ke: hari,
+      Status_Panggil: status,
+      Waktu_Panggil: waktu
+    };
   });
 }
 
