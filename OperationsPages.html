@@ -1764,41 +1764,106 @@
       document.getElementById('page-content').innerHTML =
         pageHeader('Scan QR Tamu', 'Pindai QR undangan untuk memverifikasi dan mencatat kedatangan tamu.') +
         '<div class="scanner-layout">' +
-          '<div class="panel">' +
-            '<div class="panel-head"><h2>Kamera Pemindai QR</h2></div>' +
+          // Panel A: Pemindai QR
+          '<div class="scanner-camera-panel">' +
+            '<div class="scanner-panel-head">' +
+              '<h2 class="scanner-panel-title">' +
+                '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--primary);"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>' +
+                'Pemindai QR Undangan' +
+              '</h2>' +
+              '<span id="camera-status-pill" class="scanner-status-pill scanner-status-off">● Kamera Belum Aktif</span>' +
+            '</div>' +
             '<div class="panel-body">' +
-              '<div id="qr-reader"></div>' +
-              '<div class="toolbar" style="margin-top:14px">' +
-                '<button class="btn" onclick="startScanner()">Aktifkan kamera</button>' +
-                '<button class="btn btn-outline" onclick="stopScanner()">Hentikan kamera</button>' +
+              '<div class="scanner-camera-wrapper">' +
+                '<div id="qr-reader"></div>' +
+                '<div class="scanner-viewfinder-overlay" id="scanner-viewfinder">' +
+                  '<div class="scanner-viewfinder-frame"></div>' +
+                  '<div class="scanner-viewfinder-guide-text">Arahkan QR Code ke dalam kotak</div>' +
+                '</div>' +
               '</div>' +
-              '<div style="margin-top:18px;border-top:1px solid #edf0ec;padding-top:14px">' +
-                '<label for="manual-guest-id" style="font-weight:700;font-size:12px;color:var(--ink)">Input Manual (NIM / ID Wisudawan)</label>' +
-                '<div class="toolbar" style="margin-top:7px">' +
-                  '<input id="manual-guest-id" class="field" style="flex:1;min-width:180px" placeholder="NIM atau ID Wisudawan (Contoh: WSD-0001)">' +
-                  '<button id="btn-manual-submit" class="btn" onclick="submitManualGuest()">Verifikasi Tamu</button>' +
+              '<div class="toolbar" style="margin-top:14px;gap:10px;">' +
+                '<button id="btn-start-camera" class="btn btn-primary" onclick="startScanner()" style="flex:1;">' +
+                  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>' +
+                  '<span>Aktifkan Kamera</span>' +
+                '</button>' +
+                '<button id="btn-stop-camera" class="btn btn-outline" onclick="stopScanner()" disabled style="flex:1;">' +
+                  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12"></rect></svg>' +
+                  '<span>Hentikan Kamera</span>' +
+                '</button>' +
+              '</div>' +
+
+              '<div style="margin-top:20px;border-top:1px solid #edf0ec;padding-top:16px;">' +
+                '<label for="manual-guest-id" style="font-weight:700;font-size:12px;color:var(--ink);display:block;margin-bottom:6px;">' +
+                  'Masukkan NIM atau ID Wisudawan' +
+                '</label>' +
+                '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+                  '<input id="manual-guest-id" class="field" style="flex:1;min-width:180px;" placeholder="Masukkan NIM atau ID Wisudawan" onkeydown="if(event.key===\'Enter\')submitManualGuest()">' +
+                  '<button id="btn-manual-submit" class="btn btn-primary" onclick="submitManualGuest()">' +
+                    'Verifikasi Undangan' +
+                  '</button>' +
                 '</div>' +
               '</div>' +
             '</div>' +
           '</div>' +
 
-          '<div class="panel">' +
-            '<div class="panel-head"><h2>Hasil Pemindaian</h2></div>' +
+          // Panel B: Hasil Pemindaian
+          '<div class="scanner-result-panel">' +
+            '<div class="scanner-panel-head">' +
+              '<h2 class="scanner-panel-title">' +
+                '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--primary);"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>' +
+                'Hasil Pemindaian' +
+              '</h2>' +
+            '</div>' +
             '<div class="panel-body">' +
               '<div id="scanner-result" class="scanner-result">' +
-                '<div style="text-align:center;padding:24px 10px;color:var(--muted)">' +
-                  '<div style="font-size:32px;margin-bottom:8px">📷</div>' +
-                  '<strong>Belum ada QR yang dipindai</strong>' +
-                  '<div style="font-size:12px;margin-top:4px">Arahkan kamera ke QR undangan tamu atau masukkan ID/NIM secara manual.</div>' +
+                '<div style="text-align:center;padding:36px 16px;color:var(--muted);">' +
+                  '<div style="font-size:36px;margin-bottom:10px;">📷</div>' +
+                  '<strong style="font-size:15px;color:var(--ink);display:block;margin-bottom:4px;">Belum Ada QR yang Dipindai</strong>' +
+                  '<div style="font-size:12.5px;max-width:320px;margin:0 auto;line-height:1.4;">' +
+                    'Arahkan kamera ke QR undangan tamu atau masukkan NIM/ID wisudawan secara manual.' +
+                  '</div>' +
                 '</div>' +
               '</div>' +
-              '<div id="scanner-history-box" style="margin-top:16px;display:none;">' +
-                '<div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Riwayat Sesi Ini</div>' +
-                '<div id="scanner-history-list" style="font-size:11px;color:var(--ink);display:flex;flex-direction:column;gap:5px"></div>' +
+
+              '<div id="scanner-history-box" style="margin-top:18px;display:none;">' +
+                '<div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">' +
+                  'Riwayat Pemindaian Sesi Ini' +
+                '</div>' +
+                '<div id="scanner-history-list" style="display:flex;flex-direction:column;gap:6px;"></div>' +
               '</div>' +
             '</div>' +
           '</div>' +
         '</div>';
+
+      // Pastikan status tombol sinkron
+      updateCameraControls_(false);
+    }
+
+    function setCameraStatus_(status) {
+      const pill = document.getElementById('camera-status-pill');
+      if (!pill) return;
+
+      pill.className = 'scanner-status-pill';
+      if (status === 'starting') {
+        pill.classList.add('scanner-status-starting');
+        pill.innerHTML = '<span class="spinner-sm" style="border-top-color:#92400e;border-color:rgba(146,64,14,0.3)"></span> Menghubungkan Kamera...';
+      } else if (status === 'on') {
+        pill.classList.add('scanner-status-on');
+        pill.innerHTML = '<span class="scanner-pulse-dot"></span> Kamera Aktif — Siap Memindai';
+      } else if (status === 'error') {
+        pill.classList.add('scanner-status-error');
+        pill.innerHTML = '✕ Kamera Gagal Diakses';
+      } else {
+        pill.classList.add('scanner-status-off');
+        pill.innerHTML = '● Kamera Belum Aktif';
+      }
+    }
+
+    function updateCameraControls_(isActive) {
+      const btnStart = document.getElementById('btn-start-camera');
+      const btnStop = document.getElementById('btn-stop-camera');
+      if (btnStart) btnStart.disabled = isActive;
+      if (btnStop) btnStop.disabled = !isActive;
     }
 
     function startScanner() {
@@ -1807,34 +1872,90 @@
 
       if (APP.scanner) stopScanner();
 
+      setCameraStatus_('starting');
+      updateCameraControls_(true);
+
       APP.scanner = new Html5Qrcode('qr-reader');
-      APP.lastScannedText = '';
-      APP.lastScannedTime = 0;
+      APP.activeCameraCode = null;
+      APP.lastCodeSeenTime = 0;
+      APP.scanBusy = false;
+
+      // Heartbeat interval untuk mendeteksi pengangkatan QR dari area pandang kamera
+      if (APP.cameraPresenceInterval) {
+        clearInterval(APP.cameraPresenceInterval);
+      }
+      APP.cameraPresenceInterval = setInterval(function () {
+        if (APP.activeCameraCode && (Date.now() - (APP.lastCodeSeenTime || 0) > 1200)) {
+          APP.activeCameraCode = null;
+        }
+      }, 300);
 
       APP.scanner.start(
         { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 240, height: 240 } },
+        { fps: 10, qrbox: { width: 220, height: 220 } },
         function (text) {
-          if (APP.scanBusy) return;
+          const clean = String(text || '').trim();
+          if (!clean) return;
+
           const now = Date.now();
-          // Debounce: abaikan pembacaan frame berulang dalam rentang 3 detik untuk QR yang persis sama
-          if (APP.lastScannedText === text && (now - APP.lastScannedTime) < 3000) {
+
+          // 1. KASUS QR SAMA DENGAN QR AKTIF:
+          // Perbarui timestamp keberadaan QR aktif, lalu cegah pemrosesan ulang tanpa batas waktu.
+          if (APP.activeCameraCode === clean) {
+            APP.lastCodeSeenTime = now;
             return;
           }
-          APP.lastScannedText = text;
-          APP.lastScannedTime = now;
+
+          // 2. KASUS QR BERBEDA ATAU KODE BARU:
+          // Jangan perbarui timestamp QR aktif jika kode berbeda terdeteksi saat modal terbuka atau scanBusy.
+          if (APP.pendingGuestExit || document.getElementById('guest-exit-modal-wrap')) {
+            return;
+          }
+
+          if (APP.scanBusy) {
+            return;
+          }
+
+          // 3. QR baru siap diproses: tetapkan activeCameraCode dan lastCodeSeenTime secara bersamaan
+          APP.activeCameraCode = clean;
+          APP.lastCodeSeenTime = now;
           APP.scanBusy = true;
-          handleScannedGuest(text);
+          handleScannedGuest(clean);
         },
-        function () {}
-      ).catch(function (error) {
+        function () {
+          // Callback frame kosong (tidak ada QR terdeteksi di kamera)
+          if (APP.activeCameraCode) {
+            const now = Date.now();
+            if (now - (APP.lastCodeSeenTime || 0) > 1200) {
+              APP.activeCameraCode = null;
+            }
+          }
+        }
+      ).then(function () {
+        setCameraStatus_('on');
+        updateCameraControls_(true);
+      }).catch(function (error) {
+        if (APP.cameraPresenceInterval) {
+          clearInterval(APP.cameraPresenceInterval);
+          APP.cameraPresenceInterval = null;
+        }
         APP.scanner = null;
+        setCameraStatus_('error');
+        updateCameraControls_(false);
         showToast('Kamera tidak dapat dibuka. Periksa izin kamera browser.');
         console.error(error);
       });
     }
 
     function stopScanner() {
+      if (APP.cameraPresenceInterval) {
+        clearInterval(APP.cameraPresenceInterval);
+        APP.cameraPresenceInterval = null;
+      }
+      APP.activeCameraCode = null;
+      APP.lastCodeSeenTime = 0;
+      APP.scanBusy = false;
+
       if (APP.scanner) {
         const scanner = APP.scanner;
         APP.scanner = null;
@@ -1843,10 +1964,13 @@
           .catch(function () {})
           .finally(function () {
             try { scanner.clear(); } catch (e) {}
+            setCameraStatus_('off');
+            updateCameraControls_(false);
           });
+      } else {
+        setCameraStatus_('off');
+        updateCameraControls_(false);
       }
-
-      APP.scanBusy = false;
     }
 
     function displayScanProcessing_(text) {
@@ -1854,12 +1978,17 @@
       if (!box) return;
 
       box.innerHTML =
-        '<div style="padding:24px 10px;text-align:center;">' +
-          '<div style="display:inline-flex;align-items:center;gap:10px;font-weight:700;color:var(--ink);font-size:14px">' +
-            '<span style="display:inline-block;width:18px;height:18px;border:3px solid #2e7d32;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;"></span>' +
-            'Memproses QR undangan... Mohon tunggu' +
+        '<div class="scan-result-card">' +
+          '<div class="scan-badge-banner scan-badge-processing">' +
+            '<span class="spinner-sm" style="border-top-color:#1e293b;border-color:rgba(30,41,59,0.3)"></span>' +
+            '<span>MEMVERIFIKASI QR UNDANGAN...</span>' +
           '</div>' +
-          '<div style="margin-top:8px;font-size:11px;color:var(--muted);overflow-wrap:anywhere">' + escapeHtml(text) + '</div>' +
+          '<div style="text-align:center;padding:16px 10px;color:var(--muted);font-size:13px;">' +
+            'Menghubungi server dan memeriksa kuota kehadiran...' +
+            '<div style="margin-top:6px;font-family:monospace;font-size:11.5px;color:var(--ink);">' +
+              escapeHtml(text) +
+            '</div>' +
+          '</div>' +
         '</div>';
     }
 
@@ -1871,22 +2000,28 @@
 
       let bannerClass = 'scan-badge-neutral';
       let badgeText = result.badge || 'HASIL SCAN';
+      let iconSvg = '';
 
       if (code === 'BERHASIL_MASUK') {
         bannerClass = 'scan-badge-success-in';
         badgeText = 'BERHASIL MASUK';
+        iconSvg = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>';
       } else if (code === 'DITOLAK_TAMU_SUDAH_DI_DALAM') {
         bannerClass = 'scan-badge-danger';
         badgeText = 'DITOLAK — TAMU SUDAH DI DALAM GEDUNG';
+        iconSvg = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
       } else if (code === 'BERHASIL_KELUAR') {
         bannerClass = 'scan-badge-success-out';
         badgeText = 'BERHASIL KELUAR';
+        iconSvg = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>';
       } else if (code === 'DITOLAK_TIDAK_ADA_SESI_MASUK') {
         bannerClass = 'scan-badge-warning';
         badgeText = 'DITOLAK — TIDAK ADA SESI MASUK AKTIF';
+        iconSvg = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
       } else if (code === 'QR_TIDAK_VALID') {
         bannerClass = 'scan-badge-danger';
         badgeText = 'QR TIDAK VALID';
+        iconSvg = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>';
       }
 
       let studentHtml = '';
@@ -1896,33 +2031,52 @@
         const s = result.student;
         const isInside = result.currentStatus === 'DI_DALAM';
         const statusBadge = isInside
-          ? '<span class="badge badge-green">DI DALAM GEDUNG</span>'
-          : '<span class="badge" style="background:#e1f0fa;color:#124d80;">DI LUAR GEDUNG</span>';
+          ? '<span class="badge badge-green" style="font-size:11px;padding:3px 8px;">DI DALAM GEDUNG</span>'
+          : '<span class="badge" style="background:#e1f0fa;color:#124d80;font-size:11px;padding:3px 8px;">DI LUAR GEDUNG</span>';
 
-        let checkinTimeRow = '';
-        if (isInside && result.previousCheckinTime) {
-          checkinTimeRow =
+        let timeDetails = '';
+        if (code === 'BERHASIL_KELUAR') {
+          if (result.checkinTime) {
+            timeDetails +=
+              '<div class="scan-identity-row">' +
+                '<span class="scan-identity-label">Waktu Masuk</span>' +
+                '<span class="scan-identity-val">' + escapeHtml(result.checkinTime) + '</span>' +
+              '</div>';
+          }
+          if (result.time) {
+            timeDetails +=
+              '<div class="scan-identity-row">' +
+                '<span class="scan-identity-label">Waktu Keluar</span>' +
+                '<span class="scan-identity-val" style="color:#0369a1;">' + escapeHtml(result.time) + '</span>' +
+              '</div>';
+          }
+        } else if (isInside && result.previousCheckinTime) {
+          timeDetails =
             '<div class="scan-identity-row">' +
               '<span class="scan-identity-label">Waktu Masuk Sebelumnya</span>' +
-              '<span class="scan-identity-val">' + escapeHtml(result.previousCheckinTime) + '</span>' +
+              '<span class="scan-identity-val" style="color:#b91c1c;">' + escapeHtml(result.previousCheckinTime) + '</span>' +
             '</div>';
         } else if (result.time) {
-          checkinTimeRow =
+          timeDetails =
             '<div class="scan-identity-row">' +
-              '<span class="scan-identity-label">' + (code === 'BERHASIL_KELUAR' ? 'Waktu Keluar' : 'Waktu Masuk') + '</span>' +
-              '<span class="scan-identity-val">' + escapeHtml(result.time) + '</span>' +
+              '<span class="scan-identity-label">Waktu Masuk</span>' +
+              '<span class="scan-identity-val" style="color:#15803d;">' + escapeHtml(result.time) + '</span>' +
             '</div>';
         }
 
         studentHtml =
           '<div class="scan-identity-card">' +
             '<div class="scan-identity-row">' +
-              '<span class="scan-identity-label">Wisudawan</span>' +
-              '<span class="scan-identity-val" style="font-size:13px;color:#185a25">' + escapeHtml(s.name || '—') + '</span>' +
+              '<span class="scan-identity-label">Nama Wisudawan</span>' +
+              '<span class="scan-identity-val" style="font-size:14px;color:#07851b;font-weight:900;">' + escapeHtml(s.name || '—') + '</span>' +
             '</div>' +
             '<div class="scan-identity-row">' +
-              '<span class="scan-identity-label">NIM</span>' +
-              '<span class="scan-identity-val">' + escapeHtml(s.nim || s.id || '—') + '</span>' +
+              '<span class="scan-identity-label">NIM Resmi</span>' +
+              '<span class="scan-identity-val" style="font-family:monospace;font-size:13px;">' + escapeHtml(s.nim || '—') + '</span>' +
+            '</div>' +
+            '<div class="scan-identity-row">' +
+              '<span class="scan-identity-label">ID Wisudawan</span>' +
+              '<span class="scan-identity-val">' + escapeHtml(s.id || '—') + '</span>' +
             '</div>' +
             '<div class="scan-identity-row">' +
               '<span class="scan-identity-label">Fakultas / Prodi</span>' +
@@ -1930,26 +2084,32 @@
             '</div>' +
             '<div class="scan-identity-row">' +
               '<span class="scan-identity-label">Nomor Kursi</span>' +
-              '<span class="scan-identity-val"><strong>' + escapeHtml(s.seat || '—') + '</strong></span>' +
+              '<span class="scan-identity-val"><span class="badge badge-green">' + escapeHtml(s.seat || '—') + '</span></span>' +
             '</div>' +
-            checkinTimeRow +
+            timeDetails +
             '<div class="scan-identity-row">' +
-              '<span class="scan-identity-label">Status Terkini</span>' +
+              '<span class="scan-identity-label">Status Akses Tamu</span>' +
               '<span class="scan-identity-val">' + statusBadge + '</span>' +
             '</div>' +
           '</div>';
 
-        // Mekanisme keluar terkontrol jika tamu terdeteksi sedang di dalam gedung
+        // Mekanisme keluar terkontrol jika tamu sedang berada di dalam gedung
         if (isInside) {
+          const checkinForModal = result.previousCheckinTime || result.time || '';
           exitActionHtml =
-            '<div style="margin-top:14px;padding:14px;background:#f0f7ff;border:1px solid #b8daff;border-radius:10px;text-align:center;">' +
-              '<div style="font-size:12px;color:#004085;margin-bottom:8px;font-weight:600;">' +
-                'Tamu sedang berada di dalam gedung. Hendak mencatat tamu keluar?' +
+            '<div class="scan-exit-box">' +
+              '<div style="font-size:12.5px;color:#0369a1;font-weight:700;margin-bottom:10px;">' +
+                'Tamu saat ini tercatat berada di dalam gedung. Hendak mencatat tamu keluar?' +
               '</div>' +
-              '<button type="button" class="btn btn-outline" style="border-color:#1976d2;color:#1976d2;font-size:13px;font-weight:700;padding:8px 18px;" data-id="' +
-                escapeAttr(s.id) + '" data-name="' + escapeAttr(s.name) +
-                '" onclick="confirmGuestExit(this.dataset.id, this.dataset.name)">' +
-                '🚪 Catat Tamu Keluar' +
+              '<button type="button" class="btn btn-outline" style="border-color:#0284c7;color:#0284c7;font-weight:800;padding:8px 18px;" ' +
+                'data-id="' + escapeAttr(s.id) + '" ' +
+                'data-name="' + escapeAttr(s.name) + '" ' +
+                'data-checkin="' + escapeAttr(checkinForModal) + '" ' +
+                'data-seat="' + escapeAttr(s.seat) + '" ' +
+                'data-nim="' + escapeAttr(s.nim) + '" ' +
+                'onclick="openGuestExitModal(this.dataset.id, this.dataset.name, this.dataset.checkin, this.dataset.seat, this.dataset.nim)">' +
+                '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>' +
+                '<span>Catat Tamu Keluar</span>' +
               '</button>' +
             '</div>';
         }
@@ -1959,8 +2119,11 @@
 
       target.innerHTML =
         '<div class="scan-result-card">' +
-          '<div class="scan-badge-banner ' + bannerClass + '">' + escapeHtml(badgeText) + '</div>' +
-          '<div class="notice ' + noticeClass + '" style="margin-bottom:0">' +
+          '<div class="scan-badge-banner ' + bannerClass + '">' +
+            iconSvg +
+            '<span>' + escapeHtml(badgeText) + '</span>' +
+          '</div>' +
+          '<div class="notice ' + noticeClass + '" style="margin-bottom:0;font-size:13.5px;line-height:1.45;">' +
             escapeHtml(result.message || 'Pemindaian selesai.') +
           '</div>' +
           studentHtml +
@@ -1971,40 +2134,131 @@
       addScanToHistoryList_(badgeText, result.student ? result.student.name : 'QR', result.success);
     }
 
-    function confirmGuestExit(studentId, studentName) {
-      if (!studentId) return;
-      if (confirm('Konfirmasi: Catat tamu dari ' + (studentName || studentId) + ' keluar dari gedung?')) {
-        executeControlledExit(studentId);
+    // Modal Konfirmasi Tamu Keluar Terkontrol
+    function handleGuestExitKeydown_(e) {
+      if (e.key === 'Escape' && APP.pendingGuestExit && !APP.pendingGuestExit.isSubmitting) {
+        closeGuestExitModal();
       }
     }
 
-    function executeControlledExit(studentId) {
-      if (APP.scanBusy) return;
-      APP.scanBusy = true;
-      displayScanProcessing_('Mencatat keluar: ' + studentId);
+    function openGuestExitModal(studentId, studentName, checkinTime, seat, nim) {
+      if (!studentId) return;
+
+      APP.pendingGuestExit = {
+        id: studentId,
+        name: studentName,
+        checkinTime: checkinTime,
+        seat: seat,
+        nim: nim,
+        isSubmitting: false
+      };
+
+      const modalHtml = '<div id="guest-exit-modal-wrap">' +
+        '<div id="guest-exit-modal" class="student-modal-overlay" onclick="if(event.target===this)closeGuestExitModal()">' +
+          '<div class="call-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="guest-exit-title">' +
+            '<div class="call-confirm-header">' +
+              '<h3 id="guest-exit-title" class="call-confirm-title">' +
+                '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="color:#0284c7;"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>' +
+                'Konfirmasi Tamu Keluar' +
+              '</h3>' +
+              '<button type="button" class="btn btn-outline btn-sm" id="btn-guest-exit-close" onclick="closeGuestExitModal()" aria-label="Tutup" style="min-height:auto;padding:3px 8px;border-radius:6px;font-size:12px;">✕</button>' +
+            '</div>' +
+            '<div class="call-student-card">' +
+              '<div class="call-student-name">' + escapeHtml(studentName) + '</div>' +
+              '<div class="call-student-meta">' +
+                '<span><strong>NIM:</strong> ' + escapeHtml(nim || '—') + '</span>' +
+                '<span>•</span>' +
+                '<span><strong>Kursi:</strong> <span class="badge badge-green" style="font-size:10px;padding:2px 7px;">' + escapeHtml(seat || '—') + '</span></span>' +
+                (checkinTime ? ('<span>•</span><span><strong>Masuk:</strong> ' + escapeHtml(checkinTime) + '</span>') : '') +
+              '</div>' +
+            '</div>' +
+            '<div class="call-status-flow">' +
+              '<div class="call-status-box">' +
+                '<div class="call-status-label">Status Saat Ini</div>' +
+                '<span class="badge badge-green">DI DALAM GEDUNG</span>' +
+              '</div>' +
+              '<div class="call-status-arrow">' +
+                '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>' +
+              '</div>' +
+              '<div class="call-status-box">' +
+                '<div class="call-status-label">Status Tujuan</div>' +
+                '<span class="badge" style="background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;">DI LUAR GEDUNG</span>' +
+              '</div>' +
+            '</div>' +
+            '<p style="margin:0 0 20px 0;font-size:13px;color:var(--muted);text-align:center;line-height:1.5;">' +
+              'Apakah Anda yakin ingin mencatat tamu dari <strong>' + escapeHtml(studentName) + '</strong> keluar dari gedung? Setelah keluar dicatat, kuota tamu wisudawan ini akan kembali tersedia.' +
+            '</p>' +
+            '<div style="display:flex;justify-content:flex-end;gap:10px;">' +
+              '<button type="button" class="btn btn-outline btn-sm" id="btn-guest-exit-cancel" onclick="closeGuestExitModal()">Batal</button>' +
+              '<button type="button" class="btn btn-sm btn-primary" id="btn-guest-exit-submit" onclick="executeConfirmedGuestExit()" style="background:#0284c7;border-color:#0284c7;">' +
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>' +
+                '<span>Konfirmasi Keluar</span>' +
+              '</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+      const wrap = document.createElement('div');
+      wrap.innerHTML = modalHtml;
+      document.body.appendChild(wrap.firstElementChild);
+
+      window.addEventListener('keydown', handleGuestExitKeydown_);
+
+      const submitBtn = document.getElementById('btn-guest-exit-submit');
+      if (submitBtn) submitBtn.focus();
+    }
+
+    function closeGuestExitModal(force) {
+      if (!force && APP.pendingGuestExit && APP.pendingGuestExit.isSubmitting) return;
+      window.removeEventListener('keydown', handleGuestExitKeydown_);
+      APP.pendingGuestExit = null;
+      const wrap = document.getElementById('guest-exit-modal-wrap');
+      if (wrap) wrap.remove();
+    }
+
+    function executeConfirmedGuestExit() {
+      if (!APP.pendingGuestExit || APP.pendingGuestExit.isSubmitting) return;
+      APP.pendingGuestExit.isSubmitting = true;
+
+      const submitBtn = document.getElementById('btn-guest-exit-submit');
+      const cancelBtn = document.getElementById('btn-guest-exit-cancel');
+      const closeBtn = document.getElementById('btn-guest-exit-close');
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-sm"></span> <span>Memproses...</span>';
+      }
+      if (cancelBtn) cancelBtn.disabled = true;
+      if (closeBtn) closeBtn.disabled = true;
+
+      const studentId = APP.pendingGuestExit.id;
 
       google.script.run
         .withSuccessHandler(function (result) {
+          closeGuestExitModal(true);
           renderScanResult(result);
           showToast(result.message || 'Sesi keluar berhasil dicatat.');
           setTimeout(function () {
             APP.scanBusy = false;
-          }, 1800);
+          }, 1400);
         })
         .withFailureHandler(function (error) {
-          const errorMsg = getErrorMessage(error);
-          showToast(errorMsg);
-          renderScanResult({
-            success: false,
-            resultCode: 'QR_TIDAK_VALID',
-            badge: 'GAGAL MENCATAT KELUAR',
-            message: errorMsg
-          });
+          if (APP.pendingGuestExit) {
+            APP.pendingGuestExit.isSubmitting = false;
+          }
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<span>Konfirmasi Keluar</span>';
+          }
+          if (cancelBtn) cancelBtn.disabled = false;
+          if (closeBtn) closeBtn.disabled = false;
+          showError(error);
           setTimeout(function () {
             APP.scanBusy = false;
-          }, 1800);
+          }, 1400);
         })
-        .recordGuestExit(studentId, 'Manual Petugas');
+        .recordGuestExit(studentId, 'Petugas Pintu');
     }
 
     function addScanToHistoryList_(badgeText, studentName, isSuccess) {
@@ -2025,10 +2279,10 @@
       box.style.display = 'block';
       let html = '';
       APP.scanHistory.forEach(function (h) {
-        const color = h.success ? '#155724' : '#721c24';
-        html += '<div style="padding:4px 8px;background:#fff;border-radius:6px;border:1px solid #edf0ec;display:flex;justify-content:space-between;align-items:center;">' +
-          '<span><strong style="color:' + color + '">[' + escapeHtml(h.badge) + ']</strong> ' + escapeHtml(h.name) + '</span>' +
-          '<span style="color:var(--muted)">' + h.time + '</span>' +
+        const color = h.success ? '#15803d' : '#b91c1c';
+        html += '<div style="padding:6px 10px;background:#fbfdfa;border-radius:8px;border:1px solid #e2ebe1;display:flex;justify-content:space-between;align-items:center;font-size:12px;">' +
+          '<span><strong style="color:' + color + ';">[' + escapeHtml(h.badge) + ']</strong> ' + escapeHtml(h.name) + '</span>' +
+          '<span style="color:var(--muted);font-family:monospace;font-size:11px;">' + h.time + '</span>' +
         '</div>';
       });
       list.innerHTML = html;
@@ -2053,7 +2307,7 @@
         showToast(result.message || 'Pemindaian selesai.');
         setTimeout(function () {
           APP.scanBusy = false;
-        }, 1800);
+        }, 1400);
       };
 
       const failureCallback = function (error) {
@@ -2068,7 +2322,7 @@
         showToast(errorMsg);
         setTimeout(function () {
           APP.scanBusy = false;
-        }, 1800);
+        }, 1400);
       };
 
       // Alur otomatis selalu memverifikasi kedatangan / entry
@@ -2085,7 +2339,9 @@
       if (!val) return showToast('Masukkan NIM atau ID wisudawan terlebih dahulu.');
       if (APP.scanBusy) return;
 
+      input.value = ''; // Bersihkan input agar operator siap mengetik berikutnya
       APP.scanBusy = true;
+      APP.activeCameraCode = null;
       handleScannedGuest(val);
     }
 

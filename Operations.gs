@@ -291,7 +291,7 @@ function recordGuestEntry(qrPayload, method) {
     var hasActiveInside = false;
     var activeCheckinTime = '';
 
-    for (var r = 1; r < values.length; r++) {
+    for (var r = values.length - 1; r >= 1; r--) {
       var row = values[r];
       var rowPeriode = normalize_(row[periodeIdx]);
       var rowIdWisudawan = idWisudawanIdx >= 0 ? normalize_(row[idWisudawanIdx]) : '';
@@ -400,8 +400,9 @@ function recordGuestExit(qrPayload, method) {
     var waktuKeluarIdx = colMap['waktu_keluar'] != null ? colMap['waktu_keluar'] : -1;
 
     var activeRowIndex = -1;
+    var activeCheckinTime = '';
 
-    for (var r = 1; r < values.length; r++) {
+    for (var r = values.length - 1; r >= 1; r--) {
       var row = values[r];
       var rowPeriode = normalize_(row[periodeIdx]);
       var rowIdWisudawan = idWisudawanIdx >= 0 ? normalize_(row[idWisudawanIdx]) : '';
@@ -414,6 +415,9 @@ function recordGuestExit(qrPayload, method) {
 
       if (matchesStudent && matchesPeriod && rowStatus === 'di_dalam') {
         activeRowIndex = r + 1; // 1-indexed untuk Google Sheet
+        if (colMap['waktu_checkin'] != null) {
+          activeCheckinTime = row[colMap['waktu_checkin']];
+        }
         break;
       }
     }
@@ -453,7 +457,8 @@ function recordGuestExit(qrPayload, method) {
       message: 'Berhasil keluar. Tamu dari ' + studentInfo.name + ' telah keluar gedung. Slot tamu kembali tersedia.',
       student: studentInfo,
       currentStatus: 'DI_LUAR',
-      time: exitTimeStr
+      time: exitTimeStr,
+      checkinTime: activeCheckinTime || ''
     };
   } finally {
     lock.releaseLock();
