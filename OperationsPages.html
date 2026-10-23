@@ -1959,6 +1959,11 @@
       APP.hasScannerPostMessageListener = true;
 
       window.addEventListener('message', function (event) {
+        // Tangkap window pengirim agar referensi balasan selalu valid dan hidup
+        if (event.source) {
+          APP.externalScannerWindow = event.source;
+        }
+
         // 1. Validasi origin pengirim
         if (!isAllowedScannerOrigin(event.origin)) {
           console.warn('[Security] Diabaikan postMessage dari origin tidak terdaftar:', event.origin);
@@ -1976,20 +1981,64 @@
           return;
         }
 
-        // 4. Data hasil scan QR
+        // 4. Pemeriksaan status transaksi (Pemulihan setelah timeout atau koneksi lambat)
+        if (data.type === 'UIN_ARRANIRY_CHECK_TX') {
+          const checkReqId = data.requestId || '';
+          const checkPayload = data.payload || '';
+          console.log('[CheckTX] Menerima permintaan periksa transaksi:', checkReqId, checkPayload);
+
+          google.script.run
+            .withSuccessHandler(function (checkRes) {
+              sendResultToScannerPopup_({
+                type: 'UIN_ARRANIRY_SCAN_RESULT',
+                requestId: checkReqId,
+                result: checkRes
+              });
+            })
+            .withFailureHandler(function (checkErr) {
+              sendResultToScannerPopup_({
+                type: 'UIN_ARRANIRY_SCAN_RESULT',
+                requestId: checkReqId,
+                result: {
+                  success: false,
+                  resultCode: 'CHECK_FAILED',
+                  badge: 'GAGAL PERIKSA',
+                  message: getErrorMessage(checkErr),
+                  requestId: checkReqId
+                }
+              });
+            })
+            .checkTransactionStatus(checkReqId, checkPayload);
+          return;
+        }
+
+        // 5. Data hasil scan QR
         if (data.type === 'UIN_ARRANIRY_QR_SCAN') {
           const rawPayload = typeof data.payload === 'string' ? data.payload.trim() : '';
+          const reqId = data.requestId || ('TX-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8).toUpperCase());
           if (!rawPayload) return;
 
-          // Kirim ACK bahwa QR telah diterima oleh aplikasi induk
+          // Kirim ACK beserta requestId bahwa QR telah diterima oleh aplikasi induk
           sendResultToScannerPopup_({
             type: 'UIN_ARRANIRY_SCAN_ACK',
+            requestId: reqId,
             payload: rawPayload
           });
 
           const now = Date.now();
           // Debounce kode yang sama
           if (rawPayload === APP.activeCameraCode && (now - (APP.lastCodeSeenTime || 0) < 1800)) {
+            sendResultToScannerPopup_({
+              type: 'UIN_ARRANIRY_SCAN_RESULT',
+              requestId: reqId,
+              result: {
+                success: false,
+                resultCode: 'DEBOUNCE_COOLDOWN',
+                badge: 'KODE SEDANG AKTIF',
+                message: 'QR code ini baru saja diproses. Harap angkat QR dari kamera terlebih dahulu.',
+                requestId: reqId
+              }
+            });
             return;
           }
 
@@ -1999,11 +2048,13 @@
           if (APP.scanBusy) {
             sendResultToScannerPopup_({
               type: 'UIN_ARRANIRY_SCAN_RESULT',
+              requestId: reqId,
               result: {
                 success: false,
                 resultCode: 'SCAN_BUSY',
-                badge: 'SISTEM SIBUK',
-                message: 'Sedang memproses transaksi sebelumnya. Harap tunggu 1 detik.'
+                badge: 'SISTEM SEDANG MEMPROSES',
+                message: 'Sedang memproses transaksi sebelumnya di server. Harap tunggu sebentar.',
+                requestId: reqId
               }
             });
             return;
@@ -2012,7 +2063,7 @@
           APP.activeCameraCode = rawPayload;
           APP.lastCodeSeenTime = now;
           APP.scanBusy = true;
-          handleScannedGuest(rawPayload);
+          handleScannedGuest(rawPayload, reqId);
         }
       });
     }
@@ -2562,57 +2613,117 @@
       list.innerHTML = html;
     }
 
-    function handleScannedGuest(text) {
+    function handleScannedGuest(text, requestId) {
       if (!['Admin','Panitia'].includes(APP.session.role)) {
         APP.scanBusy = false;
         return showToast('Akses ditolak.');
       }
 
       const raw = String(text || '').trim();
+      const reqId = String(requestId || ('TX-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8).toUpperCase())).trim();
+
       if (!raw) {
         APP.scanBusy = false;
+        sendResultToScannerPopup_({
+          type: 'UIN_ARRANIRY_SCAN_RESULT',
+          requestId: reqId,
+          result: {
+            success: false,
+            resultCode: 'QR_EMPTY',
+            badge: 'QR KOSONG',
+            message: 'Data QR kosong.',
+            requestId: reqId
+          }
+        });
         return showToast('Data QR kosong.');
       }
 
       displayScanProcessing_(raw);
 
+      let isFinished = false;
+      // Client-side safety timeout (12 detik) untuk mencegah UI macet jika jaringan/Apps Script hang
+      const clientTimeoutId = setTimeout(function () {
+        if (!isFinished) {
+          isFinished = true;
+          APP.scanBusy = false;
+          console.warn('[' + reqId + '] Timeout pemanggilan backend Apps Script (12 detik)');
+          const timeoutRes = {
+            success: false,
+            resultCode: 'TIMEOUT_UNCONFIRMED',
+            badge: 'TRANSAKSI BELUM TERKONFIRMASI',
+            message: 'Server belum memberikan konfirmasi akhir. Periksa status presensi sebelum mencoba kembali.',
+            requestId: reqId
+          };
+          renderScanResult(timeoutRes);
+          sendResultToScannerPopup_({
+            type: 'UIN_ARRANIRY_SCAN_RESULT',
+            requestId: reqId,
+            result: timeoutRes
+          });
+        }
+      }, 12000);
+
       const successCallback = function (result) {
+        if (isFinished) return;
+        isFinished = true;
+        clearTimeout(clientTimeoutId);
+
+        if (!result) {
+          result = {
+            success: false,
+            resultCode: 'EMPTY_RESPONSE',
+            badge: 'RESPONS KOSONG',
+            message: 'Server mengembalikan respons kosong.'
+          };
+        }
+        result.requestId = reqId;
+
         renderScanResult(result);
         sendResultToScannerPopup_({
           type: 'UIN_ARRANIRY_SCAN_RESULT',
+          requestId: reqId,
           result: result
         });
+
         showToast(result.message || 'Pemindaian selesai.');
         setTimeout(function () {
           APP.scanBusy = false;
-        }, 1200);
+        }, 1000);
       };
 
       const failureCallback = function (error) {
+        if (isFinished) return;
+        isFinished = true;
+        clearTimeout(clientTimeoutId);
+
         const errorMsg = getErrorMessage(error);
+        console.error('[' + reqId + '] FailureHandler backend:', errorMsg);
+
         const errResult = {
           success: false,
-          resultCode: 'QR_TIDAK_VALID',
-          badge: 'QR TIDAK VALID',
-          message: errorMsg
+          resultCode: 'SERVER_ERROR',
+          badge: 'TRANSAKSI GAGAL',
+          message: errorMsg || 'Terjadi kesalahan sistem di server Apps Script.',
+          requestId: reqId
         };
         renderScanResult(errResult);
         sendResultToScannerPopup_({
           type: 'UIN_ARRANIRY_SCAN_RESULT',
+          requestId: reqId,
           result: errResult
         });
 
         showToast(errorMsg);
         setTimeout(function () {
           APP.scanBusy = false;
-        }, 1200);
+        }, 1000);
       };
 
-      // Alur adaptif otomatis: Check-in jika belum ada sesi aktif, Check-out jika sudah ada sesi aktif
+      // Alur adaptif otomatis dengan correlation ID requestId
       google.script.run
         .withSuccessHandler(successCallback)
         .withFailureHandler(failureCallback)
-        .processGuestScan(raw, 'QR Code');
+        .processGuestScan(raw, 'QR Code', reqId);
     }
 
     function submitManualGuest() {
@@ -2622,10 +2733,11 @@
       if (!val) return showToast('Masukkan NIM atau ID wisudawan terlebih dahulu.');
       if (APP.scanBusy) return;
 
+      const manualReqId = 'MAN-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase();
       input.value = ''; // Bersihkan input agar operator siap mengetik berikutnya
       APP.scanBusy = true;
       APP.activeCameraCode = null;
-      handleScannedGuest(val);
+      handleScannedGuest(val, manualReqId);
     }
 
 

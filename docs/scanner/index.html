@@ -274,6 +274,15 @@
       color: #92400e;
       border-bottom: 1px solid #fde68a;
     }
+    .card-unconfirmed {
+      background: #fffbeb;
+      border-color: #f59e0b;
+    }
+    .card-unconfirmed .result-header {
+      background: #fef3c7;
+      color: #b45309;
+      border-bottom: 1px solid #fde68a;
+    }
 
     /* Controls */
     .controls-section {
@@ -403,6 +412,10 @@
       background: #fee2e2;
       color: #991b1b;
     }
+    .badge-warn {
+      background: #fef3c7;
+      color: #b45309;
+    }
     .history-time {
       font-size: 11px;
       color: var(--muted);
@@ -412,6 +425,9 @@
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(-4px); }
       to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
   </style>
 </head>
@@ -493,9 +509,12 @@
     // State management
     let html5QrCode = null;
     let isScanning = false;
-    let activeLockedCode = null;   // QR yang sedang aktif di depan kamera (dikunci agar tidak berulang)
-    let lastSeenTimestamp = 0;     // Timestamp frame terakhir QR terdeteksi
-    let isProcessingTransaction = false;
+    let activeLockedCode = null;          // QR yang saat ini terkunci di depan kamera
+    let lastSeenTimestamp = 0;            // Timestamp terakhir kali QR terdeteksi di kamera
+    let isProcessingTransaction = false;  // Sedang menunggu konfirmasi server
+    let pendingRequestId = null;          // Correlation ID transaksi aktif
+    let pendingPayload = null;            // Payload QR transaksi aktif
+    let pendingTransactionTimer = null;   // Timer 10 detik deteksi timeout
     let targetOrigin = null;
     let audioCtx = null;
     const recentScans = [];
@@ -539,7 +558,6 @@
     window.addEventListener('message', function (event) {
       // Validate origin if targetOrigin is configured
       if (targetOrigin && event.origin !== targetOrigin) {
-        // Also allow script.google.com and googleusercontent
         const isGoogle = event.origin.endsWith('script.google.com') ||
                          event.origin.endsWith('script.googleusercontent.com');
         if (!isGoogle) {
@@ -553,17 +571,145 @@
 
       // 1. ACK received from parent
       if (data.type === 'UIN_ARRANIRY_SCAN_ACK') {
-        const lbl = document.getElementById('viewfinder-label');
-        if (lbl) lbl.textContent = '🔄 Memvalidasi sesi di Google Sheets...';
+        if (!pendingRequestId || data.requestId === pendingRequestId) {
+          const lbl = document.getElementById('viewfinder-label');
+          if (lbl) lbl.textContent = '🔄 2/2 Diterima Induk — Memvalidasi di Google Sheets...';
+        }
         return;
       }
 
       // 2. REAL BACKEND RESULT RECEIVED
       if (data.type === 'UIN_ARRANIRY_SCAN_RESULT') {
+        // Cocokkan correlation ID requestId jika tersedia
+        if (pendingRequestId && data.requestId && data.requestId !== pendingRequestId) {
+          console.warn('[CorrelationID] Mengabaikan respons lama:', data.requestId, 'Expected:', pendingRequestId);
+          return;
+        }
+
+        // Hentikan timer timeout transaksi
+        clearPendingTimer();
         isProcessingTransaction = false;
+        pendingRequestId = null;
+        pendingPayload = null;
+
         renderBackendResult(data.result);
       }
     });
+
+    function clearPendingTimer() {
+      if (pendingTransactionTimer) {
+        clearTimeout(pendingTransactionTimer);
+        pendingTransactionTimer = null;
+      }
+    }
+
+    // Penanganan timeout jika server tidak merespons dalam 10 detik
+    function onTransactionTimeout() {
+      clearPendingTimer();
+      isProcessingTransaction = false;
+
+      const vfBox = document.getElementById('viewfinder-box');
+      const vfLabel = document.getElementById('viewfinder-label');
+      if (vfBox) vfBox.classList.add('locked');
+      if (vfLabel) vfLabel.textContent = '⚠️ Transaksi Belum Terkonfirmasi';
+
+      playBeep('error');
+
+      const container = document.getElementById('result-box-container');
+      const reqDisplay = pendingRequestId || '—';
+      const codeDisplay = pendingPayload || '—';
+
+      container.innerHTML = `
+        <div class="result-card card-unconfirmed">
+          <div class="result-header">
+            <span>⚠️</span>
+            <span>TRANSAKSI BELUM TERKONFIRMASI</span>
+          </div>
+          <div class="result-body">
+            <div style="font-weight:700;margin-bottom:6px;color:#92400e;">
+              Server belum memberikan konfirmasi akhir dalam 10 detik.
+            </div>
+            <div class="result-meta-row">
+              <span class="result-meta-label">ID Transaksi</span>
+              <span class="result-meta-val" style="font-family:monospace;font-size:11px;">${escapeHtml(reqDisplay)}</span>
+            </div>
+            <div class="result-meta-row">
+              <span class="result-meta-label">Kode QR</span>
+              <span class="result-meta-val" style="font-family:monospace;font-size:11px;">${escapeHtml(codeDisplay)}</span>
+            </div>
+            <div style="font-size:11.5px;color:var(--muted);margin:8px 0;line-height:1.4;">
+              Data mungkin telah tersimpan di Google Sheets. Periksa status transaksi sebelum memindai ulang untuk mencegah kesalahan status.
+            </div>
+            <div style="display:flex;gap:8px;margin-top:10px;">
+              <button class="btn btn-primary" onclick="checkCurrentTransactionStatus()" style="flex:1;height:38px;font-size:12px;">
+                🔍 Periksa Status Transaksi
+              </button>
+              <button class="btn btn-outline" onclick="resetPendingTransaction()" style="flex:1;height:38px;font-size:12px;">
+                ↻ Reset Pemindai
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      addHistory('BELUM TERKONFIRMASI', 'badge-warn', codeDisplay);
+    }
+
+    // Memeriksa status transaksi saat ini ke server dengan requestId yang sama
+    function checkCurrentTransactionStatus() {
+      if (!pendingRequestId && !activeLockedCode) {
+        resetPendingTransaction();
+        return;
+      }
+
+      const reqId = pendingRequestId || '';
+      const payload = pendingPayload || activeLockedCode || '';
+
+      const vfLabel = document.getElementById('viewfinder-label');
+      if (vfLabel) vfLabel.textContent = '🔄 Menghubungi server untuk cek status...';
+
+      // Set timer singkat untuk respon periksa status (6s)
+      clearPendingTimer();
+      pendingTransactionTimer = setTimeout(function () {
+        clearPendingTimer();
+        if (vfLabel) vfLabel.textContent = '⚠️ Status Masih Belum Terkonfirmasi';
+      }, 6000);
+
+      sendToParent({
+        type: 'UIN_ARRANIRY_CHECK_TX',
+        requestId: reqId,
+        payload: payload,
+        timestamp: Date.now()
+      });
+    }
+
+    // Reset paksa keadaan pemindai
+    function resetPendingTransaction() {
+      clearPendingTimer();
+      isProcessingTransaction = false;
+      pendingRequestId = null;
+      pendingPayload = null;
+      activeLockedCode = null;
+
+      const vfBox = document.getElementById('viewfinder-box');
+      const vfLabel = document.getElementById('viewfinder-label');
+      if (vfBox) {
+        vfBox.classList.remove('locked');
+        vfBox.classList.remove('scanned');
+      }
+      if (vfLabel) {
+        vfLabel.textContent = '🟢 Kamera Siap — Arahkan QR Code';
+      }
+
+      const container = document.getElementById('result-box-container');
+      container.innerHTML = `
+        <div class="result-card card-entry" style="background:#fcfdfa;border-color:#e2ebe1;">
+          <div class="result-body" style="text-align:center;color:var(--muted);padding:10px;">
+            <span>🟢 Pemindai di-reset. Hadapkan QR undangan tamu ke kotak kamera.</span>
+          </div>
+        </div>
+      `;
+    }
 
     // Sound beep helper using Web Audio API
     function playBeep(type) {
@@ -638,12 +784,14 @@
 
       const isEntry = res.resultCode === 'BERHASIL_MASUK';
       const isExit = res.resultCode === 'BERHASIL_KELUAR';
-      const isSuccess = res.success && (isEntry || isExit);
+      const isStatusInside = res.resultCode === 'STATUS_DI_DALAM';
+      const isStatusOutside = res.resultCode === 'STATUS_DI_LUAR';
+      const isSuccess = res.success && (isEntry || isExit || isStatusInside || isStatusOutside);
 
       // Play appropriate sound
-      if (isExit) {
+      if (isExit || isStatusOutside) {
         playBeep('exit');
-      } else if (isEntry) {
+      } else if (isEntry || isStatusInside) {
         playBeep('entry');
       } else {
         playBeep('error');
@@ -652,10 +800,10 @@
       // Card styling
       let cardClass = 'card-error';
       let icon = '✕';
-      if (isEntry) {
+      if (isEntry || isStatusInside) {
         cardClass = 'card-entry';
         icon = '✓';
-      } else if (isExit) {
+      } else if (isExit || isStatusOutside) {
         cardClass = 'card-exit';
         icon = '✓';
       }
@@ -689,6 +837,16 @@
         `;
       }
 
+      let idInfo = '';
+      if (res.requestId) {
+        idInfo = `
+          <div class="result-meta-row" style="font-size:10.5px;color:var(--muted);margin-top:4px;">
+            <span class="result-meta-label">ID Transaksi</span>
+            <span class="result-meta-val" style="font-family:monospace;font-weight:normal;">${escapeHtml(res.requestId)}</span>
+          </div>
+        `;
+      }
+
       container.innerHTML = `
         <div class="result-card ${cardClass}">
           <div class="result-header">
@@ -699,8 +857,9 @@
             <div style="font-weight:700;margin-bottom:8px;">${escapeHtml(res.message || '')}</div>
             ${studentRows}
             ${timeInfo}
+            ${idInfo}
             <div style="margin-top:8px;padding-top:6px;border-top:1px dashed rgba(0,0,0,0.1);font-size:11px;color:var(--muted);text-align:center;">
-              ${isSuccess ? '🔒 Transaksi tercatat. <strong>Angkat QR dari kamera</strong> untuk memindai berikutnya.' : 'Silakan coba kembali.'}
+              ${isSuccess ? '🔒 Transaksi tercatat. <strong>Angkat QR dari kamera</strong> untuk transaksi berikutnya.' : 'Silakan coba kembali.'}
             </div>
           </div>
         </div>
@@ -728,16 +887,18 @@
         // If QR has not been detected for > 1300 ms, user has lifted the QR away!
         if (now - lastSeenTimestamp > 1300) {
           activeLockedCode = null;
-          isProcessingTransaction = false;
 
-          const vfBox = document.getElementById('viewfinder-box');
-          const vfLabel = document.getElementById('viewfinder-label');
-          if (vfBox) {
-            vfBox.classList.remove('locked');
-            vfBox.classList.remove('scanned');
-          }
-          if (vfLabel) {
-            vfLabel.textContent = '🟢 Siap Memindai QR Baru / Hadapkan Kembali untuk Check-out';
+          // Jangan reset jika sedang memproses konfirmasi server
+          if (!isProcessingTransaction) {
+            const vfBox = document.getElementById('viewfinder-box');
+            const vfLabel = document.getElementById('viewfinder-label');
+            if (vfBox) {
+              vfBox.classList.remove('locked');
+              vfBox.classList.remove('scanned');
+            }
+            if (vfLabel) {
+              vfLabel.textContent = '🟢 Siap Memindai QR Baru / Hadapkan Kembali untuk Check-out';
+            }
           }
         }
       }
@@ -763,10 +924,17 @@
         return;
       }
 
-      // 3. KODE BARU / PRESENTASI SENGJA BERIKUTNYA (SETELAH DIANGKAT):
+      // 3. KODE BARU / PRESENTASI SENGAJA BERIKUTNYA (SETELAH DIANGKAT):
+      const currentRequestId = 'TX-' + now + '-' + Math.random().toString(36).slice(2, 8).toUpperCase();
       activeLockedCode = clean;
       lastSeenTimestamp = now;
       isProcessingTransaction = true;
+      pendingRequestId = currentRequestId;
+      pendingPayload = clean;
+
+      // Pasang timeout 10 detik untuk memastikan UI tidak pernah macet
+      clearPendingTimer();
+      pendingTransactionTimer = setTimeout(onTransactionTimeout, 10000);
 
       // Animate viewfinder
       const vfBox = document.getElementById('viewfinder-box');
@@ -775,7 +943,7 @@
         vfBox.classList.add('scanned');
       }
       if (vfLabel) {
-        vfLabel.textContent = '⏳ Mengirim ke Aplikasi Induk...';
+        vfLabel.textContent = '⏳ 1/2 QR Dibaca — Mengirim ke Aplikasi Induk...';
       }
 
       // Display pending state card
@@ -789,27 +957,34 @@
           <div class="result-body">
             <div style="font-family:monospace;font-weight:700;color:#92400e;margin-bottom:4px;">${escapeHtml(clean)}</div>
             <div style="font-size:11.5px;color:#78350f;">Memeriksa status sesi di Google Sheets (Check-in / Check-out otomatis)...</div>
+            <div style="font-size:10.5px;color:var(--muted);margin-top:4px;font-family:monospace;">ID: ${currentRequestId}</div>
           </div>
         </div>
       `;
 
-      // Send to parent window
+      // Send to parent window with correlation ID requestId
       const sent = sendToParent({
         type: 'UIN_ARRANIRY_QR_SCAN',
         payload: clean,
+        requestId: currentRequestId,
         timestamp: now
       });
 
       if (!sent) {
         // Standalone mode simulation
         setTimeout(function () {
+          clearPendingTimer();
+          isProcessingTransaction = false;
+          pendingRequestId = null;
+          pendingPayload = null;
           renderBackendResult({
             success: true,
             resultCode: 'BERHASIL_MASUK',
             badge: 'SIMULASI MANDIRI',
             message: 'Mode mandiri: Buka pemindai melalui aplikasi utama untuk mencatat ke Google Sheets.',
             student: { name: clean, nim: clean, seat: '—' },
-            time: new Date().toLocaleTimeString('id-ID')
+            time: new Date().toLocaleTimeString('id-ID'),
+            requestId: currentRequestId
           });
         }, 600);
       }
@@ -926,6 +1101,7 @@
       isScanning = false;
       activeLockedCode = null;
       isProcessingTransaction = false;
+      clearPendingTimer();
       document.getElementById('btn-start').disabled = false;
       document.getElementById('btn-stop').disabled = true;
       document.getElementById('viewfinder-label').textContent = 'Kamera Dihentikan';

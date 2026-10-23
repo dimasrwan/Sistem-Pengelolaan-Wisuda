@@ -467,34 +467,75 @@ function recordGuestExit(qrPayload, method) {
 
 /**
  * Memproses pemindaian QR tamu secara adaptif berdasarkan status sesi aktif:
+ * - Menggunakan Correlation ID (requestId) untuk menjamin idempotensi di sisi server.
  * - Jika tamu belum memiliki sesi aktif (DI_DALAM) pada periode ini: mencatat CHECK-IN baru (Status: DI_DALAM)
  * - Jika tamu sudah berada di dalam gedung (DI_DALAM): mencatat CHECK-OUT pada baris sesi yang sama (Status: DI_LUAR, mengisi Waktu_Keluar)
  */
-function processGuestScan(qrPayload, method) {
+function processGuestScan(qrPayload, method, requestId) {
   var session = requireRole_(['Admin', 'Panitia']);
-  var resolved = resolveWisudawanFromQr_(qrPayload);
+  var reqId = String(requestId || ('REQ-' + Utilities.getUuid().slice(0, 8))).trim();
 
+  console.log('[' + reqId + '] processGuestScan dipanggil untuk: ' + qrPayload + ' (Metode: ' + (method || 'QR') + ')');
+
+  // 1. Pemeriksaan Idempotensi Server-side (Mencegah double check-in / check-out jika request identik terulang)
+  var cache = CacheService.getScriptCache();
+  try {
+    var cached = cache.get('TX_' + reqId);
+    if (cached) {
+      console.log('[' + reqId + '] Idempotensi Cache Hit: Mengembalikan hasil transaksi yang telah tersimpan.');
+      var parsedCache = JSON.parse(cached);
+      parsedCache.isIdempotentReplay = true;
+      return parsedCache;
+    }
+  } catch (e) {
+    console.warn('[' + reqId + '] Gagal membaca cache idempotensi:', e);
+  }
+
+  var resolved = resolveWisudawanFromQr_(qrPayload);
   if (!resolved || !resolved.student) {
     var errorMsg = resolved && resolved.message
       ? resolved.message
       : 'QR tidak valid atau data wisudawan tidak ditemukan pada periode ini.';
-    return {
+    console.warn('[' + reqId + '] QR tidak valid: ' + errorMsg);
+    var errRes = {
       success: false,
       resultCode: 'QR_TIDAK_VALID',
       badge: 'QR TIDAK VALID',
       message: errorMsg,
-      currentStatus: 'TIDAK_DIKENAL'
+      currentStatus: 'TIDAK_DIKENAL',
+      requestId: reqId
     };
+    try { cache.put('TX_' + reqId, JSON.stringify(errRes), 180); } catch (e) {}
+    return errRes;
   }
 
   var student = resolved.student;
   var studentInfo = formatStudentInfo_(student);
   var targetPeriodId = resolved.targetPeriodId;
 
+  // 2. Kunci Script Lock untuk integritas konkuren
   var lock = LockService.getScriptLock();
-  lock.waitLock(10000);
+  var hasLock = lock.tryLock(12000);
+  if (!hasLock) {
+    console.warn('[' + reqId + '] Lock contention: Gagal memperoleh lock dalam 12 detik.');
+    return {
+      success: false,
+      resultCode: 'LOCK_TIMEOUT',
+      badge: 'SERVER SIBUK',
+      message: 'Server sedang sibuk memproses transaksi lain. Silakan periksa status atau ulangi sesaat lagi.',
+      requestId: reqId
+    };
+  }
 
   try {
+    // Periksa kembali cache setelah memperoleh lock (Double-checked locking)
+    try {
+      var cachedAfterLock = cache.get('TX_' + reqId);
+      if (cachedAfterLock) {
+        return JSON.parse(cachedAfterLock);
+      }
+    } catch (e) {}
+
     var info = getGuestAttendanceSheetInfo_();
     var sheet = info.sheet;
     var values = info.values;
@@ -532,6 +573,7 @@ function processGuestScan(qrPayload, method) {
     var now = new Date();
     var timeZone = Session.getScriptTimeZone() || 'Asia/Jakarta';
     var timeStampStr = Utilities.formatDate(now, timeZone, 'yyyy-MM-dd HH:mm:ss');
+    var finalResult = null;
 
     // 1. KASUS SUDAH DI DALAM -> LAKUKAN CHECK-OUT PADA BARIS YANG SAMA
     if (activeRowIndex >= 0) {
@@ -539,15 +581,16 @@ function processGuestScan(qrPayload, method) {
       if (waktuKeluarIdx >= 0) {
         sheet.getRange(activeRowIndex, waktuKeluarIdx + 1).setValue(timeStampStr);
       }
+      SpreadsheetApp.flush();
 
       logActivity_(
         session.email,
         'SCAN TAMU KELUAR',
         'PRESENSI_TAMU',
-        'Wisudawan: ' + studentInfo.id + ' (' + studentInfo.name + ')'
+        '[' + reqId + '] Wisudawan: ' + studentInfo.id + ' (' + studentInfo.name + ')'
       );
 
-      return {
+      finalResult = {
         success: true,
         resultCode: 'BERHASIL_KELUAR',
         badge: 'BERHASIL KELUAR',
@@ -555,54 +598,150 @@ function processGuestScan(qrPayload, method) {
         student: studentInfo,
         currentStatus: 'DI_LUAR',
         time: timeStampStr,
-        checkinTime: activeCheckinTime || ''
+        checkinTime: activeCheckinTime || '',
+        requestId: reqId
+      };
+    } else {
+      // 2. KASUS BELUM ADA SESI AKTIF -> LAKUKAN CHECK-IN BARU
+      var newId = 'PRS-' + Utilities.getUuid().slice(0, 8).toUpperCase();
+      var newRow = new Array(info.headers.length).fill('');
+      if (colMap['id_presensi'] != null) newRow[colMap['id_presensi']] = newId;
+      if (colMap['id_periode'] != null) newRow[colMap['id_periode']] = targetPeriodId;
+      if (colMap['id_wisudawan'] != null) newRow[colMap['id_wisudawan']] = studentInfo.id;
+      if (colMap['id_tamu'] != null) newRow[colMap['id_tamu']] = studentInfo.id;
+      if (colMap['waktu_checkin'] != null) newRow[colMap['waktu_checkin']] = timeStampStr;
+      if (colMap['metode_presensi'] != null) newRow[colMap['metode_presensi']] = method || 'QR Code';
+      if (colMap['petugas'] != null) newRow[colMap['petugas']] = session.email;
+      if (colMap['status'] != null) newRow[colMap['status']] = 'DI_DALAM';
+      if (colMap['waktu_keluar'] != null) newRow[colMap['waktu_keluar']] = '';
+
+      sheet.appendRow(newRow);
+      SpreadsheetApp.flush();
+
+      logActivity_(
+        session.email,
+        'SCAN TAMU MASUK',
+        'PRESENSI_TAMU',
+        '[' + reqId + '] Wisudawan: ' + studentInfo.id + ' (' + studentInfo.name + ')'
+      );
+
+      finalResult = {
+        success: true,
+        resultCode: 'BERHASIL_MASUK',
+        badge: 'BERHASIL MASUK',
+        message: 'Berhasil masuk. Tamu dari ' + studentInfo.name + ' tercatat di dalam gedung.',
+        student: studentInfo,
+        currentStatus: 'DI_DALAM',
+        time: timeStampStr,
+        requestId: reqId
       };
     }
 
-    // 2. KASUS BELUM ADA SESI AKTIF -> LAKUKAN CHECK-IN BARU
-    var newId = 'PRS-' + Utilities.getUuid().slice(0, 8).toUpperCase();
-    var newRow = new Array(info.headers.length).fill('');
-    if (colMap['id_presensi'] != null) newRow[colMap['id_presensi']] = newId;
-    if (colMap['id_periode'] != null) newRow[colMap['id_periode']] = targetPeriodId;
-    if (colMap['id_wisudawan'] != null) newRow[colMap['id_wisudawan']] = studentInfo.id;
-    if (colMap['id_tamu'] != null) newRow[colMap['id_tamu']] = studentInfo.id;
-    if (colMap['waktu_checkin'] != null) newRow[colMap['waktu_checkin']] = timeStampStr;
-    if (colMap['metode_presensi'] != null) newRow[colMap['metode_presensi']] = method || 'QR Code';
-    if (colMap['petugas'] != null) newRow[colMap['petugas']] = session.email;
-    if (colMap['status'] != null) newRow[colMap['status']] = 'DI_DALAM';
-    if (colMap['waktu_keluar'] != null) newRow[colMap['waktu_keluar']] = '';
+    // Simpan hasil ke cache untuk idempotensi (berlaku 300 detik)
+    try {
+      cache.put('TX_' + reqId, JSON.stringify(finalResult), 300);
+    } catch (e) {
+      console.warn('[' + reqId + '] Gagal menyimpan ke cache:', e);
+    }
 
-    sheet.appendRow(newRow);
-
-    logActivity_(
-      session.email,
-      'SCAN TAMU MASUK',
-      'PRESENSI_TAMU',
-      'Wisudawan: ' + studentInfo.id + ' (' + studentInfo.name + ')'
-    );
-
-    return {
-      success: true,
-      resultCode: 'BERHASIL_MASUK',
-      badge: 'BERHASIL MASUK',
-      message: 'Berhasil masuk. Tamu dari ' + studentInfo.name + ' tercatat di dalam gedung.',
-      student: studentInfo,
-      currentStatus: 'DI_DALAM',
-      time: timeStampStr
-    };
+    console.log('[' + reqId + '] processGuestScan selesai sukses: ' + finalResult.resultCode);
+    return finalResult;
+  } catch (err) {
+    console.error('[' + reqId + '] Error fatal pada processGuestScan:', err);
+    throw err;
   } finally {
-    lock.releaseLock();
+    try { lock.releaseLock(); } catch (e) {}
   }
 }
 
-function recordGuestAttendance(guestId, method, post) {
+/**
+ * Memeriksa status transaksi presensi berdasarkan requestId atau payload QR
+ * Berguna saat scanner mengalami timeout atau pemulihan status tidak terkonfirmasi
+ */
+function checkTransactionStatus(requestId, qrPayload) {
+  requireRole_(['Admin', 'Panitia']);
+  var reqId = String(requestId || '').trim();
+
+  // 1. Cek cache transaksi berdasarkan requestId
+  if (reqId) {
+    try {
+      var cache = CacheService.getScriptCache();
+      var cached = cache.get('TX_' + reqId);
+      if (cached) {
+        var parsed = JSON.parse(cached);
+        parsed.isRecovered = true;
+        return parsed;
+      }
+    } catch (e) {}
+  }
+
+  // 2. Jika tidak ada di cache, periksa status fisik saat ini di Google Sheets
+  var resolved = resolveWisudawanFromQr_(qrPayload);
+  if (!resolved || !resolved.student) {
+    return {
+      success: false,
+      resultCode: 'QR_TIDAK_VALID',
+      badge: 'QR TIDAK VALID',
+      message: 'Data wisudawan tidak ditemukan.',
+      requestId: reqId
+    };
+  }
+
+  var studentInfo = formatStudentInfo_(resolved.student);
+  var info = getGuestAttendanceSheetInfo_();
+  var values = info.values;
+  var colMap = info.colMap;
+  var idWisudawanIdx = colMap['id_wisudawan'] != null ? colMap['id_wisudawan'] : -1;
+  var idTamuIdx = colMap['id_tamu'] != null ? colMap['id_tamu'] : (idWisudawanIdx >= 0 ? idWisudawanIdx : 2);
+  var statusIdx = colMap['status'] != null ? colMap['status'] : 6;
+  var waktuCheckinIdx = colMap['waktu_checkin'] != null ? colMap['waktu_checkin'] : 3;
+  var waktuKeluarIdx = colMap['waktu_keluar'] != null ? colMap['waktu_keluar'] : 7;
+
+  var isInside = false;
+  var lastCheckin = '';
+  var lastExit = '';
+
+  for (var r = values.length - 1; r >= 1; r--) {
+    var row = values[r];
+    var rowIdWisudawan = idWisudawanIdx >= 0 ? normalize_(row[idWisudawanIdx]) : '';
+    var rowIdTamu = idTamuIdx >= 0 ? normalize_(row[idTamuIdx]) : '';
+    var matchesStudent = (rowIdWisudawan && (rowIdWisudawan === normalize_(studentInfo.id) || (studentInfo.nim && studentInfo.nim !== '—' && rowIdWisudawan === normalize_(studentInfo.nim)))) ||
+      (rowIdTamu && (rowIdTamu === normalize_(studentInfo.id) || (studentInfo.nim && studentInfo.nim !== '—' && rowIdTamu === normalize_(studentInfo.nim))));
+
+    if (matchesStudent) {
+      var rowStatus = normalize_(row[statusIdx]);
+      if (rowStatus === 'di_dalam') {
+        isInside = true;
+        lastCheckin = row[waktuCheckinIdx];
+        break;
+      } else if (!lastExit) {
+        lastExit = waktuKeluarIdx >= 0 ? row[waktuKeluarIdx] : '';
+        lastCheckin = row[waktuCheckinIdx];
+      }
+    }
+  }
+
+  return {
+    success: true,
+    resultCode: isInside ? 'STATUS_DI_DALAM' : 'STATUS_DI_LUAR',
+    badge: isInside ? 'STATUS: DI DALAM' : 'STATUS: DI LUAR',
+    message: isInside ? 'Tamu tercatat DI DALAM gedung.' : 'Tamu tercatat DI LUAR gedung (Slot tersedia).',
+    student: studentInfo,
+    currentStatus: isInside ? 'DI_DALAM' : 'DI_LUAR',
+    time: isInside ? lastCheckin : lastExit,
+    requestId: reqId,
+    isStatusCheck: true
+  };
+}
+
+function recordGuestAttendance(guestId, method, post, requestId) {
   if (post === 'out' || post === 'keluar') {
     return recordGuestExit(guestId, method);
   }
   if (post === 'in' || post === 'masuk') {
     return recordGuestEntry(guestId, method);
   }
-  return processGuestScan(guestId, method);
+  return processGuestScan(guestId, method, requestId);
 }
 
 function getGuestAttendanceList(periodFilter) {
