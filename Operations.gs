@@ -465,11 +465,144 @@ function recordGuestExit(qrPayload, method) {
   }
 }
 
+/**
+ * Memproses pemindaian QR tamu secara adaptif berdasarkan status sesi aktif:
+ * - Jika tamu belum memiliki sesi aktif (DI_DALAM) pada periode ini: mencatat CHECK-IN baru (Status: DI_DALAM)
+ * - Jika tamu sudah berada di dalam gedung (DI_DALAM): mencatat CHECK-OUT pada baris sesi yang sama (Status: DI_LUAR, mengisi Waktu_Keluar)
+ */
+function processGuestScan(qrPayload, method) {
+  var session = requireRole_(['Admin', 'Panitia']);
+  var resolved = resolveWisudawanFromQr_(qrPayload);
+
+  if (!resolved || !resolved.student) {
+    var errorMsg = resolved && resolved.message
+      ? resolved.message
+      : 'QR tidak valid atau data wisudawan tidak ditemukan pada periode ini.';
+    return {
+      success: false,
+      resultCode: 'QR_TIDAK_VALID',
+      badge: 'QR TIDAK VALID',
+      message: errorMsg,
+      currentStatus: 'TIDAK_DIKENAL'
+    };
+  }
+
+  var student = resolved.student;
+  var studentInfo = formatStudentInfo_(student);
+  var targetPeriodId = resolved.targetPeriodId;
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+
+  try {
+    var info = getGuestAttendanceSheetInfo_();
+    var sheet = info.sheet;
+    var values = info.values;
+    var colMap = info.colMap;
+
+    var idWisudawanIdx = colMap['id_wisudawan'] != null ? colMap['id_wisudawan'] : -1;
+    var idTamuIdx = colMap['id_tamu'] != null ? colMap['id_tamu'] : (idWisudawanIdx >= 0 ? idWisudawanIdx : 2);
+    var statusIdx = colMap['status'] != null ? colMap['status'] : 6;
+    var periodeIdx = colMap['id_periode'] != null ? colMap['id_periode'] : 1;
+    var waktuKeluarIdx = colMap['waktu_keluar'] != null ? colMap['waktu_keluar'] : -1;
+
+    var activeRowIndex = -1;
+    var activeCheckinTime = '';
+
+    for (var r = values.length - 1; r >= 1; r--) {
+      var row = values[r];
+      var rowPeriode = normalize_(row[periodeIdx]);
+      var rowIdWisudawan = idWisudawanIdx >= 0 ? normalize_(row[idWisudawanIdx]) : '';
+      var rowIdTamu = idTamuIdx >= 0 ? normalize_(row[idTamuIdx]) : '';
+      var rowStatus = normalize_(row[statusIdx]);
+
+      var matchesStudent = (rowIdWisudawan && (rowIdWisudawan === normalize_(studentInfo.id) || (studentInfo.nim && studentInfo.nim !== '—' && rowIdWisudawan === normalize_(studentInfo.nim)))) ||
+        (rowIdTamu && (rowIdTamu === normalize_(studentInfo.id) || (studentInfo.nim && studentInfo.nim !== '—' && rowIdTamu === normalize_(studentInfo.nim))));
+      var matchesPeriod = !targetPeriodId || rowPeriode === normalize_(targetPeriodId);
+
+      if (matchesStudent && matchesPeriod && rowStatus === 'di_dalam') {
+        activeRowIndex = r + 1; // 1-indexed untuk Google Sheet
+        if (colMap['waktu_checkin'] != null) {
+          activeCheckinTime = row[colMap['waktu_checkin']];
+        }
+        break;
+      }
+    }
+
+    var now = new Date();
+    var timeZone = Session.getScriptTimeZone() || 'Asia/Jakarta';
+    var timeStampStr = Utilities.formatDate(now, timeZone, 'yyyy-MM-dd HH:mm:ss');
+
+    // 1. KASUS SUDAH DI DALAM -> LAKUKAN CHECK-OUT PADA BARIS YANG SAMA
+    if (activeRowIndex >= 0) {
+      sheet.getRange(activeRowIndex, statusIdx + 1).setValue('DI_LUAR');
+      if (waktuKeluarIdx >= 0) {
+        sheet.getRange(activeRowIndex, waktuKeluarIdx + 1).setValue(timeStampStr);
+      }
+
+      logActivity_(
+        session.email,
+        'SCAN TAMU KELUAR',
+        'PRESENSI_TAMU',
+        'Wisudawan: ' + studentInfo.id + ' (' + studentInfo.name + ')'
+      );
+
+      return {
+        success: true,
+        resultCode: 'BERHASIL_KELUAR',
+        badge: 'BERHASIL KELUAR',
+        message: 'Berhasil keluar. Tamu dari ' + studentInfo.name + ' telah keluar gedung. Slot tamu kembali tersedia.',
+        student: studentInfo,
+        currentStatus: 'DI_LUAR',
+        time: timeStampStr,
+        checkinTime: activeCheckinTime || ''
+      };
+    }
+
+    // 2. KASUS BELUM ADA SESI AKTIF -> LAKUKAN CHECK-IN BARU
+    var newId = 'PRS-' + Utilities.getUuid().slice(0, 8).toUpperCase();
+    var newRow = new Array(info.headers.length).fill('');
+    if (colMap['id_presensi'] != null) newRow[colMap['id_presensi']] = newId;
+    if (colMap['id_periode'] != null) newRow[colMap['id_periode']] = targetPeriodId;
+    if (colMap['id_wisudawan'] != null) newRow[colMap['id_wisudawan']] = studentInfo.id;
+    if (colMap['id_tamu'] != null) newRow[colMap['id_tamu']] = studentInfo.id;
+    if (colMap['waktu_checkin'] != null) newRow[colMap['waktu_checkin']] = timeStampStr;
+    if (colMap['metode_presensi'] != null) newRow[colMap['metode_presensi']] = method || 'QR Code';
+    if (colMap['petugas'] != null) newRow[colMap['petugas']] = session.email;
+    if (colMap['status'] != null) newRow[colMap['status']] = 'DI_DALAM';
+    if (colMap['waktu_keluar'] != null) newRow[colMap['waktu_keluar']] = '';
+
+    sheet.appendRow(newRow);
+
+    logActivity_(
+      session.email,
+      'SCAN TAMU MASUK',
+      'PRESENSI_TAMU',
+      'Wisudawan: ' + studentInfo.id + ' (' + studentInfo.name + ')'
+    );
+
+    return {
+      success: true,
+      resultCode: 'BERHASIL_MASUK',
+      badge: 'BERHASIL MASUK',
+      message: 'Berhasil masuk. Tamu dari ' + studentInfo.name + ' tercatat di dalam gedung.',
+      student: studentInfo,
+      currentStatus: 'DI_DALAM',
+      time: timeStampStr
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function recordGuestAttendance(guestId, method, post) {
   if (post === 'out' || post === 'keluar') {
     return recordGuestExit(guestId, method);
   }
-  return recordGuestEntry(guestId, method);
+  if (post === 'in' || post === 'masuk') {
+    return recordGuestEntry(guestId, method);
+  }
+  return processGuestScan(guestId, method);
 }
 
 function getGuestAttendanceList(periodFilter) {

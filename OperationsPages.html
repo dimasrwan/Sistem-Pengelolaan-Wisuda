@@ -1981,6 +1981,12 @@
           const rawPayload = typeof data.payload === 'string' ? data.payload.trim() : '';
           if (!rawPayload) return;
 
+          // Kirim ACK bahwa QR telah diterima oleh aplikasi induk
+          sendResultToScannerPopup_({
+            type: 'UIN_ARRANIRY_SCAN_ACK',
+            payload: rawPayload
+          });
+
           const now = Date.now();
           // Debounce kode yang sama
           if (rawPayload === APP.activeCameraCode && (now - (APP.lastCodeSeenTime || 0) < 1800)) {
@@ -1991,6 +1997,15 @@
             return;
           }
           if (APP.scanBusy) {
+            sendResultToScannerPopup_({
+              type: 'UIN_ARRANIRY_SCAN_RESULT',
+              result: {
+                success: false,
+                resultCode: 'SCAN_BUSY',
+                badge: 'SISTEM SIBUK',
+                message: 'Sedang memproses transaksi sebelumnya. Harap tunggu 1 detik.'
+              }
+            });
             return;
           }
 
@@ -2000,6 +2015,21 @@
           handleScannedGuest(rawPayload);
         }
       });
+    }
+
+    function sendResultToScannerPopup_(data) {
+      if (!APP.externalScannerWindow || APP.externalScannerWindow.closed) return;
+      try {
+        let dest = '*';
+        if (APP.externalScannerUrl) {
+          try {
+            dest = new URL(APP.externalScannerUrl).origin;
+          } catch (e) {}
+        }
+        APP.externalScannerWindow.postMessage(data, dest);
+      } catch (e) {
+        console.warn('[PostMessage] Gagal mengirim pesan ke popup pemindai:', e);
+      }
     }
 
     function openExternalScanner() {
@@ -2548,32 +2578,41 @@
 
       const successCallback = function (result) {
         renderScanResult(result);
+        sendResultToScannerPopup_({
+          type: 'UIN_ARRANIRY_SCAN_RESULT',
+          result: result
+        });
         showToast(result.message || 'Pemindaian selesai.');
         setTimeout(function () {
           APP.scanBusy = false;
-        }, 1400);
+        }, 1200);
       };
 
       const failureCallback = function (error) {
         const errorMsg = getErrorMessage(error);
-        renderScanResult({
+        const errResult = {
           success: false,
           resultCode: 'QR_TIDAK_VALID',
           badge: 'QR TIDAK VALID',
           message: errorMsg
+        };
+        renderScanResult(errResult);
+        sendResultToScannerPopup_({
+          type: 'UIN_ARRANIRY_SCAN_RESULT',
+          result: errResult
         });
 
         showToast(errorMsg);
         setTimeout(function () {
           APP.scanBusy = false;
-        }, 1400);
+        }, 1200);
       };
 
-      // Alur otomatis selalu memverifikasi kedatangan / entry
+      // Alur adaptif otomatis: Check-in jika belum ada sesi aktif, Check-out jika sudah ada sesi aktif
       google.script.run
         .withSuccessHandler(successCallback)
         .withFailureHandler(failureCallback)
-        .recordGuestEntry(raw, 'QR Code');
+        .processGuestScan(raw, 'QR Code');
     }
 
     function submitManualGuest() {

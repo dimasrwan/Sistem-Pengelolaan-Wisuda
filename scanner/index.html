@@ -7,7 +7,7 @@
   <title>Pemindai QR Tamu Wisuda | UIN Ar-Raniry</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800;900&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
   <style>
@@ -26,6 +26,8 @@
       --warning-light: #fffbeb;
       --success: #16a34a;
       --success-light: #f0fdf4;
+      --info: #0284c7;
+      --info-light: #f0f9ff;
     }
 
     * {
@@ -48,7 +50,7 @@
 
     .scanner-app-card {
       width: 100%;
-      max-width: 480px;
+      max-width: 490px;
       background: var(--white);
       border-radius: 18px;
       border: 1px solid var(--line);
@@ -60,7 +62,7 @@
 
     /* Header */
     .app-header {
-      padding: 18px 20px;
+      padding: 16px 20px;
       background: #ffffff;
       border-bottom: 1px solid var(--line);
       display: flex;
@@ -92,8 +94,8 @@
 
     /* Connection Status */
     .connection-banner {
-      padding: 10px 16px;
-      font-size: 12px;
+      padding: 9px 16px;
+      font-size: 11.5px;
       font-weight: 600;
       display: flex;
       align-items: center;
@@ -114,14 +116,14 @@
 
     /* Camera Viewport */
     .viewport-section {
-      padding: 18px 20px 12px;
+      padding: 16px 20px 12px;
     }
     .camera-box {
       position: relative;
       background: #0f1710;
       border-radius: 14px;
       overflow: hidden;
-      min-height: 290px;
+      min-height: 280px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -150,17 +152,21 @@
       z-index: 10;
     }
     .viewfinder-box {
-      width: 220px;
-      height: 220px;
-      border: 2px dashed rgba(255, 255, 255, 0.65);
+      width: 210px;
+      height: 210px;
+      border: 2px dashed rgba(255, 255, 255, 0.7);
       border-radius: 18px;
       position: relative;
       box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
-      transition: border-color 0.2s, transform 0.2s;
+      transition: border-color 0.25s, transform 0.25s;
     }
     .viewfinder-box.scanned {
       border-color: #22c55e;
       transform: scale(1.03);
+    }
+    .viewfinder-box.locked {
+      border-color: #eab308;
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
     }
     .viewfinder-box::before,
     .viewfinder-box::after {
@@ -182,30 +188,107 @@
       border-bottom-right-radius: 10px;
     }
     .viewfinder-label {
-      margin-top: 14px;
-      background: rgba(0, 0, 0, 0.65);
+      margin-top: 12px;
+      background: rgba(0, 0, 0, 0.7);
       color: #ffffff;
-      font-size: 12px;
+      font-size: 11.5px;
       font-weight: 600;
-      padding: 4px 12px;
+      padding: 4px 14px;
       border-radius: 999px;
       letter-spacing: 0.2px;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    /* Live Backend Transaction Result Card */
+    .result-box-container {
+      margin-top: 12px;
+    }
+    .result-card {
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid transparent;
+      animation: fadeIn 0.25s ease-out;
+    }
+    .result-header {
+      padding: 10px 14px;
+      font-size: 12.5px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .result-body {
+      padding: 12px 14px;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .result-meta-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .result-meta-label {
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .result-meta-val {
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    /* Card Themes */
+    .card-entry {
+      background: #f0fdf4;
+      border-color: #86efac;
+    }
+    .card-entry .result-header {
+      background: #dcfce7;
+      color: #15803d;
+      border-bottom: 1px solid #bbf7d0;
+    }
+    .card-exit {
+      background: #f0f9ff;
+      border-color: #7dd3fc;
+    }
+    .card-exit .result-header {
+      background: #e0f2fe;
+      color: #0369a1;
+      border-bottom: 1px solid #bae6fd;
+    }
+    .card-error {
+      background: #fef2f2;
+      border-color: #fca5a5;
+    }
+    .card-error .result-header {
+      background: #fee2e2;
+      color: #991b1b;
+      border-bottom: 1px solid #fecaca;
+    }
+    .card-pending {
+      background: #fffbeb;
+      border-color: #fde68a;
+    }
+    .card-pending .result-header {
+      background: #fef3c7;
+      color: #92400e;
+      border-bottom: 1px solid #fde68a;
     }
 
     /* Controls */
     .controls-section {
-      padding: 0 20px 18px;
+      padding: 0 20px 16px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 10px;
     }
     .camera-select-wrap {
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 5px;
     }
     .camera-select-wrap label {
-      font-size: 11.5px;
+      font-size: 11px;
       font-weight: 700;
       color: var(--muted);
       text-transform: uppercase;
@@ -213,39 +296,35 @@
     }
     select.camera-select {
       width: 100%;
-      height: 42px;
-      border-radius: 10px;
+      height: 40px;
+      border-radius: 9px;
       border: 1px solid var(--line);
       background: #ffffff;
-      padding: 0 12px;
-      font-size: 13.5px;
+      padding: 0 10px;
+      font-size: 13px;
       font-weight: 600;
       color: var(--ink);
       outline: none;
-      transition: border-color 0.15s;
-    }
-    select.camera-select:focus {
-      border-color: var(--primary);
     }
 
     .btn-row {
       display: flex;
-      gap: 10px;
+      gap: 8px;
     }
     .btn {
       flex: 1;
-      height: 44px;
+      height: 42px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
-      border-radius: 10px;
+      gap: 7px;
+      border-radius: 9px;
       font-family: 'DM Sans', sans-serif;
-      font-size: 13.5px;
+      font-size: 13px;
       font-weight: 700;
       border: 1px solid transparent;
       cursor: pointer;
-      transition: background 0.15s, transform 0.1s, opacity 0.15s;
+      transition: background 0.15s, transform 0.1s;
     }
     .btn:active {
       transform: scale(0.97);
@@ -274,53 +353,10 @@
       color: var(--danger);
       border-color: #fca5a5;
     }
-    .btn-danger-outline:hover:not(:disabled) {
-      background: var(--danger-light);
-    }
-
-    /* Scan Feedback Alert */
-    .scan-toast {
-      display: none;
-      padding: 12px 14px;
-      background: var(--success-light);
-      border: 1px solid #86efac;
-      border-radius: 10px;
-      color: #14532d;
-      font-size: 12.5px;
-      line-height: 1.4;
-      margin-bottom: 8px;
-    }
-    .scan-toast.active {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      animation: pulseIn 0.25s ease-out;
-    }
-
-    /* Error Banner */
-    .error-banner {
-      display: none;
-      padding: 12px 14px;
-      background: var(--danger-light);
-      border: 1px solid #fca5a5;
-      border-radius: 10px;
-      color: var(--danger);
-      font-size: 12px;
-      line-height: 1.4;
-      margin-top: 8px;
-    }
-    .error-banner.active {
-      display: block;
-    }
-    .error-banner strong {
-      display: block;
-      margin-bottom: 2px;
-      font-size: 13px;
-    }
 
     /* Scan History */
     .history-section {
-      padding: 14px 20px 18px;
+      padding: 14px 20px 16px;
       border-top: 1px solid var(--line);
       background: #fbfdfa;
     }
@@ -338,26 +374,42 @@
       gap: 6px;
     }
     .history-item {
-      padding: 8px 10px;
+      padding: 7px 10px;
       background: #ffffff;
       border: 1px solid #e5e7eb;
       border-radius: 8px;
-      font-size: 12px;
+      font-size: 11.5px;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
-    .history-item code {
-      font-family: ui-monospace, Menlo, Consolas, monospace;
-      font-weight: 700;
-      color: var(--primary-dark);
+    .history-badge {
+      font-weight: 800;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      margin-right: 6px;
+    }
+    .badge-in {
+      background: #dcfce7;
+      color: #15803d;
+    }
+    .badge-out {
+      background: #e0f2fe;
+      color: #0369a1;
+    }
+    .badge-err {
+      background: #fee2e2;
+      color: #991b1b;
     }
     .history-time {
       font-size: 11px;
       color: var(--muted);
+      font-family: monospace;
     }
 
-    @keyframes pulseIn {
+    @keyframes fadeIn {
       from { opacity: 0; transform: translateY(-4px); }
       to { opacity: 1; transform: translateY(0); }
     }
@@ -378,7 +430,7 @@
     <!-- Connection Status Banner -->
     <div id="conn-banner" class="connection-banner conn-standalone">
       <span id="conn-text">Memeriksa koneksi ke aplikasi utama...</span>
-      <span id="conn-badge" style="font-size:10.5px;padding:2px 8px;border-radius:999px;background:rgba(0,0,0,0.06);">Standby</span>
+      <span id="conn-badge" style="font-size:10px;padding:2px 8px;border-radius:999px;background:rgba(0,0,0,0.06);">Standby</span>
     </div>
 
     <!-- Camera Viewport -->
@@ -391,19 +443,14 @@
         </div>
       </div>
 
-      <!-- Scan Toast / Notification -->
-      <div id="scan-toast" class="scan-toast" style="margin-top:12px;">
-        <span style="font-size:18px;">✅</span>
-        <div>
-          <strong style="display:block;font-size:13px;">QR Berhasil Dipindai!</strong>
-          <span id="toast-text" style="font-size:11.5px;">Mengirim data ke aplikasi utama...</span>
+      <!-- Real Backend Result Box -->
+      <div id="result-box-container" class="result-box-container">
+        <!-- Default Idle Instruction -->
+        <div id="status-card-idle" class="result-card card-entry" style="background:#fcfdfa;border-color:#e2ebe1;">
+          <div class="result-body" style="text-align:center;color:var(--muted);padding:10px;">
+            <span id="idle-instruction-text">🟢 Kamera aktif. Hadapkan QR undangan tamu ke kotak kamera.</span>
+          </div>
         </div>
-      </div>
-
-      <!-- Technical Error Banner -->
-      <div id="error-banner" class="error-banner">
-        <strong id="error-name">Kamera Tidak Dapat Dibuka</strong>
-        <span id="error-desc">Memeriksa izin perangkat kamera...</span>
       </div>
     </section>
 
@@ -411,43 +458,44 @@
     <section class="controls-section">
       <div class="camera-select-wrap">
         <label for="camera-select">Pilih Kamera</label>
-        <select id="camera-select" class="camera-select">
-          <option value="environment">Kamera Belakang (Environment)</option>
-          <option value="user">Kamera Depan (Selfie)</option>
+        <select id="camera-select" class="camera-select" onchange="onCameraSelectChange()">
+          <option value="environment">Kamera Belakang (Utama)</option>
+          <option value="user">Kamera Depan</option>
         </select>
       </div>
 
       <div class="btn-row">
         <button id="btn-start" class="btn btn-primary" onclick="startScanner()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-          <span>Aktifkan Kamera</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          <span>Aktifkan</span>
         </button>
         <button id="btn-stop" class="btn btn-outline" onclick="stopScanner()" disabled>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12"></rect></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12"></rect></svg>
           <span>Hentikan</span>
         </button>
       </div>
 
-      <button class="btn btn-danger-outline" onclick="closeScannerWindow()" style="height:38px;font-size:12.5px;">
+      <button class="btn btn-danger-outline" onclick="closeScannerWindow()" style="height:36px;font-size:12px;">
         <span>✕ Tutup Jendela Pemindai</span>
       </button>
     </section>
 
     <!-- Scan History List -->
     <section class="history-section">
-      <div class="history-title">Riwayat Scan Terakhir (Sesi Ini)</div>
+      <div class="history-title">Riwayat Transaksi Presensi (Sesi Ini)</div>
       <div id="history-list" class="history-list">
-        <div style="color:var(--muted);font-size:12px;font-style:italic;">Belum ada QR yang dipindai.</div>
+        <div style="color:var(--muted);font-size:11.5px;font-style:italic;">Belum ada QR yang diproses.</div>
       </div>
     </section>
   </main>
 
   <script>
-    // State
+    // State management
     let html5QrCode = null;
     let isScanning = false;
-    let lastCodeSeen = null;
-    let lastCodeTime = 0;
+    let activeLockedCode = null;   // QR yang sedang aktif di depan kamera (dikunci agar tidak berulang)
+    let lastSeenTimestamp = 0;     // Timestamp frame terakhir QR terdeteksi
+    let isProcessingTransaction = false;
     let targetOrigin = null;
     let audioCtx = null;
     const recentScans = [];
@@ -482,13 +530,43 @@
         });
       } else {
         banner.className = 'connection-banner conn-standalone';
-        text.innerHTML = '🟡 Mode Mandiri (Buka dari aplikasi untuk kirim data)';
+        text.innerHTML = '🟡 Mode Mandiri (Buka dari aplikasi untuk mencatat presensi)';
         badge.textContent = 'Stand-alone';
       }
     })();
 
+    // Setup listener for incoming messages from Parent Window (GAS Web App)
+    window.addEventListener('message', function (event) {
+      // Validate origin if targetOrigin is configured
+      if (targetOrigin && event.origin !== targetOrigin) {
+        // Also allow script.google.com and googleusercontent
+        const isGoogle = event.origin.endsWith('script.google.com') ||
+                         event.origin.endsWith('script.googleusercontent.com');
+        if (!isGoogle) {
+          console.warn('[Security] Diabaikan pesan dari origin asing:', event.origin);
+          return;
+        }
+      }
+
+      const data = event.data;
+      if (!data || typeof data !== 'object') return;
+
+      // 1. ACK received from parent
+      if (data.type === 'UIN_ARRANIRY_SCAN_ACK') {
+        const lbl = document.getElementById('viewfinder-label');
+        if (lbl) lbl.textContent = '🔄 Memvalidasi sesi di Google Sheets...';
+        return;
+      }
+
+      // 2. REAL BACKEND RESULT RECEIVED
+      if (data.type === 'UIN_ARRANIRY_SCAN_RESULT') {
+        isProcessingTransaction = false;
+        renderBackendResult(data.result);
+      }
+    });
+
     // Sound beep helper using Web Audio API
-    function playBeep() {
+    function playBeep(type) {
       try {
         if (!audioCtx) {
           audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -496,20 +574,44 @@
         if (audioCtx.state === 'suspended') {
           audioCtx.resume();
         }
+
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
-        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
         osc.connect(gain);
         gain.connect(audioCtx.destination);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.12);
+
+        const now = audioCtx.currentTime;
+        if (type === 'exit') {
+          // Double chime descending for check-out (E5 -> C5)
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(659.25, now);
+          osc.frequency.setValueAtTime(523.25, now + 0.1);
+          gain.gain.setValueAtTime(0.25, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+          osc.start(now);
+          osc.stop(now + 0.25);
+        } else if (type === 'error') {
+          // Low buzz for rejection/error
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(220, now);
+          gain.gain.setValueAtTime(0.25, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+          osc.start(now);
+          osc.stop(now + 0.3);
+        } else {
+          // Cheerful chime ascending for check-in (A5 -> C6)
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(880, now);
+          osc.frequency.setValueAtTime(1046.5, now + 0.08);
+          gain.gain.setValueAtTime(0.25, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.22);
+          osc.start(now);
+          osc.stop(now + 0.22);
+        }
       } catch (e) {}
 
       if (navigator.vibrate) {
-        try { navigator.vibrate(80); } catch (e) {}
+        try { navigator.vibrate(type === 'error' ? [120, 80, 120] : 80); } catch (e) {}
       }
     }
 
@@ -526,7 +628,198 @@
       }
     }
 
-    // Enumerate cameras
+    // Render backend result onto scanner UI
+    function renderBackendResult(res) {
+      if (!res) return;
+
+      const container = document.getElementById('result-box-container');
+      const vfBox = document.getElementById('viewfinder-box');
+      const vfLabel = document.getElementById('viewfinder-label');
+
+      const isEntry = res.resultCode === 'BERHASIL_MASUK';
+      const isExit = res.resultCode === 'BERHASIL_KELUAR';
+      const isSuccess = res.success && (isEntry || isExit);
+
+      // Play appropriate sound
+      if (isExit) {
+        playBeep('exit');
+      } else if (isEntry) {
+        playBeep('entry');
+      } else {
+        playBeep('error');
+      }
+
+      // Card styling
+      let cardClass = 'card-error';
+      let icon = '✕';
+      if (isEntry) {
+        cardClass = 'card-entry';
+        icon = '✓';
+      } else if (isExit) {
+        cardClass = 'card-exit';
+        icon = '✓';
+      }
+
+      let studentRows = '';
+      if (res.student) {
+        const s = res.student;
+        studentRows = `
+          <div class="result-meta-row">
+            <span class="result-meta-label">Wisudawan</span>
+            <span class="result-meta-val" style="color:var(--primary);">${escapeHtml(s.name || '—')}</span>
+          </div>
+          <div class="result-meta-row">
+            <span class="result-meta-label">NIM</span>
+            <span class="result-meta-val">${escapeHtml(s.nim || '—')}</span>
+          </div>
+          <div class="result-meta-row">
+            <span class="result-meta-label">Kursi Wisudawan</span>
+            <span class="result-meta-val">${escapeHtml(s.seat || '—')}</span>
+          </div>
+        `;
+      }
+
+      let timeInfo = '';
+      if (res.time) {
+        timeInfo = `
+          <div class="result-meta-row">
+            <span class="result-meta-label">${isExit ? 'Waktu Keluar' : 'Waktu Masuk'}</span>
+            <span class="result-meta-val" style="font-family:monospace;">${escapeHtml(res.time)}</span>
+          </div>
+        `;
+      }
+
+      container.innerHTML = `
+        <div class="result-card ${cardClass}">
+          <div class="result-header">
+            <span>${icon}</span>
+            <span>${escapeHtml(res.badge || (isSuccess ? 'BERHASIL' : 'TRANSAKSI GAGAL'))}</span>
+          </div>
+          <div class="result-body">
+            <div style="font-weight:700;margin-bottom:8px;">${escapeHtml(res.message || '')}</div>
+            ${studentRows}
+            ${timeInfo}
+            <div style="margin-top:8px;padding-top:6px;border-top:1px dashed rgba(0,0,0,0.1);font-size:11px;color:var(--muted);text-align:center;">
+              ${isSuccess ? '🔒 Transaksi tercatat. <strong>Angkat QR dari kamera</strong> untuk memindai berikutnya.' : 'Silakan coba kembali.'}
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Visual Viewfinder lock
+      if (vfBox) {
+        vfBox.classList.add('locked');
+      }
+      if (vfLabel) {
+        vfLabel.innerHTML = '🔒 QR Terkunci — <strong>Angkat QR</strong> untuk transaksi berikutnya';
+      }
+
+      // Add to recent list
+      const label = isEntry ? 'BERHASIL MASUK' : (isExit ? 'BERHASIL KELUAR' : (res.badge || 'GAGAL'));
+      const badgeClass = isEntry ? 'badge-in' : (isExit ? 'badge-out' : 'badge-err');
+      const name = (res.student && res.student.name) ? res.student.name : (activeLockedCode || 'QR');
+      addHistory(label, badgeClass, name);
+    }
+
+    // Heartbeat check (every 250ms) to detect when the QR code is lifted away from the camera
+    setInterval(function () {
+      if (activeLockedCode) {
+        const now = Date.now();
+        // If QR has not been detected for > 1300 ms, user has lifted the QR away!
+        if (now - lastSeenTimestamp > 1300) {
+          activeLockedCode = null;
+          isProcessingTransaction = false;
+
+          const vfBox = document.getElementById('viewfinder-box');
+          const vfLabel = document.getElementById('viewfinder-label');
+          if (vfBox) {
+            vfBox.classList.remove('locked');
+            vfBox.classList.remove('scanned');
+          }
+          if (vfLabel) {
+            vfLabel.textContent = '🟢 Siap Memindai QR Baru / Hadapkan Kembali untuk Check-out';
+          }
+        }
+      }
+    }, 250);
+
+    // On scan success (callback from html5-qrcode)
+    function onScanSuccess(decodedText) {
+      const clean = String(decodedText || '').trim();
+      if (!clean) return;
+
+      const now = Date.now();
+
+      // 1. KASUS QR SAMA DAN MASIH BERADA DI KAMERA:
+      // Selama QR masih terbaca, perbarui timestamp agar lock tidak terlepas.
+      // JANGAN kirim transaksi baru selama masih dalam satu siklus kehadiran!
+      if (activeLockedCode === clean) {
+        lastSeenTimestamp = now;
+        return;
+      }
+
+      // 2. KASUS SEDANG PROSES TRANSAKSI SEBELUMNYA:
+      if (isProcessingTransaction) {
+        return;
+      }
+
+      // 3. KODE BARU / PRESENTASI SENGJA BERIKUTNYA (SETELAH DIANGKAT):
+      activeLockedCode = clean;
+      lastSeenTimestamp = now;
+      isProcessingTransaction = true;
+
+      // Animate viewfinder
+      const vfBox = document.getElementById('viewfinder-box');
+      const vfLabel = document.getElementById('viewfinder-label');
+      if (vfBox) {
+        vfBox.classList.add('scanned');
+      }
+      if (vfLabel) {
+        vfLabel.textContent = '⏳ Mengirim ke Aplikasi Induk...';
+      }
+
+      // Display pending state card
+      const container = document.getElementById('result-box-container');
+      container.innerHTML = `
+        <div class="result-card card-pending">
+          <div class="result-header">
+            <span class="spinner" style="display:inline-block;width:12px;height:12px;border:2px solid #92400e;border-top-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
+            <span>MEMVERIFIKASI TRANSAKSI PRESENSI...</span>
+          </div>
+          <div class="result-body">
+            <div style="font-family:monospace;font-weight:700;color:#92400e;margin-bottom:4px;">${escapeHtml(clean)}</div>
+            <div style="font-size:11.5px;color:#78350f;">Memeriksa status sesi di Google Sheets (Check-in / Check-out otomatis)...</div>
+          </div>
+        </div>
+      `;
+
+      // Send to parent window
+      const sent = sendToParent({
+        type: 'UIN_ARRANIRY_QR_SCAN',
+        payload: clean,
+        timestamp: now
+      });
+
+      if (!sent) {
+        // Standalone mode simulation
+        setTimeout(function () {
+          renderBackendResult({
+            success: true,
+            resultCode: 'BERHASIL_MASUK',
+            badge: 'SIMULASI MANDIRI',
+            message: 'Mode mandiri: Buka pemindai melalui aplikasi utama untuk mencatat ke Google Sheets.',
+            student: { name: clean, nim: clean, seat: '—' },
+            time: new Date().toLocaleTimeString('id-ID')
+          });
+        }, 600);
+      }
+    }
+
+    function onScanProgress() {
+      // Periodic tick
+    }
+
+    // Populate camera devices
     async function populateCameras() {
       const select = document.getElementById('camera-select');
       try {
@@ -536,13 +829,11 @@
 
         if (videoDevices.length > 0) {
           select.innerHTML = '';
-          // Option for back camera
           const backOpt = document.createElement('option');
           backOpt.value = 'environment';
           backOpt.textContent = 'Kamera Belakang (Utama)';
           select.appendChild(backOpt);
 
-          // Option for front camera
           const frontOpt = document.createElement('option');
           frontOpt.value = 'user';
           frontOpt.textContent = 'Kamera Depan';
@@ -560,23 +851,14 @@
       }
     }
 
-    function showError(name, desc) {
-      const banner = document.getElementById('error-banner');
-      const errName = document.getElementById('error-name');
-      const errDesc = document.getElementById('error-desc');
-      errName.textContent = name;
-      errDesc.textContent = desc;
-      banner.classList.add('active');
-    }
-
-    function clearError() {
-      const banner = document.getElementById('error-banner');
-      banner.classList.remove('active');
+    function onCameraSelectChange() {
+      if (isScanning) {
+        startScanner();
+      }
     }
 
     // Start scanner
     async function startScanner() {
-      clearError();
       const select = document.getElementById('camera-select');
       const chosenValue = select.value || 'environment';
 
@@ -595,7 +877,7 @@
 
       const config = {
         fps: 12,
-        qrbox: { width: 220, height: 220 },
+        qrbox: { width: 210, height: 210 },
         aspectRatio: 1.0
       };
 
@@ -612,64 +894,23 @@
         document.getElementById('btn-stop').disabled = false;
         document.getElementById('viewfinder-label').textContent = 'Kamera Aktif — Siap Memindai';
 
-        // Re-populate devices if labels were empty before permission
         populateCameras();
       } catch (err) {
         console.error('Camera start error:', err);
-        const name = err.name || 'CameraAccessError';
+        const name = err.name || 'CameraError';
         const msg = err.message || 'Kamera tidak dapat diakses.';
-        showError(name + ': Gagal Membuka Kamera', msg + ' Pastikan izin kamera aktif pada peramban Anda.');
+        document.getElementById('viewfinder-label').textContent = '✕ Gagal Membuka Kamera';
         document.getElementById('btn-start').disabled = false;
         document.getElementById('btn-stop').disabled = true;
+
+        const container = document.getElementById('result-box-container');
+        container.innerHTML = `
+          <div class="result-card card-error">
+            <div class="result-header">✕ ${escapeHtml(name)}</div>
+            <div class="result-body">${escapeHtml(msg)}<br>Pastikan izin kamera diizinkan pada peramban.</div>
+          </div>
+        `;
       }
-    }
-
-    // On scan success
-    function onScanSuccess(decodedText) {
-      const clean = String(decodedText || '').trim();
-      if (!clean) return;
-
-      const now = Date.now();
-      // Debounce the exact same code within 1.6 seconds
-      if (clean === lastCodeSeen && (now - lastCodeTime < 1600)) {
-        return;
-      }
-
-      lastCodeSeen = clean;
-      lastCodeTime = now;
-
-      // Audio & Visual feedback
-      playBeep();
-      const vfBox = document.getElementById('viewfinder-box');
-      if (vfBox) {
-        vfBox.classList.add('scanned');
-        setTimeout(() => vfBox.classList.remove('scanned'), 350);
-      }
-
-      // Show toast
-      const toast = document.getElementById('scan-toast');
-      const toastText = document.getElementById('toast-text');
-      toastText.textContent = clean;
-      toast.classList.add('active');
-      setTimeout(() => toast.classList.remove('active'), 2500);
-
-      // Add to recent list
-      addHistory(clean);
-
-      // Send postMessage to opener
-      const sent = sendToParent({
-        type: 'UIN_ARRANIRY_QR_SCAN',
-        payload: clean,
-        timestamp: now
-      });
-
-      if (!sent) {
-        console.log('Scanned QR in standalone mode:', clean);
-      }
-    }
-
-    function onScanProgress() {
-      // Periodic frame tick
     }
 
     // Stop scanner
@@ -683,6 +924,8 @@
         }
       }
       isScanning = false;
+      activeLockedCode = null;
+      isProcessingTransaction = false;
       document.getElementById('btn-start').disabled = false;
       document.getElementById('btn-stop').disabled = true;
       document.getElementById('viewfinder-label').textContent = 'Kamera Dihentikan';
@@ -695,15 +938,18 @@
     }
 
     // History helper
-    function addHistory(code) {
+    function addHistory(badgeText, badgeClass, name) {
       const list = document.getElementById('history-list');
       const timeStr = new Date().toLocaleTimeString('id-ID');
-      recentScans.unshift({ code, time: timeStr });
-      if (recentScans.length > 4) recentScans.pop();
+      recentScans.unshift({ badgeText, badgeClass, name, time: timeStr });
+      if (recentScans.length > 5) recentScans.pop();
 
       list.innerHTML = recentScans.map(item => `
         <div class="history-item">
-          <code>${escapeHtml(item.code)}</code>
+          <div>
+            <span class="history-badge ${item.badgeClass}">${escapeHtml(item.badgeText)}</span>
+            <strong>${escapeHtml(item.name)}</strong>
+          </div>
           <span class="history-time">${item.time}</span>
         </div>
       `).join('');
@@ -717,17 +963,14 @@
         .replace(/"/g, '&quot;');
     }
 
-    // Teardown listener on beforeunload
     window.addEventListener('beforeunload', () => {
       if (html5QrCode && isScanning) {
         try { html5QrCode.stop(); } catch (e) {}
       }
     });
 
-    // Auto-populate cameras on load
     window.addEventListener('DOMContentLoaded', () => {
       populateCameras();
-      // Auto-start camera if opened by parent
       if (window.opener) {
         setTimeout(startScanner, 400);
       }
