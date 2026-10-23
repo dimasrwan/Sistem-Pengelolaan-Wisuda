@@ -9,7 +9,15 @@ const APP = {
       importRows: null,
       importFileName: '',
       importPreview: null,
-      importPeriods: []
+      importPeriods: [],
+      externalScannerWindow: null,
+      externalScannerUrl: (function () {
+        try {
+          return localStorage.getItem('uin_scanner_external_url') || 'https://dimasrwan.github.io/Sistem-Pengelolaan-Wisuda/scanner/';
+        } catch (e) {
+          return 'https://dimasrwan.github.io/Sistem-Pengelolaan-Wisuda/scanner/';
+        }
+      })()
     };
 
     const ALLOWED_PAGES = {

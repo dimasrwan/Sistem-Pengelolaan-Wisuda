@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#07851b">
+  <title>Pemindai QR Tamu Wisuda | UIN Ar-Raniry</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <style>
+    :root {
+      --primary: #07851b;
+      --primary-dark: #045a12;
+      --primary-light: #e6f4e8;
+      --ink: #111827;
+      --muted: #4b5563;
+      --line: #d1d5db;
+      --canvas: #f8faf8;
+      --white: #ffffff;
+      --danger: #dc2626;
+      --danger-light: #fef2f2;
+      --warning: #d97706;
+      --warning-light: #fffbeb;
+      --success: #16a34a;
+      --success-light: #f0fdf4;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--canvas);
+      color: var(--ink);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .scanner-app-card {
+      width: 100%;
+      max-width: 480px;
+      background: var(--white);
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    .app-header {
+      padding: 18px 20px;
+      background: #ffffff;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .app-logo {
+      width: 44px;
+      height: 44px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+    .app-title-wrap {
+      flex: 1;
+      min-width: 0;
+    }
+    .app-title {
+      font-family: 'Manrope', sans-serif;
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--primary-dark);
+      line-height: 1.25;
+    }
+    .app-sub {
+      font-size: 11.5px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* Connection Status */
+    .connection-banner {
+      padding: 10px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      border-bottom: 1px solid var(--line);
+    }
+    .conn-online {
+      background: var(--success-light);
+      color: var(--success);
+      border-color: #bbf7d0;
+    }
+    .conn-standalone {
+      background: var(--warning-light);
+      color: var(--warning);
+      border-color: #fde68a;
+    }
+
+    /* Camera Viewport */
+    .viewport-section {
+      padding: 18px 20px 12px;
+    }
+    .camera-box {
+      position: relative;
+      background: #0f1710;
+      border-radius: 14px;
+      overflow: hidden;
+      min-height: 290px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: inset 0 0 16px rgba(0,0,0,0.4);
+    }
+    #reader {
+      width: 100% !important;
+      border: none !important;
+    }
+    #reader video {
+      width: 100% !important;
+      height: auto !important;
+      object-fit: cover;
+      border-radius: 14px;
+    }
+
+    /* Viewfinder Guidelines */
+    .viewfinder-guide {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .viewfinder-box {
+      width: 220px;
+      height: 220px;
+      border: 2px dashed rgba(255, 255, 255, 0.65);
+      border-radius: 18px;
+      position: relative;
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .viewfinder-box.scanned {
+      border-color: #22c55e;
+      transform: scale(1.03);
+    }
+    .viewfinder-box::before,
+    .viewfinder-box::after {
+      content: '';
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border-color: #4ade80;
+      border-style: solid;
+    }
+    .viewfinder-box::before {
+      top: -2px; left: -2px;
+      border-width: 4px 0 0 4px;
+      border-top-left-radius: 10px;
+    }
+    .viewfinder-box::after {
+      bottom: -2px; right: -2px;
+      border-width: 0 4px 4px 0;
+      border-bottom-right-radius: 10px;
+    }
+    .viewfinder-label {
+      margin-top: 14px;
+      background: rgba(0, 0, 0, 0.65);
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 999px;
+      letter-spacing: 0.2px;
+    }
+
+    /* Controls */
+    .controls-section {
+      padding: 0 20px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .camera-select-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .camera-select-wrap label {
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    select.camera-select {
+      width: 100%;
+      height: 42px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #ffffff;
+      padding: 0 12px;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--ink);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    select.camera-select:focus {
+      border-color: var(--primary);
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+    }
+    .btn {
+      flex: 1;
+      height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border-radius: 10px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13.5px;
+      font-weight: 700;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s, opacity 0.15s;
+    }
+    .btn:active {
+      transform: scale(0.97);
+    }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: #ffffff;
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: var(--primary-dark);
+    }
+    .btn-outline {
+      background: #ffffff;
+      color: var(--ink);
+      border-color: var(--line);
+    }
+    .btn-outline:hover:not(:disabled) {
+      background: #f3f4f6;
+    }
+    .btn-danger-outline {
+      background: #ffffff;
+      color: var(--danger);
+      border-color: #fca5a5;
+    }
+    .btn-danger-outline:hover:not(:disabled) {
+      background: var(--danger-light);
+    }
+
+    /* Scan Feedback Alert */
+    .scan-toast {
+      display: none;
+      padding: 12px 14px;
+      background: var(--success-light);
+      border: 1px solid #86efac;
+      border-radius: 10px;
+      color: #14532d;
+      font-size: 12.5px;
+      line-height: 1.4;
+      margin-bottom: 8px;
+    }
+    .scan-toast.active {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: pulseIn 0.25s ease-out;
+    }
+
+    /* Error Banner */
+    .error-banner {
+      display: none;
+      padding: 12px 14px;
+      background: var(--danger-light);
+      border: 1px solid #fca5a5;
+      border-radius: 10px;
+      color: var(--danger);
+      font-size: 12px;
+      line-height: 1.4;
+      margin-top: 8px;
+    }
+    .error-banner.active {
+      display: block;
+    }
+    .error-banner strong {
+      display: block;
+      margin-bottom: 2px;
+      font-size: 13px;
+    }
+
+    /* Scan History */
+    .history-section {
+      padding: 14px 20px 18px;
+      border-top: 1px solid var(--line);
+      background: #fbfdfa;
+    }
+    .history-title {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 8px;
+    }
+    .history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .history-item {
+      padding: 8px 10px;
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .history-item code {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-weight: 700;
+      color: var(--primary-dark);
+    }
+    .history-time {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    @keyframes pulseIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <main class="scanner-app-card" role="main">
+    <!-- Header -->
+    <header class="app-header">
+      <img class="app-logo" src="https://upload.wikimedia.org/wikipedia/commons/4/4b/Logo_UIN_Ar-Raniry.png" alt="Logo UIN Ar-Raniry" onerror="this.src='https://ar-raniry.ac.id/wp-content/uploads/2023/02/cropped-logo-uin-192x192.png'">
+      <div class="app-title-wrap">
+        <h1 class="app-title">Pemindai QR Undangan Tamu</h1>
+        <div class="app-sub">Sistem Pengelolaan Wisuda UIN Ar-Raniry</div>
+      </div>
+    </header>
+
+    <!-- Connection Status Banner -->
+    <div id="conn-banner" class="connection-banner conn-standalone">
+      <span id="conn-text">Memeriksa koneksi ke aplikasi utama...</span>
+      <span id="conn-badge" style="font-size:10.5px;padding:2px 8px;border-radius:999px;background:rgba(0,0,0,0.06);">Standby</span>
+    </div>
+
+    <!-- Camera Viewport -->
+    <section class="viewport-section" aria-label="Area Kamera">
+      <div class="camera-box">
+        <div id="reader"></div>
+        <div class="viewfinder-guide" id="viewfinder">
+          <div class="viewfinder-box" id="viewfinder-box"></div>
+          <div class="viewfinder-label" id="viewfinder-label">Arahkan QR Code ke dalam kotak</div>
+        </div>
+      </div>
+
+      <!-- Scan Toast / Notification -->
+      <div id="scan-toast" class="scan-toast" style="margin-top:12px;">
+        <span style="font-size:18px;">✅</span>
+        <div>
+          <strong style="display:block;font-size:13px;">QR Berhasil Dipindai!</strong>
+          <span id="toast-text" style="font-size:11.5px;">Mengirim data ke aplikasi utama...</span>
+        </div>
+      </div>
+
+      <!-- Technical Error Banner -->
+      <div id="error-banner" class="error-banner">
+        <strong id="error-name">Kamera Tidak Dapat Dibuka</strong>
+        <span id="error-desc">Memeriksa izin perangkat kamera...</span>
+      </div>
+    </section>
+
+    <!-- Controls -->
+    <section class="controls-section">
+      <div class="camera-select-wrap">
+        <label for="camera-select">Pilih Kamera</label>
+        <select id="camera-select" class="camera-select">
+          <option value="environment">Kamera Belakang (Environment)</option>
+          <option value="user">Kamera Depan (Selfie)</option>
+        </select>
+      </div>
+
+      <div class="btn-row">
+        <button id="btn-start" class="btn btn-primary" onclick="startScanner()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          <span>Aktifkan Kamera</span>
+        </button>
+        <button id="btn-stop" class="btn btn-outline" onclick="stopScanner()" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12"></rect></svg>
+          <span>Hentikan</span>
+        </button>
+      </div>
+
+      <button class="btn btn-danger-outline" onclick="closeScannerWindow()" style="height:38px;font-size:12.5px;">
+        <span>✕ Tutup Jendela Pemindai</span>
+      </button>
+    </section>
+
+    <!-- Scan History List -->
+    <section class="history-section">
+      <div class="history-title">Riwayat Scan Terakhir (Sesi Ini)</div>
+      <div id="history-list" class="history-list">
+        <div style="color:var(--muted);font-size:12px;font-style:italic;">Belum ada QR yang dipindai.</div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // State
+    let html5QrCode = null;
+    let isScanning = false;
+    let lastCodeSeen = null;
+    let lastCodeTime = 0;
+    let targetOrigin = null;
+    let audioCtx = null;
+    const recentScans = [];
+
+    // Parse target origin from query parameter (?parentOrigin=...)
+    (function initOrigin() {
+      const params = new URLSearchParams(window.location.search);
+      const rawOrigin = params.get('parentOrigin');
+      if (rawOrigin) {
+        try {
+          const parsed = new URL(rawOrigin);
+          targetOrigin = parsed.origin;
+        } catch (e) {
+          console.warn('Invalid parentOrigin URL param:', rawOrigin);
+        }
+      }
+
+      // Check opener relationship
+      const banner = document.getElementById('conn-banner');
+      const text = document.getElementById('conn-text');
+      const badge = document.getElementById('conn-badge');
+
+      if (window.opener && !window.opener.closed) {
+        banner.className = 'connection-banner conn-online';
+        text.innerHTML = '🟢 <strong>Terhubung</strong> ke Sistem Pengelolaan Wisuda';
+        badge.textContent = 'Induk Aktif';
+
+        // Notify parent that scanner is ready
+        sendToParent({
+          type: 'UIN_ARRANIRY_SCANNER_READY',
+          timestamp: Date.now()
+        });
+      } else {
+        banner.className = 'connection-banner conn-standalone';
+        text.innerHTML = '🟡 Mode Mandiri (Buka dari aplikasi untuk kirim data)';
+        badge.textContent = 'Stand-alone';
+      }
+    })();
+
+    // Sound beep helper using Web Audio API
+    function playBeep() {
+      try {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.12);
+      } catch (e) {}
+
+      if (navigator.vibrate) {
+        try { navigator.vibrate(80); } catch (e) {}
+      }
+    }
+
+    // Safely send message to opener
+    function sendToParent(msg) {
+      if (!window.opener || window.opener.closed) return false;
+      try {
+        const dest = targetOrigin || '*';
+        window.opener.postMessage(msg, dest);
+        return true;
+      } catch (e) {
+        console.error('Error posting message to opener:', e);
+        return false;
+      }
+    }
+
+    // Enumerate cameras
+    async function populateCameras() {
+      const select = document.getElementById('camera-select');
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(d => d.kind === 'videoinput');
+
+        if (videoDevices.length > 0) {
+          select.innerHTML = '';
+          // Option for back camera
+          const backOpt = document.createElement('option');
+          backOpt.value = 'environment';
+          backOpt.textContent = 'Kamera Belakang (Utama)';
+          select.appendChild(backOpt);
+
+          // Option for front camera
+          const frontOpt = document.createElement('option');
+          frontOpt.value = 'user';
+          frontOpt.textContent = 'Kamera Depan';
+          select.appendChild(frontOpt);
+
+          videoDevices.forEach((device, index) => {
+            const opt = document.createElement('option');
+            opt.value = device.deviceId;
+            opt.textContent = device.label || ('Kamera ' + (index + 1));
+            select.appendChild(opt);
+          });
+        }
+      } catch (e) {
+        console.warn('Unable to enumerate cameras:', e);
+      }
+    }
+
+    function showError(name, desc) {
+      const banner = document.getElementById('error-banner');
+      const errName = document.getElementById('error-name');
+      const errDesc = document.getElementById('error-desc');
+      errName.textContent = name;
+      errDesc.textContent = desc;
+      banner.classList.add('active');
+    }
+
+    function clearError() {
+      const banner = document.getElementById('error-banner');
+      banner.classList.remove('active');
+    }
+
+    // Start scanner
+    async function startScanner() {
+      clearError();
+      const select = document.getElementById('camera-select');
+      const chosenValue = select.value || 'environment';
+
+      let cameraConfig;
+      if (chosenValue === 'environment' || chosenValue === 'user') {
+        cameraConfig = { facingMode: chosenValue };
+      } else {
+        cameraConfig = { deviceId: { exact: chosenValue } };
+      }
+
+      if (isScanning && html5QrCode) {
+        await stopScanner();
+      }
+
+      html5QrCode = new Html5Qrcode('reader');
+
+      const config = {
+        fps: 12,
+        qrbox: { width: 220, height: 220 },
+        aspectRatio: 1.0
+      };
+
+      try {
+        await html5QrCode.start(
+          cameraConfig,
+          config,
+          onScanSuccess,
+          onScanProgress
+        );
+
+        isScanning = true;
+        document.getElementById('btn-start').disabled = true;
+        document.getElementById('btn-stop').disabled = false;
+        document.getElementById('viewfinder-label').textContent = 'Kamera Aktif — Siap Memindai';
+
+        // Re-populate devices if labels were empty before permission
+        populateCameras();
+      } catch (err) {
+        console.error('Camera start error:', err);
+        const name = err.name || 'CameraAccessError';
+        const msg = err.message || 'Kamera tidak dapat diakses.';
+        showError(name + ': Gagal Membuka Kamera', msg + ' Pastikan izin kamera aktif pada peramban Anda.');
+        document.getElementById('btn-start').disabled = false;
+        document.getElementById('btn-stop').disabled = true;
+      }
+    }
+
+    // On scan success
+    function onScanSuccess(decodedText) {
+      const clean = String(decodedText || '').trim();
+      if (!clean) return;
+
+      const now = Date.now();
+      // Debounce the exact same code within 1.6 seconds
+      if (clean === lastCodeSeen && (now - lastCodeTime < 1600)) {
+        return;
+      }
+
+      lastCodeSeen = clean;
+      lastCodeTime = now;
+
+      // Audio & Visual feedback
+      playBeep();
+      const vfBox = document.getElementById('viewfinder-box');
+      if (vfBox) {
+        vfBox.classList.add('scanned');
+        setTimeout(() => vfBox.classList.remove('scanned'), 350);
+      }
+
+      // Show toast
+      const toast = document.getElementById('scan-toast');
+      const toastText = document.getElementById('toast-text');
+      toastText.textContent = clean;
+      toast.classList.add('active');
+      setTimeout(() => toast.classList.remove('active'), 2500);
+
+      // Add to recent list
+      addHistory(clean);
+
+      // Send postMessage to opener
+      const sent = sendToParent({
+        type: 'UIN_ARRANIRY_QR_SCAN',
+        payload: clean,
+        timestamp: now
+      });
+
+      if (!sent) {
+        console.log('Scanned QR in standalone mode:', clean);
+      }
+    }
+
+    function onScanProgress() {
+      // Periodic frame tick
+    }
+
+    // Stop scanner
+    async function stopScanner() {
+      if (html5QrCode && isScanning) {
+        try {
+          await html5QrCode.stop();
+          html5QrCode.clear();
+        } catch (e) {
+          console.warn('Error stopping scanner:', e);
+        }
+      }
+      isScanning = false;
+      document.getElementById('btn-start').disabled = false;
+      document.getElementById('btn-stop').disabled = true;
+      document.getElementById('viewfinder-label').textContent = 'Kamera Dihentikan';
+    }
+
+    // Close window safely
+    async function closeScannerWindow() {
+      await stopScanner();
+      window.close();
+    }
+
+    // History helper
+    function addHistory(code) {
+      const list = document.getElementById('history-list');
+      const timeStr = new Date().toLocaleTimeString('id-ID');
+      recentScans.unshift({ code, time: timeStr });
+      if (recentScans.length > 4) recentScans.pop();
+
+      list.innerHTML = recentScans.map(item => `
+        <div class="history-item">
+          <code>${escapeHtml(item.code)}</code>
+          <span class="history-time">${item.time}</span>
+        </div>
+      `).join('');
+    }
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // Teardown listener on beforeunload
+    window.addEventListener('beforeunload', () => {
+      if (html5QrCode && isScanning) {
+        try { html5QrCode.stop(); } catch (e) {}
+      }
+    });
+
+    // Auto-populate cameras on load
+    window.addEventListener('DOMContentLoaded', () => {
+      populateCameras();
+      // Auto-start camera if opened by parent
+      if (window.opener) {
+        setTimeout(startScanner, 400);
+      }
+    });
+  </script>
+</body>
+</html>

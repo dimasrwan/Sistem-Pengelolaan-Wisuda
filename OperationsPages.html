@@ -1774,6 +1774,23 @@
               '<span id="camera-status-pill" class="scanner-status-pill scanner-status-off">● Kamera Belum Aktif</span>' +
             '</div>' +
             '<div class="panel-body">' +
+
+              // Rekomendasi Pemindai Eksternal HTTPS untuk mengatasi pembatasan Permissions Policy iframe sandbox GAS
+              '<div style="margin-bottom:14px;padding:12px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;font-size:12.5px;line-height:1.45;color:#166534;">' +
+                '<strong style="display:block;margin-bottom:3px;font-size:13px;color:#14532d;">' +
+                  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>' +
+                  'Solusi Kamera Google Apps Script (Domain Terpisah)' +
+                '</strong>' +
+                'Google Apps Script Web App membatasi izin kamera di dalam iframe sandbox. Gunakan tombol di bawah untuk membuka pemindai di domain HTTPS terpisah dengan izin kamera penuh.' +
+              '</div>' +
+
+              // Tombol Utama: Buka Pemindai Eksternal
+              '<button id="btn-open-external-scanner" class="btn btn-primary" onclick="openExternalScanner()" style="width:100%;height:46px;font-size:13.5px;margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:8px;">' +
+                '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>' +
+                '<span>Buka Kamera di Tab Baru / Popup</span>' +
+              '</button>' +
+
+              // Area Viewport Kamera Internal (dengan tombol uji)
               '<div class="scanner-camera-wrapper">' +
                 '<div id="qr-reader"></div>' +
                 '<div class="scanner-viewfinder-overlay" id="scanner-viewfinder">' +
@@ -1781,20 +1798,47 @@
                   '<div class="scanner-viewfinder-guide-text">Arahkan QR Code ke dalam kotak</div>' +
                 '</div>' +
               '</div>' +
-              '<div class="toolbar" style="margin-top:14px;gap:10px;">' +
-                '<button id="btn-start-camera" class="btn btn-primary" onclick="startScanner()" style="flex:1;">' +
-                  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>' +
-                  '<span>Aktifkan Kamera</span>' +
+
+              '<div class="toolbar" style="margin-top:12px;gap:8px;">' +
+                '<button id="btn-start-camera" class="btn btn-outline" onclick="startScanner()" style="flex:1;font-size:12px;" title="Coba akses kamera internal langsung di halaman ini">' +
+                  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>' +
+                  '<span>Coba Kamera Internal</span>' +
                 '</button>' +
-                '<button id="btn-stop-camera" class="btn btn-outline" onclick="stopScanner()" disabled style="flex:1;">' +
-                  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12"></rect></svg>' +
-                  '<span>Hentikan Kamera</span>' +
+                '<button id="btn-stop-camera" class="btn btn-outline" onclick="stopScanner()" disabled style="flex:1;font-size:12px;">' +
+                  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12"></rect></svg>' +
+                  '<span>Hentikan Internal</span>' +
                 '</button>' +
               '</div>' +
 
-              '<div style="margin-top:20px;border-top:1px solid #edf0ec;padding-top:16px;">' +
+              // Kotak Diagnostik Teknis (Muncul jika kamera internal gagal)
+              '<div id="camera-diag-box" class="notice notice-danger" style="margin-top:12px;display:none;font-size:12px;line-height:1.45;">' +
+                '<strong style="display:block;font-size:13px;margin-bottom:3px;">Diagnostik Teknis: <span id="diag-error-name"></span></strong>' +
+                '<div id="diag-error-msg" style="margin:4px 0 8px;font-family:monospace;font-size:11px;background:rgba(255,255,255,0.7);padding:6px 8px;border-radius:6px;word-break:break-all;"></div>' +
+                '<p style="margin:0 0 8px;"><strong>Analisis Masalah:</strong> Halaman Google Apps Script disajikan di dalam <code>&lt;iframe sandbox&gt;</code> tanpa izin <code>Permissions-Policy: camera</code>. Browser memblokir <code>getUserMedia</code> secara mutlak di dalam kontainer iframe ini.</p>' +
+                '<button type="button" class="btn btn-primary btn-sm" onclick="openExternalScanner()">Gunakan Pemindai Eksternal HTTPS</button>' +
+              '</div>' +
+
+              // Konfigurasi URL Pemindai Eksternal (Collapsible)
+              '<div style="margin-top:14px;border-top:1px dashed #d1d5db;padding-top:10px;">' +
+                '<button type="button" class="btn btn-outline btn-sm" onclick="toggleExternalScannerConfig()" style="font-size:11px;padding:4px 10px;width:100%;justify-content:space-between;">' +
+                  '<span>⚙️ Pengaturan URL Pemindai Eksternal</span>' +
+                  '<span id="config-toggle-arrow">▼</span>' +
+                '</button>' +
+                '<div id="external-scanner-config-box" style="display:none;margin-top:10px;padding:12px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;">' +
+                  '<label for="input-external-scanner-url" style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px;">URL Hosting Pemindai (GitHub Pages / Cloudflare Pages / Custom)</label>' +
+                  '<input id="input-external-scanner-url" class="field" style="width:100%;font-size:12px;height:38px;margin-bottom:8px;" placeholder="https://...">' +
+                  '<div style="display:flex;gap:8px;">' +
+                    '<button type="button" class="btn btn-primary btn-sm" onclick="saveExternalScannerUrl()">Simpan URL</button>' +
+                    '<button type="button" class="btn btn-outline btn-sm" onclick="resetExternalScannerUrl()">Reset Default</button>' +
+                  '</div>' +
+                  '<div id="config-url-status" style="margin-top:6px;font-size:11px;color:var(--muted);"></div>' +
+                '</div>' +
+              '</div>' +
+
+              // Form Masukan Manual (Fallback Operasional Utama)
+              '<div style="margin-top:18px;border-top:1px solid #edf0ec;padding-top:16px;">' +
                 '<label for="manual-guest-id" style="font-weight:700;font-size:12px;color:var(--ink);display:block;margin-bottom:6px;">' +
-                  'Masukkan NIM atau ID Wisudawan' +
+                  'Masukkan NIM atau ID Wisudawan (Input Manual)' +
                 '</label>' +
                 '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
                   '<input id="manual-guest-id" class="field" style="flex:1;min-width:180px;" placeholder="Masukkan NIM atau ID Wisudawan" onkeydown="if(event.key===\'Enter\')submitManualGuest()">' +
@@ -1835,8 +1879,9 @@
           '</div>' +
         '</div>';
 
-      // Pastikan status tombol sinkron
+      // Pastikan status tombol sinkron dan listener postMessage terpasang
       updateCameraControls_(false);
+      setupExternalScannerListenerOnce_();
     }
 
     function setCameraStatus_(status) {
@@ -1846,10 +1891,13 @@
       pill.className = 'scanner-status-pill';
       if (status === 'starting') {
         pill.classList.add('scanner-status-starting');
-        pill.innerHTML = '<span class="spinner-sm" style="border-top-color:#92400e;border-color:rgba(146,64,14,0.3)"></span> Menghubungkan Kamera...';
+        pill.innerHTML = '<span class="spinner-sm" style="border-top-color:#92400e;border-color:rgba(146,64,14,0.3)"></span> Menghubungkan...';
       } else if (status === 'on') {
         pill.classList.add('scanner-status-on');
-        pill.innerHTML = '<span class="scanner-pulse-dot"></span> Kamera Aktif — Siap Memindai';
+        pill.innerHTML = '<span class="scanner-pulse-dot"></span> Kamera Internal Aktif';
+      } else if (status === 'external_on') {
+        pill.classList.add('scanner-status-external');
+        pill.innerHTML = '<span class="scanner-pulse-dot" style="background:#0284c7;box-shadow:0 0 0 4px rgba(2,132,199,0.25);"></span> Pemindai Eksternal Terhubung';
       } else if (status === 'error') {
         pill.classList.add('scanner-status-error');
         pill.innerHTML = '✕ Kamera Gagal Diakses';
@@ -1866,6 +1914,197 @@
       if (btnStop) btnStop.disabled = !isActive;
     }
 
+    function showCameraDiag_(name, msg) {
+      const diag = document.getElementById('camera-diag-box');
+      const elName = document.getElementById('diag-error-name');
+      const elMsg = document.getElementById('diag-error-msg');
+      if (diag && elName && elMsg) {
+        elName.textContent = name;
+        elMsg.textContent = msg;
+        diag.style.display = 'block';
+      }
+    }
+
+    function hideCameraDiag_() {
+      const diag = document.getElementById('camera-diag-box');
+      if (diag) diag.style.display = 'none';
+    }
+
+    // =========================================================
+    // INTEGRASI PEMINDAI EKSTERNAL (GITHUB PAGES / CLOUDFLARE PAGES)
+    // =========================================================
+
+    function isAllowedScannerOrigin(origin) {
+      if (!origin) return false;
+      try {
+        const configuredOrigin = new URL(APP.externalScannerUrl).origin;
+        if (origin === configuredOrigin) return true;
+      } catch (e) {}
+
+      // Origin tepercaya proyek UIN Ar-Raniry
+      const trustedOrigins = [
+        'https://dimasrwan.github.io',
+        'https://uin-wisuda-scanner.pages.dev'
+      ];
+      if (trustedOrigins.includes(origin)) return true;
+
+      // Pengujian lokal localhost
+      if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) return true;
+
+      return false;
+    }
+
+    function setupExternalScannerListenerOnce_() {
+      if (APP.hasScannerPostMessageListener) return;
+      APP.hasScannerPostMessageListener = true;
+
+      window.addEventListener('message', function (event) {
+        // 1. Validasi origin pengirim
+        if (!isAllowedScannerOrigin(event.origin)) {
+          console.warn('[Security] Diabaikan postMessage dari origin tidak terdaftar:', event.origin);
+          return;
+        }
+
+        // 2. Validasi struktur pesan
+        const data = event.data;
+        if (!data || typeof data !== 'object') return;
+
+        // 3. Handshake status ready
+        if (data.type === 'UIN_ARRANIRY_SCANNER_READY') {
+          setCameraStatus_('external_on');
+          showToast('Pemindai eksternal siap dan terhubung.');
+          return;
+        }
+
+        // 4. Data hasil scan QR
+        if (data.type === 'UIN_ARRANIRY_QR_SCAN') {
+          const rawPayload = typeof data.payload === 'string' ? data.payload.trim() : '';
+          if (!rawPayload) return;
+
+          const now = Date.now();
+          // Debounce kode yang sama
+          if (rawPayload === APP.activeCameraCode && (now - (APP.lastCodeSeenTime || 0) < 1800)) {
+            return;
+          }
+
+          if (APP.pendingGuestExit || document.getElementById('guest-exit-modal-wrap')) {
+            return;
+          }
+          if (APP.scanBusy) {
+            return;
+          }
+
+          APP.activeCameraCode = rawPayload;
+          APP.lastCodeSeenTime = now;
+          APP.scanBusy = true;
+          handleScannedGuest(rawPayload);
+        }
+      });
+    }
+
+    function openExternalScanner() {
+      if (!['Admin','Panitia'].includes(APP.session.role)) return showToast('Akses ditolak.');
+
+      const parentOrigin = window.location.origin;
+      const baseUrl = APP.externalScannerUrl || 'https://dimasrwan.github.io/Sistem-Pengelolaan-Wisuda/scanner/';
+      const sep = baseUrl.includes('?') ? '&' : '?';
+      const targetUrl = baseUrl + sep + 'parentOrigin=' + encodeURIComponent(parentOrigin);
+
+      setCameraStatus_('starting');
+
+      // Buka melalui klik langsung pengguna agar popup tidak diblokir
+      APP.externalScannerWindow = window.open(
+        targetUrl,
+        'UIN_ArRaniry_QR_Scanner',
+        'width=520,height=750,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes'
+      );
+
+      if (!APP.externalScannerWindow || APP.externalScannerWindow.closed || typeof APP.externalScannerWindow.closed === 'undefined') {
+        setCameraStatus_('off');
+        showToast('Popup diblokir oleh peramban. Harap izinkan pop-up untuk membuka kamera.');
+        return;
+      }
+
+      setCameraStatus_('external_on');
+      showToast('Jendela pemindai dibuka. Siap menerima hasil scan.');
+
+      try { APP.externalScannerWindow.focus(); } catch (e) {}
+
+      // Monitor penutupan jendela
+      if (APP.externalScannerMonitorInterval) {
+        clearInterval(APP.externalScannerMonitorInterval);
+      }
+      APP.externalScannerMonitorInterval = setInterval(function () {
+        if (APP.externalScannerWindow && APP.externalScannerWindow.closed) {
+          clearInterval(APP.externalScannerMonitorInterval);
+          APP.externalScannerMonitorInterval = null;
+          APP.externalScannerWindow = null;
+          setCameraStatus_('off');
+          showToast('Jendela pemindai ditutup.');
+        }
+      }, 1000);
+    }
+
+    function toggleExternalScannerConfig() {
+      const box = document.getElementById('external-scanner-config-box');
+      const arrow = document.getElementById('config-toggle-arrow');
+      const input = document.getElementById('input-external-scanner-url');
+      if (!box) return;
+
+      const isHidden = box.style.display === 'none';
+      box.style.display = isHidden ? 'block' : 'none';
+      if (arrow) arrow.textContent = isHidden ? '▲' : '▼';
+
+      if (isHidden && input) {
+        input.value = APP.externalScannerUrl || '';
+      }
+    }
+
+    function saveExternalScannerUrl() {
+      const input = document.getElementById('input-external-scanner-url');
+      const statusEl = document.getElementById('config-url-status');
+      if (!input) return;
+
+      const raw = input.value.trim();
+      if (!raw) {
+        showToast('Masukkan URL pemindai yang valid.');
+        return;
+      }
+
+      try {
+        const u = new URL(raw);
+        if (!['http:', 'https:'].includes(u.protocol)) {
+          showToast('URL harus menggunakan protokol HTTPS.');
+          return;
+        }
+        APP.externalScannerUrl = raw;
+        try { localStorage.setItem('uin_scanner_external_url', raw); } catch (e) {}
+        if (statusEl) {
+          statusEl.innerHTML = '<span style="color:#15803d;font-weight:700;">✓ URL tersimpan: ' + escapeHtml(u.origin) + '</span>';
+        }
+        showToast('URL pemindai eksternal berhasil disimpan.');
+      } catch (e) {
+        showToast('Format URL tidak valid.');
+      }
+    }
+
+    function resetExternalScannerUrl() {
+      const defaultUrl = 'https://dimasrwan.github.io/Sistem-Pengelolaan-Wisuda/scanner/';
+      APP.externalScannerUrl = defaultUrl;
+      try { localStorage.removeItem('uin_scanner_external_url'); } catch (e) {}
+      const input = document.getElementById('input-external-scanner-url');
+      const statusEl = document.getElementById('config-url-status');
+      if (input) input.value = defaultUrl;
+      if (statusEl) {
+        statusEl.innerHTML = '<span style="color:#15803d;font-weight:700;">✓ Reset ke URL default GitHub Pages</span>';
+      }
+      showToast('URL pemindai di-reset ke default.');
+    }
+
+    // =========================================================
+    // KAMERA INTERNAL (DIAGNOSTIK & FALLBACK)
+    // =========================================================
+
     function startScanner() {
       if (!['Admin','Panitia'].includes(APP.session.role)) return showToast('Akses ditolak.');
       if (!window.Html5Qrcode) return showToast('Library pemindai QR tidak dapat dimuat.');
@@ -1874,6 +2113,7 @@
 
       setCameraStatus_('starting');
       updateCameraControls_(true);
+      hideCameraDiag_();
 
       APP.scanner = new Html5Qrcode('qr-reader');
       APP.activeCameraCode = null;
@@ -1899,15 +2139,13 @@
 
           const now = Date.now();
 
-          // 1. KASUS QR SAMA DENGAN QR AKTIF:
-          // Perbarui timestamp keberadaan QR aktif, lalu cegah pemrosesan ulang tanpa batas waktu.
+          // 1. KASUS QR SAMA DENGAN QR AKTIF
           if (APP.activeCameraCode === clean) {
             APP.lastCodeSeenTime = now;
             return;
           }
 
-          // 2. KASUS QR BERBEDA ATAU KODE BARU:
-          // Jangan perbarui timestamp QR aktif jika kode berbeda terdeteksi saat modal terbuka atau scanBusy.
+          // 2. KASUS QR BERBEDA ATAU KODE BARU
           if (APP.pendingGuestExit || document.getElementById('guest-exit-modal-wrap')) {
             return;
           }
@@ -1916,14 +2154,14 @@
             return;
           }
 
-          // 3. QR baru siap diproses: tetapkan activeCameraCode dan lastCodeSeenTime secara bersamaan
+          // 3. QR baru siap diproses
           APP.activeCameraCode = clean;
           APP.lastCodeSeenTime = now;
           APP.scanBusy = true;
           handleScannedGuest(clean);
         },
         function () {
-          // Callback frame kosong (tidak ada QR terdeteksi di kamera)
+          // Callback frame kosong
           if (APP.activeCameraCode) {
             const now = Date.now();
             if (now - (APP.lastCodeSeenTime || 0) > 1200) {
@@ -1942,8 +2180,14 @@
         APP.scanner = null;
         setCameraStatus_('error');
         updateCameraControls_(false);
-        showToast('Kamera tidak dapat dibuka. Periksa izin kamera browser.');
-        console.error(error);
+
+        // Catat error.name dan error.message secara spesifik
+        const errName = (error && error.name) ? error.name : 'NotAllowedError / SandboxRestriction';
+        const errMsg = (error && error.message) ? error.message : String(error || 'Izin kamera ditolak.');
+        console.error('Kamera Internal Gagal (Name, Message):', errName, errMsg, error);
+
+        showCameraDiag_(errName, errMsg);
+        showToast('Kamera terhalang sandbox Google Apps Script. Gunakan tombol Pemindai Eksternal.');
       });
     }
 
