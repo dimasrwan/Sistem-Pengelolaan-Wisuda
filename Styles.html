@@ -1137,51 +1137,152 @@
       font-size: 13px;
     }
 
-    @media(max-width:900px) {
-      .hero-grid { gap: 25px; }
-      .hero-logo-frame { width: 270px; }
-      .app-shell { grid-template-columns: 205px minmax(0,1fr); }
-      .main-content { padding: 22px; }
-      .stat-grid { grid-template-columns: repeat(2,1fr); }
-      .feature-grid { grid-template-columns: repeat(2,1fr); }
+    /* =========================================================
+       RESPONSIVE ARCHITECTURE & COMPONENT SYSTEM
+       Supports: 320-359px, 360-430px, 431-599px, 600-767px,
+                 768-1023px, 1024-1439px, 1440px+
+       ========================================================= */
+
+    /* Global Overflow & Box-Sizing Protection */
+    html, body {
+      max-width: 100vw;
+      overflow-x: hidden;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    *, *::before, *::after {
+      box-sizing: border-box;
     }
 
-    @media(max-width:650px) {
-      .container { width: calc(100% - 30px); }
-      .nav { min-height: 68px; }
-      .brand img { width: 41px; height: 41px; }
-      .brand-name { font-size: 11px; }
-      .brand-sub { font-size: 10px; }
-      .nav-links { gap: 8px; }
-      .nav-links a { display: none; }
-      .nav-links .btn { padding: 8px 10px; font-size: 11px; }
-      .hero-grid { grid-template-columns: 1fr; padding: 45px 0; }
-      .hero h1 { font-size: 42px; }
-      .hero-copy { font-size: 14px; }
-      .hero-visual { min-height: 270px; }
-      .hero-logo-frame { width: 220px; padding: 24px; }
-      .hero-stat { left: 0; bottom: 0; }
-      .section { padding: 55px 0; }
-      .feature-grid, .process-grid { grid-template-columns: 1fr; }
-      .cta-panel { flex-direction: column; align-items: flex-start; padding: 25px; }
-      .footer-inner { flex-direction: column; }
-      .app-shell { display: block; }
-      .sidebar { display: none; border: 0; border-bottom: 1px solid var(--line); padding: 12px; }
-      .sidebar.open { display: block; }
-      .mobile-menu { display: inline-flex; }
-      .main-content { padding: 18px 14px 32px; }
-      .page-header { flex-direction: column; }
-      .page-header h1 { font-size: 24px; }
-      .panel-head, .panel-body { padding: 15px; }
-      .scanner-layout { grid-template-columns: 1fr; }
-      .student-card { grid-template-columns: 1fr; }
-      .login-card { padding: 25px; }
-      .stat-card { padding: 13px; }
-      .stat-card strong { font-size: 23px; }
-      .import-grid, .period-form-grid { grid-template-columns: 1fr; }
-      .import-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
+    /* Safe Area Insets for Modern Mobile Displays */
+    @supports (padding: env(safe-area-inset-top)) {
+      .app-topbar {
+        padding-top: env(safe-area-inset-top);
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+      }
+      .main-content {
+        padding-left: calc(20px + env(safe-area-inset-left));
+        padding-right: calc(20px + env(safe-area-inset-right));
+        padding-bottom: calc(24px + env(safe-area-inset-bottom));
+      }
     }
 
+    /* Sidebar Drawer Header & Close Button */
+    .sidebar-drawer-header {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 14px;
+      border-bottom: 1px solid var(--line);
+      background: #ffffff;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    .sidebar-close-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+      border: 1px solid var(--line);
+      background: #f4f7f4;
+      color: var(--ink);
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .sidebar-close-btn:hover {
+      background: #e6ede6;
+      border-color: #c4d7c5;
+    }
+    .sidebar-close-btn:active {
+      transform: scale(0.95);
+    }
+
+    /* Sidebar Backdrop for Mobile/Tablet Drawer */
+    .sidebar-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(12, 28, 14, 0.58);
+      backdrop-filter: blur(3px);
+      -webkit-backdrop-filter: blur(3px);
+      z-index: 1100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .sidebar-backdrop.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* Responsive Filter Bars & Action Groups */
+    .responsive-filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .responsive-filter-inputs {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      flex: 1 1 420px;
+      min-width: 0;
+    }
+    .responsive-filter-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Grid Presets */
+    .stat-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 13px;
+      margin-bottom: 20px;
+    }
+
+    /* Dedicated Scroll Hint for Complex Canvas/Tables */
+    .seat-scroll-hint {
+      display: none;
+      background: #eef8ee;
+      border: 1px solid #cce8cd;
+      color: #14532d;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 9px 14px;
+      border-radius: 9px;
+      margin-bottom: 12px;
+      align-items: center;
+      gap: 8px;
+      line-height: 1.4;
+    }
+
+    /* Tables & Horizontal Containers */
+    .table-wrap {
+      width: 100%;
+      max-width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      border-radius: 12px;
+    }
+    table {
+      min-width: 100%;
+    }
+
+    /* Student Filter Grid */
     .student-filter-grid {
       display: grid;
       grid-template-columns: 1.3fr 1fr 1.2fr 1.4fr 0.9fr;
@@ -1194,13 +1295,438 @@
       border-radius: 10px;
       border: 1px solid #c8dcc9;
     }
-    .student-pagination { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; }
-    .student-page-btn { min-width:36px; min-height:34px; padding:6px 10px; border:1px solid #dfe6dd; border-radius:8px; background:#fff; color:var(--green-dark); cursor:pointer; }
-    .student-page-btn.active { background:var(--green); border-color:var(--green); color:#fff; }
-    .student-page-btn:disabled { opacity:.45; cursor:not-allowed; }
-    @media(max-width:1200px){.student-filter-grid{grid-template-columns:repeat(3,minmax(0,1fr));}}
-    @media(max-width:800px){.student-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
-    @media(max-width:520px){.student-filter-grid{grid-template-columns:1fr}.student-pagination{align-items:flex-start;flex-direction:column}}
+    .student-pagination {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .student-page-btn {
+      min-width: 36px;
+      min-height: 34px;
+      padding: 6px 10px;
+      border: 1px solid #dfe6dd;
+      border-radius: 8px;
+      background: #fff;
+      color: var(--green-dark);
+      cursor: pointer;
+    }
+    .student-page-btn.active {
+      background: var(--green);
+      border-color: var(--green);
+      color: #fff;
+    }
+    .student-page-btn:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+
+    /* =========================================================
+       TIER 1: DESKTOP BESAR (>= 1440px)
+       ========================================================= */
+    @media (min-width: 1440px) {
+      .container {
+        max-width: 1380px;
+      }
+      .main-content {
+        padding: 34px 42px;
+        max-width: 1680px;
+      }
+      .stat-grid {
+        gap: 18px;
+      }
+      .stat-card {
+        padding: 22px;
+      }
+      .stat-card strong {
+        font-size: 32px;
+      }
+    }
+
+    /* =========================================================
+       TIER 2: LAPTOP & DESKTOP STANDAR (1024px - 1439px)
+       ========================================================= */
+    @media (min-width: 1024px) and (max-width: 1439px) {
+      .app-shell {
+        grid-template-columns: 220px minmax(0, 1fr);
+      }
+      .main-content {
+        padding: 24px 28px;
+      }
+      .sidebar {
+        padding: 20px 12px;
+      }
+      .stat-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+      }
+      .student-filter-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    /* =========================================================
+       TIER 3: TABLET & MOBILE (< 1024px) - DRAWER ACTIVATION
+       ========================================================= */
+    @media (max-width: 1023px) {
+      .app-shell {
+        display: block !important;
+        width: 100%;
+        min-width: 0;
+      }
+
+      /* Sidebar converted to Off-Canvas Drawer */
+      .sidebar {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        bottom: 0 !important;
+        width: min(300px, 84vw) !important;
+        max-width: 320px !important;
+        height: 100vh !important;
+        height: 100dvh !important;
+        background: #ffffff !important;
+        z-index: 1200 !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch;
+        box-shadow: 6px 0 28px rgba(0, 0, 0, 0.22) !important;
+        transform: translateX(-100%) !important;
+        transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        padding: 0 0 24px 0 !important;
+        border-right: 1px solid var(--line);
+        margin: 0 !important;
+      }
+
+      .sidebar.open {
+        transform: translateX(0) !important;
+      }
+
+      .sidebar-drawer-header {
+        display: flex;
+      }
+
+      .sidebar .sidebar-label,
+      .sidebar .side-link {
+        padding-left: 18px;
+        padding-right: 18px;
+      }
+
+      .mobile-menu {
+        display: inline-flex !important;
+      }
+
+      .seat-scroll-hint {
+        display: flex;
+      }
+
+      .main-content {
+        padding: 20px 18px 36px;
+        width: 100%;
+        min-width: 0;
+      }
+
+      .stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .stat-grid-3 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .student-filter-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .hero-grid {
+        gap: 30px;
+      }
+      .hero-logo-frame {
+        width: 250px;
+      }
+    }
+
+    /* =========================================================
+       TIER 4: TABLET SEDANG (600px - 767px)
+       ========================================================= */
+    @media (min-width: 600px) and (max-width: 767px) {
+      .hero-grid {
+        grid-template-columns: 1fr;
+        padding: 40px 0;
+      }
+      .hero-visual {
+        min-height: 250px;
+      }
+      .feature-grid, .process-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .cta-panel {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 24px;
+      }
+      .scanner-layout {
+        grid-template-columns: 1fr;
+      }
+      .student-card {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* =========================================================
+       TIER 5: HP & MOBILE UMUM (< 600px)
+       ========================================================= */
+    @media (max-width: 599px) {
+      .container {
+        width: calc(100% - 24px);
+      }
+      .nav {
+        min-height: 64px;
+      }
+      .brand img {
+        width: 38px;
+        height: 38px;
+      }
+      .brand-name {
+        font-size: 11px;
+      }
+      .brand-sub {
+        font-size: 9.5px;
+      }
+      .nav-links a {
+        display: none;
+      }
+      .nav-links .btn {
+        padding: 7px 11px;
+        font-size: 11px;
+      }
+
+      .hero-grid {
+        grid-template-columns: 1fr;
+        padding: 35px 0 25px;
+      }
+      .hero h1 {
+        font-size: 34px;
+        letter-spacing: -0.03em;
+      }
+      .hero-copy {
+        font-size: 13.5px;
+      }
+      .hero-visual {
+        min-height: 220px;
+      }
+      .hero-logo-frame {
+        width: 190px;
+        padding: 18px;
+      }
+      .hero-stat {
+        position: static;
+        margin-top: 15px;
+        width: 100%;
+      }
+      .section {
+        padding: 45px 0;
+      }
+      .feature-grid, .process-grid {
+        grid-template-columns: 1fr;
+      }
+      .cta-panel {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 20px;
+      }
+      .footer-inner {
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .main-content {
+        padding: 16px 12px 32px;
+      }
+      .page-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+      }
+      .page-header h1 {
+        font-size: 22px;
+      }
+      .panel-head {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 14px 16px;
+      }
+      .panel-body {
+        padding: 14px 14px;
+      }
+
+      .stat-grid,
+      .stat-grid-3 {
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+      .stat-card {
+        padding: 14px 16px;
+      }
+      .stat-card strong {
+        font-size: 24px;
+      }
+
+      .student-filter-grid {
+        grid-template-columns: 1fr;
+      }
+      .student-pagination {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .responsive-filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .responsive-filter-inputs {
+        flex-direction: column;
+        align-items: stretch;
+        flex: 1 1 100%;
+      }
+      .responsive-filter-inputs > * {
+        width: 100% !important;
+      }
+      .responsive-filter-actions {
+        width: 100%;
+        justify-content: stretch;
+      }
+      .responsive-filter-actions .btn {
+        flex: 1;
+      }
+
+      .scanner-layout {
+        grid-template-columns: 1fr;
+      }
+      .student-card {
+        grid-template-columns: 1fr;
+      }
+      .login-card {
+        padding: 24px 20px;
+      }
+      .import-grid, .period-form-grid {
+        grid-template-columns: 1fr;
+      }
+      .import-stats {
+        grid-template-columns: 1fr;
+      }
+
+      .modal-card {
+        width: calc(100vw - 20px);
+        max-width: 95vw;
+        padding: 18px 16px;
+        margin: 10px auto;
+      }
+
+      .custom-select-menu {
+        max-width: calc(100vw - 28px);
+        left: 0 !important;
+        right: auto !important;
+      }
+
+      /* Compact inputs and touch-friendly controls */
+      .field, input.field, select.field, textarea.field {
+        font-size: 14px;
+        min-height: 42px;
+      }
+      .btn {
+        min-height: 40px;
+      }
+
+      /* Wisudawan Call & Guest QR adaptations for HP */
+      .wisudawan-call-main-box {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 16px;
+      }
+      .wisudawan-call-seq-num {
+        font-size: 46px;
+      }
+      .wisudawan-call-body {
+        padding: 16px 14px;
+      }
+      .guest-qr-body {
+        padding: 16px 14px;
+      }
+      .guest-qr-meta-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+      }
+      .guest-qr-meta-value {
+        text-align: left;
+      }
+      .guest-qr-actions-row {
+        flex-direction: column;
+      }
+      .guest-qr-actions-row .btn {
+        width: 100%;
+        min-width: 100%;
+      }
+    }
+
+    /* =========================================================
+       TIER 6: HP KECIL (320px - 359px)
+       ========================================================= */
+    @media (max-width: 359px) {
+      .container {
+        width: calc(100% - 16px);
+      }
+      .main-content {
+        padding: 12px 8px 28px;
+      }
+      .brand img {
+        width: 32px;
+        height: 32px;
+      }
+      .brand-name {
+        font-size: 10px;
+      }
+      .brand-sub {
+        font-size: 8.5px;
+      }
+      .hero h1 {
+        font-size: 28px;
+      }
+      .page-header h1 {
+        font-size: 20px;
+      }
+      .panel-head h2 {
+        font-size: 14px;
+      }
+      .stat-card strong {
+        font-size: 21px;
+      }
+      .wisudawan-call-seq-num {
+        font-size: 38px;
+      }
+      .wisudawan-call-grid {
+        grid-template-columns: 1fr;
+      }
+      .scanner-status-pill {
+        font-size: 10px;
+        padding: 3px 8px;
+      }
+      .btn {
+        padding: 8px 10px;
+        font-size: 11.5px;
+      }
+      .scanner-viewfinder-frame {
+        width: 165px;
+        height: 165px;
+      }
+      .guest-qr-print-card {
+        padding: 14px 10px;
+      }
+    }
 
     /* =========================================================
        CUSTOM DROPDOWN FILTER (UIN AR-RANIRY THEME)

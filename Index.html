@@ -3,7 +3,7 @@
 <head>
   <base target="_top">
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#07851b">
   <title>Sistem Pengelolaan Wisuda | UIN Ar-Raniry</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -192,6 +192,13 @@
 
     <div class="app-shell">
       <aside class="sidebar" id="sidebar">
+        <div class="sidebar-drawer-header">
+          <div class="brand">
+            <img src="<?= CONFIG.LOGO_URL ?>" alt="Logo UIN">
+            <span class="brand-name">UIN AR-RANIRY<span class="brand-sub">Menu Portal</span></span>
+          </div>
+          <button type="button" class="sidebar-close-btn" onclick="toggleMobileMenu(true)" aria-label="Tutup Menu">✕</button>
+        </div>
         <div class="sidebar-label" data-roles="Admin,Wisudawan">Menu Utama</div>
         <button class="side-link active" data-page="dashboard" data-roles="Admin,Wisudawan" onclick="navigate('dashboard')"><span class="side-icon">01</span> Dashboard</button>
         <button class="side-link" data-page="students" data-roles="Admin" onclick="navigate('students')"><span class="side-icon">02</span> Data Wisudawan</button>
@@ -206,6 +213,7 @@
         <div class="sidebar-label">Akun</div>
         <button class="side-link" onclick="logout()"><span class="side-icon">09</span> Keluar</button>
       </aside>
+      <div id="sidebar-backdrop" class="sidebar-backdrop" onclick="toggleMobileMenu(true)"></div>
       <main class="main-content">
         <div id="app-message"></div>
         <div id="page-content"><div class="panel panel-body">Memuat sistem...</div></div>

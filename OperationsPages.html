@@ -51,17 +51,17 @@
       document.getElementById('page-content').innerHTML =
         pageHeader('Daftar Panggil','Tinjau, filter, dan perbarui status pemanggilan wisudawan.') +
         '<div class="panel" style="margin-bottom:15px;">' +
-        '<div class="panel-body" style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; justify-content:space-between;">' +
-        '<div style="display:flex; flex-wrap:wrap; gap:12px; align-items:center;">' +
+        '<div class="panel-body responsive-filter-bar">' +
+        '<div class="responsive-filter-inputs">' +
         '<div><label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Filter Hari Wisuda</label>' +
-        '<select id="call-filter-day" class="field" style="min-width:160px;" onchange="onCallDayFilterChange(this.value)">' +
+        '<select id="call-filter-day" class="field" onchange="onCallDayFilterChange(this.value)">' +
         '<option value="" ' + (!dayFilter ? 'selected' : '') + '>Semua Hari</option>' +
         '<option value="1" ' + (dayFilter === '1' ? 'selected' : '') + '>Hari Pertama (Selasa)</option>' +
         '<option value="2" ' + (dayFilter === '2' ? 'selected' : '') + '>Hari Kedua (Rabu)</option>' +
         '<option value="3" ' + (dayFilter === '3' ? 'selected' : '') + '>Hari Ketiga (Kamis)</option>' +
         '</select></div>' +
         '</div>' +
-        '<div style="display:flex; gap:8px;">' +
+        '<div class="responsive-filter-actions">' +
         '<button class="btn btn-outline btn-sm" onclick="openCallListReportModal()">Pratinjau / Cetak Laporan PDF</button>' +
         '<button class="btn btn-outline btn-sm" onclick="renderCalls()">Muat ulang</button>' +
         '</div>' +
@@ -970,10 +970,10 @@
       document.getElementById('page-content').innerHTML =
         pageHeader('Denah Kursi','Peta visual tempat duduk dua dimensi gedung wisuda dan data penempatan.') +
         '<div class="panel" style="margin-bottom:15px;">' +
-        '<div class="panel-body" style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; justify-content:space-between;">' +
-        '<div style="display:flex; flex-wrap:wrap; gap:12px; align-items:center;">' +
+        '<div class="panel-body responsive-filter-bar">' +
+        '<div class="responsive-filter-inputs">' +
         '<div><label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Pilih Hari Wisuda</label>' +
-        '<select id="seat-filter-day" class="field" style="min-width:210px; font-weight:700;" onchange="onSeatDayFilterChange(this.value)">' +
+        '<select id="seat-filter-day" class="field" style="font-weight:700;" onchange="onSeatDayFilterChange(this.value)">' +
         '<option value="1" ' + (dayFilter === '1' ? 'selected' : '') + '>Hari Pertama (Selasa, 6 Okt 2026)</option>' +
         '<option value="2" ' + (dayFilter === '2' ? 'selected' : '') + '>Hari Kedua (Rabu, 7 Okt 2026)</option>' +
         '<option value="3" ' + (dayFilter === '3' ? 'selected' : '') + '>Hari Ketiga (Kamis, 8 Okt 2026)</option>' +
@@ -984,7 +984,7 @@
         '<button class="btn btn-sm ' + (!isVisual ? 'btn-green' : 'btn-outline') + '" style="border-radius:0; border:0;" onclick="switchSeatViewMode(\'table\')">Tabel Administrasi</button>' +
         '</div></div>' +
         '</div>' +
-        '<div style="display:flex; gap:8px;">' +
+        '<div class="responsive-filter-actions">' +
         '<button class="btn btn-outline btn-sm" onclick="renderSeats()">Muat ulang</button>' +
         '</div>' +
         '</div></div>' +
@@ -1290,7 +1290,7 @@
         seatLookup[s.Baris + '-' + s.Blok + '-' + s.Kolom] = s;
       });
 
-      let html = '<div class="seat-plan-wrapper">';
+      let html = '<div class="seat-scroll-hint"><span>↔</span> Geser ke samping untuk menjelajahi seluruh denah kursi</div><div class="seat-plan-wrapper">';
       html += '<div class="seat-plan-header-title">' + escapeHtml(title) + '</div>';
 
       // Panggung dan Togawan
@@ -1673,7 +1673,7 @@
 
       document.getElementById('page-content').innerHTML =
         pageHeader('Data Tamu', 'Daftar riwayat akses dan kehadiran tamu wisudawan.') +
-        '<div id="guest-stats-container" class="stat-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 20px;">' +
+        '<div id="guest-stats-container" class="stat-grid stat-grid-3" style="margin-bottom: 20px;">' +
           '<div class="stat-card"><span class="stat-label">Total Tamu Masuk</span><strong id="stat-total-tamu">—</strong><div class="stat-foot">Periode ini</div></div>' +
           '<div class="stat-card"><span class="stat-label">Sedang di Dalam</span><strong id="stat-tamu-dalam" style="color:#2e7d32">—</strong><div class="stat-foot">Status DI_DALAM</div></div>' +
           '<div class="stat-card"><span class="stat-label">Sudah Keluar</span><strong id="stat-tamu-luar" style="color:#1976d2">—</strong><div class="stat-foot">Status DI_LUAR</div></div>' +

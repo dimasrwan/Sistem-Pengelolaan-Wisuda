@@ -3,6 +3,11 @@
       ['landing-view','login-view','app-view'].forEach(function (viewId) {
         document.getElementById(viewId).classList.toggle('hidden', viewId !== id);
       });
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar) sidebar.classList.remove('open');
+      const backdrop = document.getElementById('sidebar-backdrop');
+      if (backdrop) backdrop.classList.remove('active');
+      document.body.style.overflow = '';
       window.scrollTo(0, 0);
     }
 
@@ -210,7 +215,11 @@
         element.classList.toggle('active', element.dataset.page === page);
       });
 
-      document.getElementById('sidebar').classList.remove('open');
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar) sidebar.classList.remove('open');
+      const backdrop = document.getElementById('sidebar-backdrop');
+      if (backdrop) backdrop.classList.remove('active');
+      document.body.style.overflow = '';
 
       const target = document.getElementById('page-content');
       target.innerHTML = '<div class="panel panel-body">Memuat halaman...</div>';
@@ -237,9 +246,39 @@
       }
     }
 
-    function toggleMobileMenu() {
-      document.getElementById('sidebar').classList.toggle('open');
+    function toggleMobileMenu(forceClose) {
+      const sidebar = document.getElementById('sidebar');
+      const backdrop = document.getElementById('sidebar-backdrop');
+      if (!sidebar) return;
+
+      const isCurrentlyOpen = sidebar.classList.contains('open');
+      const shouldOpen = typeof forceClose === 'boolean' ? !forceClose : !isCurrentlyOpen;
+
+      sidebar.classList.toggle('open', shouldOpen);
+      if (backdrop) backdrop.classList.toggle('active', shouldOpen);
+      if (window.innerWidth < 1024) {
+        document.body.style.overflow = shouldOpen ? 'hidden' : '';
+      }
     }
+
+    window.addEventListener('resize', function () {
+      if (window.innerWidth >= 1024) {
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar) sidebar.classList.remove('open');
+        const backdrop = document.getElementById('sidebar-backdrop');
+        if (backdrop) backdrop.classList.remove('active');
+        document.body.style.overflow = '';
+      }
+    });
+
+    window.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar && sidebar.classList.contains('open')) {
+          toggleMobileMenu(true);
+        }
+      }
+    });
 
     function pageHeader(title, description, action) {
       return '<div class="page-header"><div><div class="eyebrow">Portal Wisuda</div>' +
