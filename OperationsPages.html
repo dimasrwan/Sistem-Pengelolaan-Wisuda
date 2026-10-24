@@ -1934,22 +1934,33 @@
     // INTEGRASI PEMINDAI EKSTERNAL (GITHUB PAGES / CLOUDFLARE PAGES)
     // =========================================================
 
-    function isAllowedScannerOrigin(origin) {
-      if (!origin) return false;
-      try {
-        const configuredOrigin = new URL(APP.externalScannerUrl).origin;
-        if (origin === configuredOrigin) return true;
-      } catch (e) {}
+    // =========================================================
+    // INTEGRASI PEMINDAI EKSTERNAL (GITHUB PAGES / CLOUDFLARE PAGES)
+    // =========================================================
 
-      // Origin tepercaya proyek UIN Ar-Raniry
-      const trustedOrigins = [
+    function isAllowedScannerOrigin(origin) {
+      if (!origin || typeof origin !== 'string') return false;
+      const cleanOrigin = origin.trim().toLowerCase();
+
+      // 1. Periksa origin terkonfigurasi (jika valid URL)
+      if (APP.externalScannerUrl) {
+        try {
+          const configuredOrigin = new URL(APP.externalScannerUrl).origin.toLowerCase();
+          if (cleanOrigin === configuredOrigin) return true;
+        } catch (e) {}
+      }
+
+      // 2. Allowlist origin resmi proyek UIN Ar-Raniry
+      const trustedOfficialOrigins = [
         'https://dimasrwan.github.io',
         'https://uin-wisuda-scanner.pages.dev'
       ];
-      if (trustedOrigins.includes(origin)) return true;
+      if (trustedOfficialOrigins.includes(cleanOrigin)) return true;
 
-      // Pengujian lokal localhost
-      if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) return true;
+      // 3. Pengujian lokal strictly validated (hanya localhost atau 127.0.0.1 dengan port)
+      if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?$/.test(cleanOrigin)) {
+        return true;
+      }
 
       return false;
     }
@@ -1959,12 +1970,7 @@
       APP.hasScannerPostMessageListener = true;
 
       window.addEventListener('message', function (event) {
-        // Tangkap window pengirim agar referensi balasan selalu valid dan hidup
-        if (event.source) {
-          APP.externalScannerWindow = event.source;
-        }
-
-        // 1. Validasi origin pengirim
+        // 1. Validasi origin pengirim terhadap allowlist eksplisit SEBELUM mengikat referensi
         if (!isAllowedScannerOrigin(event.origin)) {
           console.warn('[Security] Diabaikan postMessage dari origin tidak terdaftar:', event.origin);
           return;
@@ -1974,14 +1980,56 @@
         const data = event.data;
         if (!data || typeof data !== 'object') return;
 
-        // 3. Handshake status ready
-        if (data.type === 'UIN_ARRANIRY_SCANNER_READY') {
-          setCameraStatus_('external_on');
-          showToast('Pemindai eksternal siap dan terhubung.');
+        // 3. Validasi event.source terhadap jendela pemindai resmi yang terdaftar
+        if (!event.source) {
+          console.warn('[Security] Diabaikan postMessage tanpa event.source.');
           return;
         }
 
-        // 4. Pemeriksaan status transaksi (Pemulihan setelah timeout atau koneksi lambat)
+        // Tolak jika belum ada jendela pemindai yang dibuka dan didaftarkan melalui alur resmi openExternalScanner()
+        if (!APP.externalScannerWindow) {
+          console.warn('[Security] Ditolak postMessage: Belum ada jendela pemindai yang didaftarkan melalui alur pembukaan resmi.');
+          return;
+        }
+
+        // Wajib cocokkan event.source dengan referensi jendela pemindai yang telah terdaftar
+        // Jangan mengizinkan pesan apapun (termasuk SCANNER_READY) untuk mengganti jendela terdaftar secara otomatis
+        if (event.source !== APP.externalScannerWindow) {
+          console.warn('[Security] Ditolak postMessage: event.source TIDAK COCOK dengan jendela pemindai resmi yang terdaftar. Pesan diabaikan.');
+          return;
+        }
+
+        // Pastikan origin pengirim cocok dengan origin jendela terdaftar
+        if (APP.externalScannerVerifiedOrigin && event.origin !== APP.externalScannerVerifiedOrigin) {
+          console.warn('[Security] Ditolak postMessage: origin pengirim tidak cocok dengan origin jendela terdaftar:', event.origin);
+          return;
+        }
+        APP.externalScannerVerifiedOrigin = event.origin;
+
+        // 3b. Penerimaan ACK Tingkat Aplikasi dari jendela pemindai
+        if (data.type === 'UIN_ARRANIRY_CLIENT_ACK') {
+          const ackReqId = data.requestId;
+          if (ackReqId && APP.pendingScanResults && APP.pendingScanResults[ackReqId]) {
+            APP.pendingScanResults[ackReqId].acknowledged = true;
+            APP.pendingScanResults[ackReqId].acknowledgedAt = Date.now();
+            console.info('[ClientACK] Konfirmasi penerimaan hasil oleh scanner diterima untuk requestId:', ackReqId);
+          }
+          return;
+        }
+
+        // 4. Handshake status ready
+        if (data.type === 'UIN_ARRANIRY_SCANNER_READY') {
+          setCameraStatus_('external_on');
+          showToast('Pemindai eksternal siap dan terhubung.');
+          sendResultToScannerPopup_({
+            type: 'UIN_ARRANIRY_PARENT_ACK',
+            role: APP.session ? APP.session.role : null,
+            timestamp: Date.now()
+          });
+          return;
+        }
+
+        // 5. Pemeriksaan status transaksi (Pemulihan setelah timeout atau koneksi lambat)
         if (data.type === 'UIN_ARRANIRY_CHECK_TX') {
           const checkReqId = data.requestId || '';
           const checkPayload = data.payload || '';
@@ -1989,6 +2037,7 @@
 
           google.script.run
             .withSuccessHandler(function (checkRes) {
+              if (checkRes) checkRes.requestId = checkReqId;
               sendResultToScannerPopup_({
                 type: 'UIN_ARRANIRY_SCAN_RESULT',
                 requestId: checkReqId,
@@ -2012,7 +2061,7 @@
           return;
         }
 
-        // 5. Data hasil scan QR
+        // 6. Data hasil scan QR
         if (data.type === 'UIN_ARRANIRY_QR_SCAN') {
           const rawPayload = typeof data.payload === 'string' ? data.payload.trim() : '';
           const reqId = data.requestId || ('TX-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8).toUpperCase());
@@ -2043,6 +2092,17 @@
           }
 
           if (APP.pendingGuestExit || document.getElementById('guest-exit-modal-wrap')) {
+            sendResultToScannerPopup_({
+              type: 'UIN_ARRANIRY_SCAN_RESULT',
+              requestId: reqId,
+              result: {
+                success: false,
+                resultCode: 'MODAL_OPEN',
+                badge: 'MODAL KONFIRMASI AKTIF',
+                message: 'Modal konfirmasi tamu keluar sedang terbuka di aplikasi induk. Selesaikan atau batalkan modal terlebih dahulu.',
+                requestId: reqId
+              }
+            });
             return;
           }
           if (APP.scanBusy) {
@@ -2068,18 +2128,62 @@
       });
     }
 
+    /**
+     * Mengirim pesan hasil ke jendela pemindai eksternal yang terdaftar.
+     * 
+     * DOKUMENTASI PENTING TENTANG ACK & PENGIRIMAN:
+     * Nilai kembalian 'true' dari fungsi ini HANYA menandakan bahwa pemanggilan
+     * APP.externalScannerWindow.postMessage(data, verifiedOrigin) berhasil dieksekusi
+     * tanpa melempar synchronous runtime exception pada thread browser pemanggil.
+     * Nilai tersebut TIDAK MEMBUKTIKAN bahwa dokumen pada jendela scanner telah
+     * benar-benar menerima, memproses, atau merender pesan tersebut.
+     * 
+     * Untuk memastikan penerimaan aktual, aplikasi menggunakan protokol ACK aplikasi
+     * ('UIN_ARRANIRY_CLIENT_ACK') yang memuat correlation requestId yang sama.
+     */
     function sendResultToScannerPopup_(data) {
-      if (!APP.externalScannerWindow || APP.externalScannerWindow.closed) return;
+      if (!APP.externalScannerWindow) {
+        console.warn('[PostMessage] Jendela pemindai eksternal tidak terdaftar.');
+        return false;
+      }
+
+      let isClosed = false;
       try {
-        let dest = '*';
-        if (APP.externalScannerUrl) {
-          try {
-            dest = new URL(APP.externalScannerUrl).origin;
-          } catch (e) {}
-        }
-        APP.externalScannerWindow.postMessage(data, dest);
-      } catch (e) {
-        console.warn('[PostMessage] Gagal mengirim pesan ke popup pemindai:', e);
+        isClosed = APP.externalScannerWindow.closed;
+      } catch (e) {}
+      if (isClosed) {
+        console.warn('[PostMessage] Jendela pemindai eksternal telah tertutup.');
+        return false;
+      }
+
+      const verifiedOrigin = APP.externalScannerVerifiedOrigin;
+      if (!verifiedOrigin || !isAllowedScannerOrigin(verifiedOrigin)) {
+        console.error('[Security] Pengiriman hasil dibatalkan: target origin belum terverifikasi atau tidak terdaftar:', verifiedOrigin);
+        return false;
+      }
+
+      // Pastikan target origin BUKAN wildcard atau null
+      if (verifiedOrigin === '*' || verifiedOrigin === 'null') {
+        console.error('[Security] Pengiriman hasil ditolak: wildcard target origin dilarang.');
+        return false;
+      }
+
+      if (!APP.pendingScanResults) APP.pendingScanResults = {};
+      const reqId = data && data.requestId ? data.requestId : null;
+      if (reqId) {
+        APP.pendingScanResults[reqId] = {
+          sentAt: Date.now(),
+          type: data.type,
+          acknowledged: false
+        };
+      }
+
+      try {
+        APP.externalScannerWindow.postMessage(data, verifiedOrigin);
+        return true;
+      } catch (err) {
+        console.error('[PostMessage] Gagal memanggil postMessage ke jendela pemindai:', err.message || err);
+        return false;
       }
     }
 
@@ -2092,6 +2196,14 @@
       const targetUrl = baseUrl + sep + 'parentOrigin=' + encodeURIComponent(parentOrigin);
 
       setCameraStatus_('starting');
+
+      // Validasi origin yang diharapkan
+      try {
+        const expectedOrigin = new URL(baseUrl).origin;
+        if (isAllowedScannerOrigin(expectedOrigin)) {
+          APP.externalScannerVerifiedOrigin = expectedOrigin;
+        }
+      } catch (e) {}
 
       // Buka melalui klik langsung pengguna agar popup tidak diblokir
       APP.externalScannerWindow = window.open(
@@ -2111,18 +2223,21 @@
 
       try { APP.externalScannerWindow.focus(); } catch (e) {}
 
-      // Monitor penutupan jendela
+      // Monitor penutupan jendela tanpa mengganggu komunikasi yang sedang berlangsung
       if (APP.externalScannerMonitorInterval) {
         clearInterval(APP.externalScannerMonitorInterval);
       }
       APP.externalScannerMonitorInterval = setInterval(function () {
-        if (APP.externalScannerWindow && APP.externalScannerWindow.closed) {
-          clearInterval(APP.externalScannerMonitorInterval);
-          APP.externalScannerMonitorInterval = null;
-          APP.externalScannerWindow = null;
-          setCameraStatus_('off');
-          showToast('Jendela pemindai ditutup.');
-        }
+        try {
+          if (APP.externalScannerWindow && APP.externalScannerWindow.closed) {
+            clearInterval(APP.externalScannerMonitorInterval);
+            APP.externalScannerMonitorInterval = null;
+            APP.externalScannerWindow = null;
+            APP.externalScannerVerifiedOrigin = null;
+            setCameraStatus_('off');
+            showToast('Jendela pemindai ditutup.');
+          }
+        } catch (e) {}
       }, 1000);
     }
 
@@ -2614,13 +2729,24 @@
     }
 
     function handleScannedGuest(text, requestId) {
-      if (!['Admin','Panitia'].includes(APP.session.role)) {
-        APP.scanBusy = false;
-        return showToast('Akses ditolak.');
-      }
-
       const raw = String(text || '').trim();
       const reqId = String(requestId || ('TX-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8).toUpperCase())).trim();
+
+      if (!APP.session || !['Admin','Panitia'].includes(APP.session.role)) {
+        APP.scanBusy = false;
+        sendResultToScannerPopup_({
+          type: 'UIN_ARRANIRY_SCAN_RESULT',
+          requestId: reqId,
+          result: {
+            success: false,
+            resultCode: 'ACCESS_DENIED',
+            badge: 'AKSES DITOLAK',
+            message: 'Sesi login telah berakhir atau Anda tidak memiliki hak akses Panitia/Admin. Silakan login kembali di aplikasi induk.',
+            requestId: reqId
+          }
+        });
+        return showToast('Akses ditolak.');
+      }
 
       if (!raw) {
         APP.scanBusy = false;
@@ -2641,17 +2767,17 @@
       displayScanProcessing_(raw);
 
       let isFinished = false;
-      // Client-side safety timeout (12 detik) untuk mencegah UI macet jika jaringan/Apps Script hang
+      // Client-side safety timeout (20 detik) untuk memberi waktu backend Apps Script menyelesaikan penulisan sheets
       const clientTimeoutId = setTimeout(function () {
         if (!isFinished) {
           isFinished = true;
           APP.scanBusy = false;
-          console.warn('[' + reqId + '] Timeout pemanggilan backend Apps Script (12 detik)');
+          console.warn('[' + reqId + '] Timeout pemanggilan backend Apps Script (20 detik)');
           const timeoutRes = {
             success: false,
             resultCode: 'TIMEOUT_UNCONFIRMED',
             badge: 'TRANSAKSI BELUM TERKONFIRMASI',
-            message: 'Server belum memberikan konfirmasi akhir. Periksa status presensi sebelum mencoba kembali.',
+            message: 'Server belum memberikan konfirmasi akhir dalam 20 detik. Periksa status presensi sebelum mencoba kembali.',
             requestId: reqId
           };
           renderScanResult(timeoutRes);
@@ -2661,7 +2787,7 @@
             result: timeoutRes
           });
         }
-      }, 12000);
+      }, 20000);
 
       const successCallback = function (result) {
         if (isFinished) return;

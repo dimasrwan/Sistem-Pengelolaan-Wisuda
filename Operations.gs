@@ -473,22 +473,32 @@ function recordGuestExit(qrPayload, method) {
  */
 function processGuestScan(qrPayload, method, requestId) {
   var session = requireRole_(['Admin', 'Panitia']);
-  var reqId = String(requestId || ('REQ-' + Utilities.getUuid().slice(0, 8))).trim();
+  var reqId = String(requestId || ('TX-' + new Date().getTime() + '-' + Utilities.getUuid().slice(0, 6).toUpperCase())).trim();
 
   console.log('[' + reqId + '] processGuestScan dipanggil untuk: ' + qrPayload + ' (Metode: ' + (method || 'QR') + ')');
 
   // 1. Pemeriksaan Idempotensi Server-side (Mencegah double check-in / check-out jika request identik terulang)
   var cache = CacheService.getScriptCache();
   try {
-    var cached = cache.get('TX_' + reqId);
+    var cached = cache.get('IDEMP_' + reqId);
     if (cached) {
       console.log('[' + reqId + '] Idempotensi Cache Hit: Mengembalikan hasil transaksi yang telah tersimpan.');
       var parsedCache = JSON.parse(cached);
       parsedCache.isIdempotentReplay = true;
+      parsedCache.requestId = reqId;
       return parsedCache;
     }
   } catch (e) {
     console.warn('[' + reqId + '] Gagal membaca cache idempotensi:', e);
+  }
+
+  // 1b. Fallback Idempotensi Log Permanen jika CacheService telah kedaluwarsa (> 300s)
+  var loggedTx = findTransactionInLog_(reqId);
+  if (loggedTx) {
+    console.log('[' + reqId + '] Idempotensi Log Hit: Transaksi telah tercatat di LOG_AKTIVITAS.');
+    loggedTx.isIdempotentReplay = true;
+    try { cache.put('IDEMP_' + reqId, JSON.stringify(loggedTx), 300); } catch (e) {}
+    return loggedTx;
   }
 
   var resolved = resolveWisudawanFromQr_(qrPayload);
@@ -505,7 +515,7 @@ function processGuestScan(qrPayload, method, requestId) {
       currentStatus: 'TIDAK_DIKENAL',
       requestId: reqId
     };
-    try { cache.put('TX_' + reqId, JSON.stringify(errRes), 180); } catch (e) {}
+    try { cache.put('IDEMP_' + reqId, JSON.stringify(errRes), 180); } catch (e) {}
     return errRes;
   }
 
@@ -530,9 +540,12 @@ function processGuestScan(qrPayload, method, requestId) {
   try {
     // Periksa kembali cache setelah memperoleh lock (Double-checked locking)
     try {
-      var cachedAfterLock = cache.get('TX_' + reqId);
+      var cachedAfterLock = cache.get('IDEMP_' + reqId);
       if (cachedAfterLock) {
-        return JSON.parse(cachedAfterLock);
+        var replayRes = JSON.parse(cachedAfterLock);
+        replayRes.isIdempotentReplay = true;
+        replayRes.requestId = reqId;
+        return replayRes;
       }
     } catch (e) {}
 
@@ -583,11 +596,23 @@ function processGuestScan(qrPayload, method, requestId) {
       }
       SpreadsheetApp.flush();
 
+      var exitLogDetail = JSON.stringify({
+        requestId: reqId,
+        action: 'SCAN TAMU KELUAR',
+        resultCode: 'BERHASIL_KELUAR',
+        status: 'DI_LUAR',
+        studentId: studentInfo.id,
+        nim: studentInfo.nim || '',
+        name: studentInfo.name || '',
+        periodId: targetPeriodId || '',
+        time: timeStampStr
+      });
+
       logActivity_(
         session.email,
         'SCAN TAMU KELUAR',
         'PRESENSI_TAMU',
-        '[' + reqId + '] Wisudawan: ' + studentInfo.id + ' (' + studentInfo.name + ')'
+        exitLogDetail
       );
 
       finalResult = {
@@ -618,11 +643,23 @@ function processGuestScan(qrPayload, method, requestId) {
       sheet.appendRow(newRow);
       SpreadsheetApp.flush();
 
+      var entryLogDetail = JSON.stringify({
+        requestId: reqId,
+        action: 'SCAN TAMU MASUK',
+        resultCode: 'BERHASIL_MASUK',
+        status: 'DI_DALAM',
+        studentId: studentInfo.id,
+        nim: studentInfo.nim || '',
+        name: studentInfo.name || '',
+        periodId: targetPeriodId || '',
+        time: timeStampStr
+      });
+
       logActivity_(
         session.email,
         'SCAN TAMU MASUK',
         'PRESENSI_TAMU',
-        '[' + reqId + '] Wisudawan: ' + studentInfo.id + ' (' + studentInfo.name + ')'
+        entryLogDetail
       );
 
       finalResult = {
@@ -639,7 +676,7 @@ function processGuestScan(qrPayload, method, requestId) {
 
     // Simpan hasil ke cache untuk idempotensi (berlaku 300 detik)
     try {
-      cache.put('TX_' + reqId, JSON.stringify(finalResult), 300);
+      cache.put('IDEMP_' + reqId, JSON.stringify(finalResult), 300);
     } catch (e) {
       console.warn('[' + reqId + '] Gagal menyimpan ke cache:', e);
     }
@@ -655,27 +692,99 @@ function processGuestScan(qrPayload, method, requestId) {
 }
 
 /**
+ * Mencari catatan transaksi permanen di sheet LOG_AKTIVITAS berdasarkan requestId.
+ * Bersifat read-only dan aman digunakan untuk idempotensi serta pemulihan transaksi.
+ */
+function findTransactionInLog_(requestId) {
+  var reqId = String(requestId || '').trim();
+  if (!reqId) return null;
+
+  try {
+    var logSheetName = (CONFIG.SHEETS && (CONFIG.SHEETS.LOG || CONFIG.SHEETS.LOGS)) || 'LOG_AKTIVITAS';
+    var logRows = getRows_(logSheetName);
+    for (var l = logRows.length - 1; l >= Math.max(0, logRows.length - 150); l--) {
+      var detailRaw = String(findValue_(logRows[l], ['Detail', 'Keterangan', 'Deskripsi']) || '');
+      if (detailRaw.indexOf(reqId) === -1) continue;
+
+      var parsed = null;
+      try {
+        parsed = JSON.parse(detailRaw);
+      } catch (pe) {}
+
+      var isExit = false;
+      var resultCode = '';
+      var timeStr = '';
+      var statusStr = '';
+      var studentObj = null;
+
+      if (parsed && parsed.requestId === reqId) {
+        isExit = parsed.status === 'DI_LUAR' || parsed.resultCode === 'BERHASIL_KELUAR';
+        resultCode = parsed.resultCode || (isExit ? 'BERHASIL_KELUAR' : 'BERHASIL_MASUK');
+        statusStr = parsed.status || (isExit ? 'DI_LUAR' : 'DI_DALAM');
+        timeStr = parsed.time || String(findValue_(logRows[l], ['Timestamp', 'Waktu']) || '');
+        studentObj = {
+          id: parsed.studentId || '',
+          nim: parsed.nim || '',
+          name: parsed.name || '',
+          prodi: '',
+          fakultas: ''
+        };
+      } else if (detailRaw.indexOf('[' + reqId + ']') !== -1) {
+        // Dukungan backward-compatibility untuk format log warisan
+        var aksi = String(findValue_(logRows[l], ['Aksi', 'Aktivitas']) || '');
+        isExit = aksi.indexOf('KELUAR') !== -1;
+        resultCode = isExit ? 'BERHASIL_KELUAR' : 'BERHASIL_MASUK';
+        statusStr = isExit ? 'DI_LUAR' : 'DI_DALAM';
+        timeStr = String(findValue_(logRows[l], ['Timestamp', 'Waktu']) || '');
+      } else {
+        continue;
+      }
+
+      return {
+        success: true,
+        resultCode: resultCode,
+        badge: isExit ? 'BERHASIL KELUAR' : 'BERHASIL MASUK',
+        message: 'Transaksi telah terkonfirmasi di riwayat server: ' + (isExit ? 'Tamu Keluar' : 'Tamu Masuk'),
+        student: studentObj,
+        currentStatus: statusStr,
+        time: timeStr,
+        requestId: reqId,
+        isRecovered: true,
+        isFromLog: true
+      };
+    }
+  } catch (e) {
+    console.warn('[' + reqId + '] Gagal mencari log aktivitas:', e);
+  }
+  return null;
+}
+
+/**
  * Memeriksa status transaksi presensi berdasarkan requestId atau payload QR
  * Berguna saat scanner mengalami timeout atau pemulihan status tidak terkonfirmasi
  */
 function checkTransactionStatus(requestId, qrPayload) {
-  requireRole_(['Admin', 'Panitia']);
+  var session = requireRole_(['Admin', 'Panitia']);
   var reqId = String(requestId || '').trim();
 
   // 1. Cek cache transaksi berdasarkan requestId
   if (reqId) {
     try {
       var cache = CacheService.getScriptCache();
-      var cached = cache.get('TX_' + reqId);
+      var cached = cache.get('IDEMP_' + reqId);
       if (cached) {
         var parsed = JSON.parse(cached);
         parsed.isRecovered = true;
+        parsed.isFromCache = true;
+        parsed.requestId = reqId;
         return parsed;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[' + reqId + '] Gagal membaca cache status:', e);
+    }
   }
 
-  // 2. Jika tidak ada di cache, periksa status fisik saat ini di Google Sheets
+  // 2. Resolusi identitas wisudawan dari QR
   var resolved = resolveWisudawanFromQr_(qrPayload);
   if (!resolved || !resolved.student) {
     return {
@@ -688,12 +797,32 @@ function checkTransactionStatus(requestId, qrPayload) {
   }
 
   var studentInfo = formatStudentInfo_(resolved.student);
+  var targetPeriodId = resolved.targetPeriodId;
+
+  // 3. Cek log aktivitas permanen di LOG_AKTIVITAS untuk melihat apakah requestId pernah dieksekusi
+  if (reqId) {
+    var loggedTx = findTransactionInLog_(reqId);
+    if (loggedTx) {
+      if (!loggedTx.student || !loggedTx.student.name) {
+        loggedTx.student = studentInfo;
+      }
+      try {
+        CacheService.getScriptCache().put('IDEMP_' + reqId, JSON.stringify(loggedTx), 300);
+      } catch (e) {}
+      return loggedTx;
+    }
+  }
+
+  // 4. Jika tidak ada di cache dan tidak ada di log aktivitas:
+  // Berarti transaksi dengan requestId ini BELUM DIEKSEKUSI di database.
+  // Periksa status fisik sesi wisudawan saat ini di Google Sheets agar operator tahu posisi tamu saat ini.
   var info = getGuestAttendanceSheetInfo_();
   var values = info.values;
   var colMap = info.colMap;
   var idWisudawanIdx = colMap['id_wisudawan'] != null ? colMap['id_wisudawan'] : -1;
   var idTamuIdx = colMap['id_tamu'] != null ? colMap['id_tamu'] : (idWisudawanIdx >= 0 ? idWisudawanIdx : 2);
   var statusIdx = colMap['status'] != null ? colMap['status'] : 6;
+  var periodeIdx = colMap['id_periode'] != null ? colMap['id_periode'] : 1;
   var waktuCheckinIdx = colMap['waktu_checkin'] != null ? colMap['waktu_checkin'] : 3;
   var waktuKeluarIdx = colMap['waktu_keluar'] != null ? colMap['waktu_keluar'] : 7;
 
@@ -703,33 +832,37 @@ function checkTransactionStatus(requestId, qrPayload) {
 
   for (var r = values.length - 1; r >= 1; r--) {
     var row = values[r];
+    var rowPeriode = normalize_(row[periodeIdx]);
     var rowIdWisudawan = idWisudawanIdx >= 0 ? normalize_(row[idWisudawanIdx]) : '';
     var rowIdTamu = idTamuIdx >= 0 ? normalize_(row[idTamuIdx]) : '';
     var matchesStudent = (rowIdWisudawan && (rowIdWisudawan === normalize_(studentInfo.id) || (studentInfo.nim && studentInfo.nim !== '—' && rowIdWisudawan === normalize_(studentInfo.nim)))) ||
       (rowIdTamu && (rowIdTamu === normalize_(studentInfo.id) || (studentInfo.nim && studentInfo.nim !== '—' && rowIdTamu === normalize_(studentInfo.nim))));
+    var matchesPeriod = !targetPeriodId || rowPeriode === normalize_(targetPeriodId);
 
-    if (matchesStudent) {
+    if (matchesStudent && matchesPeriod) {
       var rowStatus = normalize_(row[statusIdx]);
       if (rowStatus === 'di_dalam') {
         isInside = true;
-        lastCheckin = row[waktuCheckinIdx];
+        lastCheckin = waktuCheckinIdx >= 0 ? row[waktuCheckinIdx] : '';
         break;
       } else if (!lastExit) {
         lastExit = waktuKeluarIdx >= 0 ? row[waktuKeluarIdx] : '';
-        lastCheckin = row[waktuCheckinIdx];
+        lastCheckin = waktuCheckinIdx >= 0 ? row[waktuCheckinIdx] : '';
       }
     }
   }
 
+  // Kembalikan status bahwa transaksi belum dieksekusi, dengan status saat ini di Sheets
   return {
     success: true,
-    resultCode: isInside ? 'STATUS_DI_DALAM' : 'STATUS_DI_LUAR',
-    badge: isInside ? 'STATUS: DI DALAM' : 'STATUS: DI LUAR',
-    message: isInside ? 'Tamu tercatat DI DALAM gedung.' : 'Tamu tercatat DI LUAR gedung (Slot tersedia).',
+    resultCode: 'TX_UNPROCESSED',
+    badge: 'BELUM TERCATAT DI SERVER',
+    message: 'Transaksi ID ini belum sempat tercatat di Google Sheets. Status tamu saat ini di database: ' + (isInside ? 'DI DALAM' : 'DI LUAR') + '.',
     student: studentInfo,
     currentStatus: isInside ? 'DI_DALAM' : 'DI_LUAR',
-    time: isInside ? lastCheckin : lastExit,
+    lastRecordedTime: isInside ? lastCheckin : lastExit,
     requestId: reqId,
+    canRetry: true,
     isStatusCheck: true
   };
 }

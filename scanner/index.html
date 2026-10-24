@@ -519,6 +519,23 @@
     let audioCtx = null;
     const recentScans = [];
 
+    // Validasi origin induk Google Apps Script atau localhost
+    function isAllowedParentOrigin(origin) {
+      if (!origin || typeof origin !== 'string') return false;
+      const clean = origin.trim().toLowerCase();
+      // Domain Google Apps Script resmi
+      if (clean.endsWith('.script.google.com') ||
+          clean === 'https://script.google.com' ||
+          clean.endsWith('.script.googleusercontent.com')) {
+        return true;
+      }
+      // Local dev
+      if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?$/.test(clean)) {
+        return true;
+      }
+      return false;
+    }
+
     // Parse target origin from query parameter (?parentOrigin=...)
     (function initOrigin() {
       const params = new URLSearchParams(window.location.search);
@@ -526,7 +543,11 @@
       if (rawOrigin) {
         try {
           const parsed = new URL(rawOrigin);
-          targetOrigin = parsed.origin;
+          if (isAllowedParentOrigin(parsed.origin)) {
+            targetOrigin = parsed.origin;
+          } else {
+            console.warn('[Security] parentOrigin tidak diizinkan:', rawOrigin);
+          }
         } catch (e) {
           console.warn('Invalid parentOrigin URL param:', rawOrigin);
         }
@@ -556,30 +577,54 @@
 
     // Setup listener for incoming messages from Parent Window (GAS Web App)
     window.addEventListener('message', function (event) {
-      // Validate origin if targetOrigin is configured
+      // 1. Validasi origin pengirim: harus origin Google Apps Script atau localhost terdaftar
+      if (!isAllowedParentOrigin(event.origin)) {
+        console.warn('[Security] Diabaikan pesan dari origin asing:', event.origin);
+        return;
+      }
       if (targetOrigin && event.origin !== targetOrigin) {
-        const isGoogle = event.origin.endsWith('script.google.com') ||
-                         event.origin.endsWith('script.googleusercontent.com');
-        if (!isGoogle) {
-          console.warn('[Security] Diabaikan pesan dari origin asing:', event.origin);
-          return;
-        }
+        console.warn('[Security] Origin pengirim tidak cocok dengan targetOrigin induk:', event.origin);
+        return;
+      }
+
+      // 2. Validasi bahwa event.source adalah window.opener yang sah
+      if (window.opener && event.source !== window.opener) {
+        console.warn('[Security] Diabaikan pesan dari source yang bukan window opener.');
+        return;
       }
 
       const data = event.data;
       if (!data || typeof data !== 'object') return;
 
+      // 0. Handshake ACK from parent
+      if (data.type === 'UIN_ARRANIRY_PARENT_ACK') {
+        const text = document.getElementById('conn-text');
+        if (text) {
+          text.innerHTML = '🟢 <strong>Terhubung</strong> ke Sistem Pengelolaan Wisuda' + (data.role ? ' (' + escapeHtml(data.role) + ')' : '');
+        }
+        return;
+      }
+
       // 1. ACK received from parent
       if (data.type === 'UIN_ARRANIRY_SCAN_ACK') {
         if (!pendingRequestId || data.requestId === pendingRequestId) {
           const lbl = document.getElementById('viewfinder-label');
-          if (lbl) lbl.textContent = '🔄 2/2 Diterima Induk — Memvalidasi di Google Sheets...';
+          if (lbl) lbl.textContent = '🔄 2/3 Diterima Induk — Memvalidasi di Google Sheets...';
         }
         return;
       }
 
       // 2. REAL BACKEND RESULT RECEIVED
       if (data.type === 'UIN_ARRANIRY_SCAN_RESULT') {
+        // Kirim konfirmasi penerimaan tingkat aplikasi (ACK) kembali ke jendela induk
+        if (data.requestId) {
+          sendToParent({
+            type: 'UIN_ARRANIRY_CLIENT_ACK',
+            requestId: data.requestId,
+            receivedAt: Date.now()
+          });
+        }
+
         // Cocokkan correlation ID requestId jika tersedia
         if (pendingRequestId && data.requestId && data.requestId !== pendingRequestId) {
           console.warn('[CorrelationID] Mengabaikan respons lama:', data.requestId, 'Expected:', pendingRequestId);
@@ -588,6 +633,14 @@
 
         // Hentikan timer timeout transaksi
         clearPendingTimer();
+
+        // Jika transaksi berstatus belum diproses (TX_UNPROCESSED), pertahankan pendingRequestId agar bisa di-retry
+        if (data.result && data.result.resultCode === 'TX_UNPROCESSED') {
+          isProcessingTransaction = false;
+          renderBackendResult(data.result);
+          return;
+        }
+
         isProcessingTransaction = false;
         pendingRequestId = null;
         pendingPayload = null;
@@ -596,14 +649,19 @@
       }
     });
 
+    let pendingProgressTimer = null;
     function clearPendingTimer() {
       if (pendingTransactionTimer) {
         clearTimeout(pendingTransactionTimer);
         pendingTransactionTimer = null;
       }
+      if (pendingProgressTimer) {
+        clearTimeout(pendingProgressTimer);
+        pendingProgressTimer = null;
+      }
     }
 
-    // Penanganan timeout jika server tidak merespons dalam 10 detik
+    // Penanganan timeout jika server tidak merespons dalam 18 detik
     function onTransactionTimeout() {
       clearPendingTimer();
       isProcessingTransaction = false;
@@ -627,7 +685,7 @@
           </div>
           <div class="result-body">
             <div style="font-weight:700;margin-bottom:6px;color:#92400e;">
-              Server belum memberikan konfirmasi akhir dalam 10 detik.
+              Server belum memberikan konfirmasi akhir dalam 18 detik.
             </div>
             <div class="result-meta-row">
               <span class="result-meta-label">ID Transaksi</span>
@@ -638,7 +696,7 @@
               <span class="result-meta-val" style="font-family:monospace;font-size:11px;">${escapeHtml(codeDisplay)}</span>
             </div>
             <div style="font-size:11.5px;color:var(--muted);margin:8px 0;line-height:1.4;">
-              Data mungkin telah tersimpan di Google Sheets. Periksa status transaksi sebelum memindai ulang untuk mencegah kesalahan status.
+              Data mungkin telah tersimpan di Google Sheets atau tertunda antrean server. Periksa status transaksi sebelum memindai ulang untuk mencegah kesalahan status.
             </div>
             <div style="display:flex;gap:8px;margin-top:10px;">
               <button class="btn btn-primary" onclick="checkCurrentTransactionStatus()" style="flex:1;height:38px;font-size:12px;">
@@ -668,18 +726,69 @@
       const vfLabel = document.getElementById('viewfinder-label');
       if (vfLabel) vfLabel.textContent = '🔄 Menghubungi server untuk cek status...';
 
-      // Set timer singkat untuk respon periksa status (6s)
+      // Set timer singkat untuk respon periksa status (8s)
       clearPendingTimer();
       pendingTransactionTimer = setTimeout(function () {
         clearPendingTimer();
         if (vfLabel) vfLabel.textContent = '⚠️ Status Masih Belum Terkonfirmasi';
-      }, 6000);
+      }, 8000);
 
       sendToParent({
         type: 'UIN_ARRANIRY_CHECK_TX',
         requestId: reqId,
         payload: payload,
         timestamp: Date.now()
+      });
+    }
+
+    // Mencoba ulang transaksi yang belum diproses dengan requestId yang sama
+    function retryCurrentTransaction() {
+      const reqId = pendingRequestId;
+      const payload = pendingPayload || activeLockedCode;
+      if (!reqId || !payload) {
+        resetPendingTransaction();
+        return;
+      }
+
+      const now = Date.now();
+      isProcessingTransaction = true;
+
+      // Start 18s safety timer
+      clearPendingTimer();
+      pendingTransactionTimer = setTimeout(onTransactionTimeout, 18000);
+      pendingProgressTimer = setTimeout(function () {
+        if (isProcessingTransaction && pendingRequestId) {
+          const vfLabel = document.getElementById('viewfinder-label');
+          if (vfLabel) vfLabel.textContent = '⏳ 3/3 Masih Memproses di Server (Menunggu Respons)...';
+        }
+      }, 6000);
+
+      const vfBox = document.getElementById('viewfinder-box');
+      const vfLabel = document.getElementById('viewfinder-label');
+      if (vfBox) vfBox.classList.add('scanned');
+      if (vfLabel) vfLabel.textContent = '🔄 1/3 Mengirim Ulang Transaksi ke Server...';
+
+      const container = document.getElementById('result-box-container');
+      container.innerHTML = `
+        <div class="result-card card-pending">
+          <div class="result-header">
+            <span class="spinner" style="display:inline-block;width:12px;height:12px;border:2px solid #92400e;border-top-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
+            <span>MEMPROSES TRANSAKSI PRESENSI...</span>
+          </div>
+          <div class="result-body">
+            <div style="font-family:monospace;font-weight:700;color:#92400e;margin-bottom:4px;">${escapeHtml(payload)}</div>
+            <div style="font-size:11.5px;color:#78350f;">Memproses transaksi dengan ID yang sama di Google Sheets...</div>
+            <div style="font-size:10.5px;color:var(--muted);margin-top:4px;font-family:monospace;">ID: ${reqId}</div>
+          </div>
+        </div>
+      `;
+
+      sendToParent({
+        type: 'UIN_ARRANIRY_QR_SCAN',
+        payload: payload,
+        requestId: reqId,
+        timestamp: now,
+        isRetry: true
       });
     }
 
@@ -761,12 +870,15 @@
       }
     }
 
-    // Safely send message to opener
+    // Safely send message to opener with strict verified origin (no wildcard)
     function sendToParent(msg) {
-      if (!window.opener || window.opener.closed) return false;
+      if (!window.opener) return false;
+      if (!targetOrigin || !isAllowedParentOrigin(targetOrigin)) {
+        console.warn('[Security] Pengiriman ke induk dibatalkan: targetOrigin tidak valid atau belum diverifikasi:', targetOrigin);
+        return false;
+      }
       try {
-        const dest = targetOrigin || '*';
-        window.opener.postMessage(msg, dest);
+        window.opener.postMessage(msg, targetOrigin);
         return true;
       } catch (e) {
         console.error('Error posting message to opener:', e);
@@ -781,6 +893,60 @@
       const container = document.getElementById('result-box-container');
       const vfBox = document.getElementById('viewfinder-box');
       const vfLabel = document.getElementById('viewfinder-label');
+
+      // Kasus Khusus: Transaksi belum dieksekusi di database (TX_UNPROCESSED)
+      if (res.resultCode === 'TX_UNPROCESSED') {
+        playBeep('error');
+        const s = res.student || {};
+        const isCurrentlyInside = res.currentStatus === 'DI_DALAM';
+        const statusBadge = isCurrentlyInside
+          ? '<span class="history-badge badge-in" style="font-size:11px;">DI DALAM GEDUNG</span>'
+          : '<span class="history-badge badge-out" style="font-size:11px;">DI LUAR GEDUNG</span>';
+
+        container.innerHTML = `
+          <div class="result-card card-unconfirmed">
+            <div class="result-header">
+              <span>ℹ️</span>
+              <span>BELUM TERCATAT DI SERVER</span>
+            </div>
+            <div class="result-body">
+              <div style="font-weight:700;margin-bottom:8px;color:#92400e;">
+                ${escapeHtml(res.message || 'Transaksi belum tercatat di Google Sheets.')}
+              </div>
+              <div class="result-meta-row">
+                <span class="result-meta-label">Wisudawan</span>
+                <span class="result-meta-val" style="color:var(--primary);">${escapeHtml(s.name || '—')}</span>
+              </div>
+              <div class="result-meta-row">
+                <span class="result-meta-label">NIM</span>
+                <span class="result-meta-val">${escapeHtml(s.nim || '—')}</span>
+              </div>
+              <div class="result-meta-row">
+                <span class="result-meta-label">Status Database</span>
+                <span class="result-meta-val">${statusBadge}</span>
+              </div>
+              <div class="result-meta-row" style="font-size:10.5px;color:var(--muted);margin-top:4px;">
+                <span class="result-meta-label">ID Transaksi</span>
+                <span class="result-meta-val" style="font-family:monospace;">${escapeHtml(res.requestId || pendingRequestId || '—')}</span>
+              </div>
+              <div style="font-size:11.5px;color:var(--muted);margin:8px 0;line-height:1.4;">
+                Transaksi dengan ID ini belum dieksekusi. Klik <strong>Proses Sekarang</strong> untuk mencatat ${isCurrentlyInside ? 'Check-out (Keluar)' : 'Check-in (Masuk)'} secara aman.
+              </div>
+              <div style="display:flex;gap:8px;margin-top:10px;">
+                <button class="btn btn-primary" onclick="retryCurrentTransaction()" style="flex:1;height:38px;font-size:12px;background:#15803d;border-color:#15803d;">
+                  🔁 Proses Sekarang
+                </button>
+                <button class="btn btn-outline" onclick="resetPendingTransaction()" style="flex:1;height:38px;font-size:12px;">
+                  ↻ Batal / Reset
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+        if (vfBox) vfBox.classList.add('locked');
+        if (vfLabel) vfLabel.textContent = 'ℹ️ Transaksi Belum Tercatat — Klik Proses Sekarang untuk Eksekusi';
+        return;
+      }
 
       const isEntry = res.resultCode === 'BERHASIL_MASUK';
       const isExit = res.resultCode === 'BERHASIL_KELUAR';
@@ -932,9 +1098,15 @@
       pendingRequestId = currentRequestId;
       pendingPayload = clean;
 
-      // Pasang timeout 10 detik untuk memastikan UI tidak pernah macet
+      // Pasang timeout 18 detik dan update progres di 6 detik
       clearPendingTimer();
-      pendingTransactionTimer = setTimeout(onTransactionTimeout, 10000);
+      pendingTransactionTimer = setTimeout(onTransactionTimeout, 18000);
+      pendingProgressTimer = setTimeout(function () {
+        if (isProcessingTransaction && pendingRequestId) {
+          const vfLabel = document.getElementById('viewfinder-label');
+          if (vfLabel) vfLabel.textContent = '⏳ 3/3 Masih Memproses di Server (Menunggu Respons)...';
+        }
+      }, 6000);
 
       // Animate viewfinder
       const vfBox = document.getElementById('viewfinder-box');
@@ -943,7 +1115,7 @@
         vfBox.classList.add('scanned');
       }
       if (vfLabel) {
-        vfLabel.textContent = '⏳ 1/2 QR Dibaca — Mengirim ke Aplikasi Induk...';
+        vfLabel.textContent = '⏳ 1/3 QR Dibaca — Mengirim ke Aplikasi Induk...';
       }
 
       // Display pending state card
