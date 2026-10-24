@@ -212,7 +212,8 @@
       APP.currentPage = page;
 
       document.querySelectorAll('.side-link[data-page]').forEach(function (element) {
-        element.classList.toggle('active', element.dataset.page === page);
+        const isActive = element.dataset.page === page || (page === 'import-students' && element.dataset.page === 'students');
+        element.classList.toggle('active', isActive);
       });
 
       const sidebar = document.getElementById('sidebar');
@@ -227,6 +228,7 @@
       const renderers = {
         dashboard: renderDashboard,
         students: renderStudents,
+        'import-students': renderImportStudents,
         calls: renderCalls,
         seats: renderSeats,
         best: renderBest,

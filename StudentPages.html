@@ -9,42 +9,11 @@
         pageHeader(
           'Data Wisudawan',
           'Kelola data wisudawan untuk setiap gelombang wisuda.',
-          '<button class="btn" onclick="toggleStudentImport()">Import Data Wisudawan</button>'
+          '<button class="btn" onclick="navigate(\'import-students\')">' +
+            '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>' +
+            'Import Data Wisudawan' +
+          '</button>'
         ) +
-        '<div class="panel import-panel hidden" id="student-import-panel">' +
-          '<div class="panel-head"><div><h2>Import Data Wisudawan</h2>' +
-          '<div class="import-status-line">Unggah file SIAKAD, periksa, lalu simpan ke gelombang tujuan.</div></div>' +
-          '<button class="btn btn-outline btn-sm" onclick="toggleStudentImport(false)">Tutup</button></div>' +
-          '<div class="panel-body">' +
-            '<div class="notice notice-warn">Data akan ditambahkan ke periode yang dipilih. Data gelombang lain tidak dihapus. NIM dan nama wajib tersedia; duplikat akan dilewati.</div>' +
-            '<div class="import-grid">' +
-              '<div class="import-field"><label for="import-period">Gelombang tujuan</label>' +
-                '<select id="import-period" class="field" onchange="runStudentImportPreview()"><option value="">Memuat periode...</option></select>' +
-                '<div id="import-period-info" class="import-status-line">Pilih periode tujuan.</div></div>' +
-              '<div class="import-field"><label>Periode belum tersedia?</label>' +
-                '<div><button class="btn btn-outline" onclick="toggleNewPeriodForm()">Buat gelombang baru</button></div>' +
-                '<div class="import-status-line">Periode baru dibuat tanpa mengubah periode lama.</div></div>' +
-            '</div>' +
-            '<div class="period-form hidden" id="new-period-form">' +
-              '<h3 style="margin:0 0 12px;font:800 14px Manrope,sans-serif">Buat Periode Wisuda</h3>' +
-              '<div class="period-form-grid">' +
-                '<div class="import-field"><label for="new-period-name">Nama periode</label><input id="new-period-name" class="field" placeholder="Wisuda Gelombang IV Tahun 2027"></div>' +
-                '<div class="import-field"><label for="new-period-year">Tahun</label><input id="new-period-year" class="field" type="number" min="2000" max="2100" placeholder="2027"></div>' +
-                '<div class="import-field"><label for="new-period-wave">Gelombang</label><input id="new-period-wave" class="field" placeholder="IV"></div>' +
-                '<div class="import-field"><label for="new-period-date">Tanggal pelaksanaan</label><input id="new-period-date" class="field" type="date"></div>' +
-                '<div class="import-field" style="grid-column:1/-1"><label for="new-period-location">Lokasi</label><input id="new-period-location" class="field" placeholder="Lokasi wisuda"></div>' +
-              '</div>' +
-              '<div class="toolbar" style="margin-top:14px"><button class="btn" onclick="createStudentPeriod()">Simpan Periode</button><button class="btn btn-outline" onclick="toggleNewPeriodForm(false)">Batal</button></div>' +
-              '<div id="new-period-message" style="margin-top:10px"></div>' +
-            '</div>' +
-            '<div class="import-drop" style="margin-top:18px"><strong>Unggah file Excel atau CSV</strong>' +
-              '<p>Format .xlsx, .xls, atau .csv. Baris pertama file harus berisi header. Maksimal 10.000 baris dan 10 MB per impor.</p>' +
-              '<input type="file" id="student-import-file" class="field" accept=".xlsx,.xls,.csv" onchange="processStudentImportFile(this.files&&this.files[0])" style="max-width:100%">' +
-              '<div id="import-file-info" class="import-status-line" style="margin-top:10px">Belum ada file yang dipilih.</div></div>' +
-            '<div id="import-preview-container" style="margin-top:18px"><div class="table-empty">Pilih gelombang dan unggah file untuk memeriksa data.</div></div>' +
-            '<div class="toolbar" style="margin-top:16px"><button class="btn" id="confirm-import-btn" onclick="confirmStudentImport()" disabled>Impor Data Valid</button><button class="btn btn-outline" onclick="resetStudentImport()">Reset</button></div>' +
-          '</div>' +
-        '</div>' +
         '<div class="panel"><div class="panel-head"><h2>Data induk wisudawan</h2></div>' +
           '<div class="panel-body">' +
             '<div class="student-filter-grid">' +
@@ -59,7 +28,7 @@
               '<label style="display:flex;align-items:center;gap:8px">Baris <select id="student-page-size" class="field" style="width:auto" onchange="searchStudentRows()"><option>25</option><option>50</option><option>100</option></select></label>' +
             '</div><div id="student-table"><div class="table-empty">Memuat data...</div></div><div id="student-pagination" class="student-pagination"></div></div></div>';
 
-      ['filter-period', 'filter-faculty', 'filter-program', 'filter-level', 'student-page-size', 'import-period'].forEach(syncCustomSelect);
+      ['filter-period', 'filter-faculty', 'filter-program', 'filter-level', 'student-page-size'].forEach(syncCustomSelect);
 
       loadStudentImportSetup(null, function () {
         loadStudentFilterOptions();
@@ -67,20 +36,139 @@
       });
     }
 
-    function toggleStudentImport(forceOpen) {
-      const panel = document.getElementById('student-import-panel');
-      if (!panel) return;
+    function toggleStudentImport() {
+      navigate('import-students');
+    }
 
-      const open = typeof forceOpen === 'boolean'
-        ? forceOpen
-        : panel.classList.contains('hidden');
-
-      panel.classList.toggle('hidden', !open);
-
-      if (open) {
-        loadStudentImportSetup();
-        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    function renderImportStudents() {
+      if (APP.session.role !== 'Admin') {
+        showToast('Akses ditolak.');
+        return;
       }
+
+      const content = document.getElementById('page-content');
+      content.innerHTML =
+        '<div class="breadcrumb" aria-label="Breadcrumb">' +
+          '<a href="javascript:void(0)" onclick="navigate(\'students\')">Data Wisudawan</a>' +
+          '<span class="sep">/</span>' +
+          '<span class="current">Import Data</span>' +
+        '</div>' +
+        pageHeader(
+          'Import Data Wisudawan',
+          'Unggah data wisudawan dari SIAKAD (Excel/CSV) ke gelombang wisuda tujuan.',
+          '<button class="btn btn-outline" onclick="navigate(\'students\')">' +
+            '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>' +
+            'Kembali ke Data Wisudawan</button>'
+        ) +
+        '<div class="import-steps">' +
+          '<div class="import-step-card">' +
+            '<div class="import-step-num">1</div>' +
+            '<div class="import-step-info"><strong>Pilih Gelombang</strong><span>Tentukan periode wisuda</span></div>' +
+          '</div>' +
+          '<div class="import-step-card">' +
+            '<div class="import-step-num">2</div>' +
+            '<div class="import-step-info"><strong>Unggah File</strong><span>File Excel atau CSV</span></div>' +
+          '</div>' +
+          '<div class="import-step-card">' +
+            '<div class="import-step-num">3</div>' +
+            '<div class="import-step-info"><strong>Validasi & Pratinjau</strong><span>Pemeriksaan integritas</span></div>' +
+          '</div>' +
+          '<div class="import-step-card">' +
+            '<div class="import-step-num">4</div>' +
+            '<div class="import-step-info"><strong>Konfirmasi Impor</strong><span>Simpan ke Google Sheets</span></div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="panel">' +
+          '<div class="panel-head"><div><h2>Formulir Import Data Wisudawan</h2>' +
+          '<div class="import-status-line">Data akan ditambahkan ke periode terpilih tanpa menghapus gelombang lain.</div></div></div>' +
+          '<div class="panel-body">' +
+            '<div class="notice notice-info" style="margin-bottom:18px;">' +
+              '<strong>Ketentuan Import Data:</strong>' +
+              '<ul style="margin:6px 0 0 18px;padding:0;font-size:12.5px;line-height:1.6;">' +
+                '<li>Data akan ditambahkan ke gelombang wisuda yang dipilih. Data wisudawan pada gelombang lain <strong>tidak akan terhapus</strong>.</li>' +
+                '<li>Kolom <strong>NIM</strong> dan <strong>Nama</strong> wajib tersedia pada file. Kolom prodi, fakultas, dan jenjang akan disinkronkan otomatis.</li>' +
+                '<li>Data dengan NIM yang sudah ada pada database atau berulang dalam file akan otomatis terdeteksi saat validasi.</li>' +
+              '</ul>' +
+            '</div>' +
+            '<div class="import-grid">' +
+              '<div class="import-field">' +
+                '<label for="import-period">1. Gelombang Wisuda Tujuan</label>' +
+                '<select id="import-period" class="field" onchange="runStudentImportPreview()">' +
+                  '<option value="">Memuat periode...</option>' +
+                '</select>' +
+                '<div id="import-period-info" class="import-status-line">Memuat daftar periode...</div>' +
+              '</div>' +
+              '<div class="import-field">' +
+                '<label>Periode Belum Tersedia?</label>' +
+                '<div>' +
+                  '<button type="button" class="btn btn-outline" onclick="toggleNewPeriodForm()">' +
+                    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>' +
+                    'Buat Gelombang Baru' +
+                  '</button>' +
+                '</div>' +
+                '<div class="import-status-line">Periode baru akan langsung tersimpan dan siap dipilih.</div>' +
+              '</div>' +
+            '</div>' +
+            '<div class="period-form hidden" id="new-period-form">' +
+              '<h3 style="margin:0 0 12px;font:800 14px Manrope,sans-serif">Buat Periode Wisuda Baru</h3>' +
+              '<div class="period-form-grid">' +
+                '<div class="import-field"><label for="new-period-name">Nama periode</label><input id="new-period-name" class="field" placeholder="Wisuda Gelombang IV Tahun 2027"></div>' +
+                '<div class="import-field"><label for="new-period-year">Tahun</label><input id="new-period-year" class="field" type="number" min="2000" max="2100" placeholder="2027"></div>' +
+                '<div class="import-field"><label for="new-period-wave">Gelombang</label><input id="new-period-wave" class="field" placeholder="IV"></div>' +
+                '<div class="import-field"><label for="new-period-date">Tanggal pelaksanaan</label><input id="new-period-date" class="field" type="date"></div>' +
+                '<div class="import-field" style="grid-column:1/-1"><label for="new-period-location">Lokasi</label><input id="new-period-location" class="field" placeholder="Contoh: Auditorium Prof. Ali Hasjmy"></div>' +
+              '</div>' +
+              '<div class="toolbar" style="margin-top:14px">' +
+                '<button type="button" class="btn" onclick="createStudentPeriod()">Simpan Periode</button>' +
+                '<button type="button" class="btn btn-outline" onclick="toggleNewPeriodForm(false)">Batal</button>' +
+              '</div>' +
+              '<div id="new-period-message" style="margin-top:10px"></div>' +
+            '</div>' +
+            '<div class="import-drop" style="margin-top:20px;">' +
+              '<strong>2. Unggah File Excel atau CSV</strong>' +
+              '<p>Format yang didukung: <code>.xlsx</code>, <code>.xls</code>, atau <code>.csv</code>. Baris pertama file harus berupa nama kolom (header). Maksimal 10.000 baris dan ukuran berkas maksimal 10 MB.</p>' +
+              '<div style="max-width:420px;margin:0 auto;">' +
+                '<input type="file" id="student-import-file" class="field" accept=".xlsx,.xls,.csv" onchange="processStudentImportFile(this.files&&this.files[0])" style="width:100%">' +
+              '</div>' +
+              '<div id="import-file-info" class="import-status-line" style="margin-top:12px;font-weight:600;">Belum ada file yang dipilih.</div>' +
+            '</div>' +
+            '<div style="margin-top:24px;">' +
+              '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">' +
+                '<h3 style="margin:0;font:800 15px Manrope,sans-serif">3. Hasil Validasi & Pratinjau Data</h3>' +
+                '<button type="button" id="btn-revalidate" class="btn btn-outline btn-sm" onclick="runStudentImportPreview()">' +
+                  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>' +
+                  'Validasi Ulang' +
+                '</button>' +
+              '</div>' +
+              '<div id="import-preview-container"><div class="table-empty">Pilih gelombang dan unggah file untuk memeriksa validasi data.</div></div>' +
+            '</div>' +
+            '<div id="import-summary-container" style="margin-top:16px;"></div>' +
+            '<div class="toolbar" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line);">' +
+              '<button type="button" class="btn" id="confirm-import-btn" onclick="confirmStudentImport()" disabled>' +
+                '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
+                '4. Konfirmasi & Impor Data Valid' +
+              '</button>' +
+              '<button type="button" class="btn btn-outline" onclick="resetStudentImport()">' +
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>' +
+                'Reset File' +
+              '</button>' +
+              '<button type="button" class="btn btn-outline" onclick="navigate(\'students\')" style="margin-left:auto;">' +
+                'Kembali ke Data Wisudawan' +
+              '</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+
+      syncCustomSelect('import-period');
+      loadStudentImportSetup(null, function () {
+        if (APP.importRows && APP.importRows.length) {
+          const info = document.getElementById('import-file-info');
+          if (info && APP.importFileName) {
+            info.textContent = APP.importFileName + ' · ' + APP.importRows.length.toLocaleString('id-ID') + ' baris dimuat';
+          }
+          runStudentImportPreview();
+        }
+      });
     }
 
     function loadStudentImportSetup(selectPeriodId, onComplete) {
@@ -310,6 +398,7 @@
 
       APP.importPreview = null;
       button.disabled = true;
+      button.textContent = '4. Konfirmasi & Impor Data Valid';
 
       if (!APP.importRows || !APP.importRows.length) {
         container.innerHTML = '<div class="table-empty">Unggah file Excel/CSV untuk melihat pratinjau.</div>';
@@ -328,10 +417,14 @@
           APP.importPreview = result;
           renderStudentImportPreview(result);
           button.disabled = !(result.importable > 0);
+          button.textContent = result.importable > 0
+            ? '4. Impor ' + Number(result.importable).toLocaleString('id-ID') + ' Data Valid'
+            : '4. Konfirmasi & Impor Data Valid';
         })
         .withFailureHandler(function (error) {
           APP.importPreview = null;
           button.disabled = true;
+          button.textContent = '4. Konfirmasi & Impor Data Valid';
 
           container.innerHTML = '<div class="notice notice-error">' +
             escapeHtml(getErrorMessage(error)) + '</div>';
@@ -434,7 +527,31 @@
           const info = document.getElementById('import-file-info');
           if (info) info.textContent = 'Import selesai. Pilih file lain untuk impor berikutnya.';
 
-          searchStudentRows(true);
+          const summaryContainer = document.getElementById('import-summary-container');
+          if (summaryContainer) {
+            summaryContainer.innerHTML =
+              '<div class="notice notice-success" style="margin-top:14px;">' +
+                '<h4 style="margin:0 0 6px;font:800 14px Manrope,sans-serif">Ringkasan Hasil Import</h4>' +
+                '<p style="margin:0 0 10px;font-size:12.5px;">' + escapeHtml(result.message) + '</p>' +
+                '<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">' +
+                  'Data wisudawan telah berhasil disimpan ke Google Sheets. Anda dapat langsung melihat data pada tabel Data Wisudawan atau mengimpor file gelombang lain.' +
+                '</div>' +
+                '<div class="toolbar">' +
+                  '<button type="button" class="btn btn-sm" onclick="navigate(\'students\')">' +
+                    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>' +
+                    'Lihat di Data Wisudawan' +
+                  '</button>' +
+                  '<button type="button" class="btn btn-outline btn-sm" onclick="resetStudentImport()">' +
+                    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>' +
+                    'Impor File Lain' +
+                  '</button>' +
+                '</div>' +
+              '</div>';
+          }
+
+          if (document.getElementById('student-table')) {
+            searchStudentRows(true);
+          }
           loadStudentImportSetup();
         })
         .withFailureHandler(function (error) {
@@ -457,11 +574,16 @@
       const info = document.getElementById('import-file-info');
       const preview = document.getElementById('import-preview-container');
       const button = document.getElementById('confirm-import-btn');
+      const summary = document.getElementById('import-summary-container');
 
       if (input) input.value = '';
       if (info) info.textContent = 'Belum ada file yang dipilih.';
-      if (preview) preview.innerHTML = '<div class="table-empty">Pilih gelombang dan unggah file untuk memeriksa data.</div>';
-      if (button) button.disabled = true;
+      if (preview) preview.innerHTML = '<div class="table-empty">Pilih gelombang dan unggah file untuk memeriksa validasi data.</div>';
+      if (summary) summary.innerHTML = '';
+      if (button) {
+        button.disabled = true;
+        button.textContent = '4. Konfirmasi & Impor Data Valid';
+      }
       const importPeriodSelect = document.getElementById('import-period');
       if (importPeriodSelect) {
         importPeriodSelect.value = '';
