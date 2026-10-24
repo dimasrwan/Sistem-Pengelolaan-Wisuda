@@ -562,6 +562,10 @@ function processGuestScan(qrPayload, method, requestId) {
 
     var activeRowIndex = -1;
     var activeCheckinTime = '';
+    var previousStatus = 'BELUM_ADA';
+    var previousAction = 'TIDAK_ADA';
+    var previousTimestamp = '';
+    var foundRecentRow = false;
 
     for (var r = values.length - 1; r >= 1; r--) {
       var row = values[r];
@@ -574,12 +578,27 @@ function processGuestScan(qrPayload, method, requestId) {
         (rowIdTamu && (rowIdTamu === normalize_(studentInfo.id) || (studentInfo.nim && studentInfo.nim !== '—' && rowIdTamu === normalize_(studentInfo.nim))));
       var matchesPeriod = !targetPeriodId || rowPeriode === normalize_(targetPeriodId);
 
-      if (matchesStudent && matchesPeriod && rowStatus === 'di_dalam') {
-        activeRowIndex = r + 1; // 1-indexed untuk Google Sheet
-        if (colMap['waktu_checkin'] != null) {
-          activeCheckinTime = row[colMap['waktu_checkin']];
+      if (matchesStudent && matchesPeriod) {
+        if (!foundRecentRow) {
+          foundRecentRow = true;
+          if (rowStatus === 'di_dalam') {
+            previousStatus = 'DI_DALAM';
+            previousAction = 'MASUK';
+            previousTimestamp = colMap['waktu_checkin'] != null ? String(row[colMap['waktu_checkin']] || '') : '';
+          } else {
+            previousStatus = 'DI_LUAR';
+            previousAction = 'KELUAR';
+            previousTimestamp = (waktuKeluarIdx >= 0 ? String(row[waktuKeluarIdx] || '') : '') || (colMap['waktu_checkin'] != null ? String(row[colMap['waktu_checkin']] || '') : '');
+          }
         }
-        break;
+
+        if (rowStatus === 'di_dalam') {
+          activeRowIndex = r + 1; // 1-indexed untuk Google Sheet
+          if (colMap['waktu_checkin'] != null) {
+            activeCheckinTime = row[colMap['waktu_checkin']];
+          }
+          break;
+        }
       }
     }
 
@@ -601,6 +620,7 @@ function processGuestScan(qrPayload, method, requestId) {
         action: 'SCAN TAMU KELUAR',
         resultCode: 'BERHASIL_KELUAR',
         status: 'DI_LUAR',
+        previousStatus: 'DI_DALAM',
         studentId: studentInfo.id,
         nim: studentInfo.nim || '',
         name: studentInfo.name || '',
@@ -619,11 +639,18 @@ function processGuestScan(qrPayload, method, requestId) {
         success: true,
         resultCode: 'BERHASIL_KELUAR',
         badge: 'BERHASIL KELUAR',
+        action: 'KELUAR',
         message: 'Berhasil keluar. Tamu dari ' + studentInfo.name + ' telah keluar gedung. Slot tamu kembali tersedia.',
         student: studentInfo,
+        previousStatus: 'DI_DALAM',
+        previousAction: 'MASUK',
+        previousTimestamp: activeCheckinTime || previousTimestamp || '',
         currentStatus: 'DI_LUAR',
+        currentAction: 'KELUAR',
+        currentTimestamp: timeStampStr,
         time: timeStampStr,
         checkinTime: activeCheckinTime || '',
+        checkoutTime: timeStampStr,
         requestId: reqId
       };
     } else {
@@ -648,6 +675,7 @@ function processGuestScan(qrPayload, method, requestId) {
         action: 'SCAN TAMU MASUK',
         resultCode: 'BERHASIL_MASUK',
         status: 'DI_DALAM',
+        previousStatus: previousStatus,
         studentId: studentInfo.id,
         nim: studentInfo.nim || '',
         name: studentInfo.name || '',
@@ -666,10 +694,17 @@ function processGuestScan(qrPayload, method, requestId) {
         success: true,
         resultCode: 'BERHASIL_MASUK',
         badge: 'BERHASIL MASUK',
+        action: 'MASUK',
         message: 'Berhasil masuk. Tamu dari ' + studentInfo.name + ' tercatat di dalam gedung.',
         student: studentInfo,
+        previousStatus: previousStatus,
+        previousAction: previousAction,
+        previousTimestamp: previousTimestamp || '',
         currentStatus: 'DI_DALAM',
+        currentAction: 'MASUK',
+        currentTimestamp: timeStampStr,
         time: timeStampStr,
+        checkinTime: timeStampStr,
         requestId: reqId
       };
     }
@@ -744,9 +779,15 @@ function findTransactionInLog_(requestId) {
         success: true,
         resultCode: resultCode,
         badge: isExit ? 'BERHASIL KELUAR' : 'BERHASIL MASUK',
+        action: isExit ? 'KELUAR' : 'MASUK',
         message: 'Transaksi telah terkonfirmasi di riwayat server: ' + (isExit ? 'Tamu Keluar' : 'Tamu Masuk'),
         student: studentObj,
+        previousStatus: isExit ? 'DI_DALAM' : (parsed && parsed.previousStatus ? parsed.previousStatus : 'BELUM_ADA'),
+        previousAction: isExit ? 'MASUK' : 'TIDAK_ADA',
+        previousTimestamp: isExit ? '' : '',
         currentStatus: statusStr,
+        currentAction: isExit ? 'KELUAR' : 'MASUK',
+        currentTimestamp: timeStr,
         time: timeStr,
         requestId: reqId,
         isRecovered: true,
@@ -859,6 +900,9 @@ function checkTransactionStatus(requestId, qrPayload) {
     badge: 'BELUM TERCATAT DI SERVER',
     message: 'Transaksi ID ini belum sempat tercatat di Google Sheets. Status tamu saat ini di database: ' + (isInside ? 'DI DALAM' : 'DI LUAR') + '.',
     student: studentInfo,
+    previousStatus: isInside ? 'DI_DALAM' : (lastExit ? 'DI_LUAR' : 'BELUM_ADA'),
+    previousAction: isInside ? 'MASUK' : (lastExit ? 'KELUAR' : 'TIDAK_ADA'),
+    previousTimestamp: isInside ? lastCheckin : lastExit,
     currentStatus: isInside ? 'DI_DALAM' : 'DI_LUAR',
     lastRecordedTime: isInside ? lastCheckin : lastExit,
     requestId: reqId,

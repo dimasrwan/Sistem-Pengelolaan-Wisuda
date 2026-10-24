@@ -2593,7 +2593,19 @@
             '</div>' +
             timeDetails +
             '<div class="scan-identity-row">' +
-              '<span class="scan-identity-label">Status Akses Tamu</span>' +
+              '<span class="scan-identity-label">Sebelum Scan</span>' +
+              '<span class="scan-identity-val" style="color:#64748b;font-weight:600;">' +
+                escapeHtml(
+                  (!result.previousStatus || result.previousStatus === 'BELUM_ADA')
+                    ? 'Belum ada sesi masuk aktif'
+                    : (result.previousStatus === 'DI_DALAM'
+                        ? 'MASUK — DI DALAM GEDUNG' + (result.previousTimestamp ? ' (' + (result.previousTimestamp.includes(' ') ? result.previousTimestamp.split(' ')[1] : result.previousTimestamp) + ')' : '')
+                        : 'KELUAR — DI LUAR GEDUNG' + (result.previousTimestamp ? ' (' + (result.previousTimestamp.includes(' ') ? result.previousTimestamp.split(' ')[1] : result.previousTimestamp) + ')' : ''))
+                ) +
+              '</span>' +
+            '</div>' +
+            '<div class="scan-identity-row">' +
+              '<span class="scan-identity-label">Setelah Scan</span>' +
               '<span class="scan-identity-val">' + statusBadge + '</span>' +
             '</div>' +
           '</div>';

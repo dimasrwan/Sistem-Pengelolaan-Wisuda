@@ -4,30 +4,58 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#07851b">
+  <meta name="description" content="Pemindai QR Undangan Tamu Wisuda UIN Ar-Raniry Banda Aceh">
   <title>Pemindai QR Tamu Wisuda | UIN Ar-Raniry</title>
+  
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..800;1,9..40,400..700&family=Manrope:wght@600;700;800;900&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
   <style>
     :root {
       --primary: #07851b;
-      --primary-dark: #045a12;
-      --primary-light: #e6f4e8;
-      --ink: #111827;
-      --muted: #4b5563;
-      --line: #d1d5db;
-      --canvas: #f8faf8;
+      --primary-dark: #075e19;
+      --primary-deep: #054312;
+      --primary-soft: #edf7ed;
+      --primary-border: #bbf7d0;
+      --yellow: #ffd900;
+      --ink: #171b18;
+      --ink-secondary: #374151;
+      --muted: #68716a;
+      --line: #e4e9e4;
+      --line-subtle: #edf2ed;
+      --canvas: #f4f7f4;
       --white: #ffffff;
-      --danger: #dc2626;
-      --danger-light: #fef2f2;
-      --warning: #d97706;
-      --warning-light: #fffbeb;
-      --success: #16a34a;
-      --success-light: #f0fdf4;
-      --info: #0284c7;
-      --info-light: #f0f9ff;
+      
+      --success: #15803d;
+      --success-bg: #f0fdf4;
+      --success-border: #86efac;
+      --success-text: #166534;
+      
+      --exit: #1876A8;
+      --exit-bg: #f0f9ff;
+      --exit-border: #7dd3fc;
+      --exit-text: #075985;
+      
+      --danger: #b42318;
+      --danger-bg: #fef2f2;
+      --danger-border: #fca5a5;
+      --danger-text: #991b1b;
+      
+      --warning: #b45309;
+      --warning-bg: #fffbeb;
+      --warning-border: #fde68a;
+      --warning-text: #92400e;
+      
+      --shadow-sm: 0 2px 6px rgba(17, 38, 19, 0.04);
+      --shadow-card: 0 8px 28px rgba(17, 38, 19, 0.08);
+      --shadow-inset: inset 0 2px 6px rgba(0, 0, 0, 0.35);
+      
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 20px;
     }
 
     * {
@@ -44,26 +72,27 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 16px;
+      padding: 16px 12px 28px;
       -webkit-tap-highlight-color: transparent;
+      -webkit-font-smoothing: antialiased;
     }
 
     .scanner-app-card {
       width: 100%;
-      max-width: 490px;
+      max-width: 500px;
       background: var(--white);
-      border-radius: 18px;
+      border-radius: var(--radius-xl);
       border: 1px solid var(--line);
-      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+      box-shadow: var(--shadow-card);
       overflow: hidden;
       display: flex;
       flex-direction: column;
     }
 
-    /* Header */
+    /* ─── Header ─── */
     .app-header {
-      padding: 16px 20px;
-      background: #ffffff;
+      padding: 16px 18px;
+      background: var(--white);
       border-bottom: 1px solid var(--line);
       display: flex;
       align-items: center;
@@ -74,27 +103,49 @@
       height: 44px;
       object-fit: contain;
       flex-shrink: 0;
+      border-radius: 8px;
     }
     .app-title-wrap {
       flex: 1;
       min-width: 0;
     }
+    .app-brand-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
     .app-title {
       font-family: 'Manrope', sans-serif;
-      font-size: 16px;
+      font-size: 15.5px;
       font-weight: 800;
-      color: var(--primary-dark);
+      color: var(--primary-deep);
       line-height: 1.25;
+      letter-spacing: -0.01em;
+    }
+    .role-badge {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 2px 7px;
+      background: var(--primary-soft);
+      color: var(--primary-dark);
+      border: 1px solid var(--primary-border);
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
     }
     .app-sub {
       font-size: 11.5px;
       color: var(--muted);
       margin-top: 2px;
+      font-weight: 500;
     }
 
-    /* Connection Status */
+    /* ─── Connection Status Banner ─── */
     .connection-banner {
-      padding: 9px 16px;
+      padding: 8px 18px;
       font-size: 11.5px;
       font-weight: 600;
       display: flex;
@@ -102,42 +153,99 @@
       justify-content: space-between;
       gap: 8px;
       border-bottom: 1px solid var(--line);
+      transition: background 0.2s, color 0.2s;
     }
-    .conn-online {
-      background: var(--success-light);
-      color: var(--success);
-      border-color: #bbf7d0;
+    .conn-left {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+      flex: 1;
     }
-    .conn-standalone {
-      background: var(--warning-light);
-      color: var(--warning);
-      border-color: #fde68a;
+    .conn-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
     }
-    .conn-pending {
-      background: #fffbeb;
-      color: #b45309;
-      border-color: #fde68a;
+    .conn-text {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
-    .conn-error {
-      background: #fef2f2;
-      color: #991b1b;
-      border-color: #fecaca;
+    .conn-chip {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+      flex-shrink: 0;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
     }
 
-    /* Camera Viewport */
+    .conn-online {
+      background: var(--success-bg);
+      color: var(--success-text);
+      border-color: #bbf7d0;
+    }
+    .conn-online .conn-dot {
+      background: var(--success);
+      box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.25);
+    }
+    .conn-online .conn-chip {
+      background: rgba(22, 163, 74, 0.12);
+      color: var(--success-text);
+    }
+
+    .conn-pending {
+      background: var(--warning-bg);
+      color: var(--warning-text);
+      border-color: var(--warning-border);
+    }
+    .conn-pending .conn-dot {
+      background: var(--warning);
+      animation: pulseDot 1.2s infinite ease-in-out;
+    }
+    .conn-pending .conn-chip {
+      background: rgba(180, 83, 9, 0.12);
+      color: var(--warning-text);
+    }
+
+    .conn-error {
+      background: var(--danger-bg);
+      color: var(--danger-text);
+      border-color: var(--danger-border);
+    }
+    .conn-error .conn-dot {
+      background: var(--danger);
+    }
+    .conn-error .conn-chip {
+      background: rgba(180, 35, 24, 0.12);
+      color: var(--danger-text);
+    }
+
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    /* ─── Camera Viewport ─── */
     .viewport-section {
-      padding: 16px 20px 12px;
+      padding: 16px 18px 12px;
+      background: var(--white);
     }
     .camera-box {
       position: relative;
-      background: #0f1710;
-      border-radius: 14px;
+      background: #09130b;
+      border-radius: var(--radius-lg);
       overflow: hidden;
-      min-height: 280px;
+      min-height: 270px;
+      max-height: 380px;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: inset 0 0 16px rgba(0,0,0,0.4);
+      box-shadow: var(--shadow-inset);
+      border: 1px solid rgba(7, 133, 27, 0.15);
     }
     #reader {
       width: 100% !important;
@@ -145,31 +253,26 @@
       position: relative;
       overflow: hidden;
     }
-    /* Pastikan HANYA SATU elemen video yang aktif dan ditampilkan */
     #reader video {
       width: 100% !important;
       height: 100% !important;
-      max-height: 420px;
+      max-height: 380px;
       object-fit: cover;
       display: block;
-      border-radius: 14px;
+      border-radius: var(--radius-lg);
       margin: 0 auto;
     }
     #reader video:not(:first-of-type) {
       display: none !important;
     }
-    /* Sembunyikan canvas internal library agar tidak tampil bertumpuk */
     #reader canvas,
     #qr-canvas,
-    #qr-canvas-visible {
-      display: none !important;
-    }
-    /* Sembunyikan bingkai bawaan html5-qrcode agar tidak bertabrakan dengan overlay custom */
+    #qr-canvas-visible,
     #qr-shaded-region {
       display: none !important;
     }
 
-    /* Viewfinder Guidelines */
+    /* Viewfinder Guidelines Overlay */
     .viewfinder-guide {
       position: absolute;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -181,21 +284,22 @@
       z-index: 10;
     }
     .viewfinder-box {
-      width: 220px;
-      height: 220px;
-      border: 2px dashed rgba(255, 255, 255, 0.7);
-      border-radius: 18px;
+      width: 210px;
+      height: 210px;
+      border: 2px dashed rgba(255, 255, 255, 0.65);
+      border-radius: 16px;
       position: relative;
-      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
-      transition: border-color 0.25s, transform 0.25s;
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.38);
+      transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
     }
     .viewfinder-box.scanned {
       border-color: #22c55e;
-      transform: scale(1.03);
+      transform: scale(1.02);
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
     }
     .viewfinder-box.locked {
-      border-color: #eab308;
-      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+      border-color: #ffd900;
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
     }
     .viewfinder-box::before,
     .viewfinder-box::after {
@@ -205,6 +309,7 @@
       height: 24px;
       border-color: #4ade80;
       border-style: solid;
+      pointer-events: none;
     }
     .viewfinder-box::before {
       top: -2px; left: -2px;
@@ -217,45 +322,286 @@
       border-bottom-right-radius: 10px;
     }
     .viewfinder-label {
-      margin-top: 12px;
-      background: rgba(0, 0, 0, 0.7);
+      margin-top: 10px;
+      background: rgba(17, 24, 18, 0.85);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
       color: #ffffff;
       font-size: 11.5px;
       font-weight: 600;
-      padding: 4px 14px;
+      padding: 5px 14px;
       border-radius: 999px;
       letter-spacing: 0.2px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      max-width: 86%;
+      text-align: center;
       transition: background 0.2s, color 0.2s;
     }
 
-    /* Live Backend Transaction Result Card */
+    /* ─── Result Container ─── */
     .result-box-container {
-      margin-top: 12px;
+      margin-top: 14px;
     }
     .result-card {
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       overflow: hidden;
       border: 1px solid transparent;
-      animation: fadeIn 0.25s ease-out;
+      animation: fadeIn 0.22s ease-out;
+      box-shadow: var(--shadow-sm);
     }
+
+    /* Idle Card */
+    .card-idle {
+      background: var(--canvas);
+      border-color: var(--line);
+    }
+    .idle-body {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      color: var(--muted);
+    }
+    .idle-icon {
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+    .idle-title {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--ink-secondary);
+    }
+    .idle-desc {
+      font-size: 11.5px;
+      color: var(--muted);
+      margin-top: 1px;
+    }
+
+    /* Standard Card Structure */
     .result-header {
       padding: 10px 14px;
-      font-size: 12.5px;
-      font-weight: 800;
-      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      border-bottom: 1px solid transparent;
+    }
+    .result-header-left {
       display: flex;
       align-items: center;
       gap: 8px;
     }
+    .result-icon {
+      flex-shrink: 0;
+    }
+    .result-title {
+      font-family: 'Manrope', sans-serif;
+      font-size: 13.5px;
+      font-weight: 800;
+      letter-spacing: 0.4px;
+    }
+    .result-action-badge {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 7px;
+      border-radius: 4px;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
     .result-body {
-      padding: 12px 14px;
-      font-size: 12px;
+      padding: 14px;
+      font-size: 12.5px;
       line-height: 1.45;
     }
+
+    /* Guest Identity Highlights */
+    .guest-name {
+      font-family: 'Manrope', sans-serif;
+      font-size: 18px;
+      font-weight: 900;
+      color: var(--ink);
+      line-height: 1.25;
+      margin-bottom: 3px;
+      word-break: break-word;
+    }
+    .guest-meta {
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .guest-meta strong {
+      color: var(--ink-secondary);
+      font-weight: 700;
+    }
+    .meta-dot {
+      color: var(--line);
+    }
+
+    /* Two-Column Status Comparison Grid */
+    .status-comparison-card {
+      background: rgba(255, 255, 255, 0.7);
+      border: 1px solid rgba(0, 0, 0, 0.07);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .status-col {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .status-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+    }
+    .status-val {
+      font-size: 12.5px;
+      font-weight: 800;
+      line-height: 1.3;
+    }
+    .status-sub {
+      font-size: 10.5px;
+      color: var(--muted);
+      margin-top: 1px;
+      font-family: monospace;
+    }
+    .status-arrow {
+      font-size: 14px;
+      color: var(--muted);
+      font-weight: bold;
+      opacity: 0.7;
+    }
+
+    .status-val-prev {
+      color: var(--muted);
+    }
+    .status-val-prev-active {
+      color: var(--success);
+    }
+    .status-val-entry {
+      color: var(--success);
+    }
+    .status-val-exit {
+      color: var(--exit);
+    }
+
+    /* Footer Meta */
+    .result-footer-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: var(--muted);
+      padding-top: 8px;
+      border-top: 1px dashed rgba(0, 0, 0, 0.1);
+      margin-top: 8px;
+    }
+    .footer-time {
+      font-weight: 600;
+    }
+    .footer-req-id {
+      font-family: monospace;
+      font-size: 10px;
+      color: #9ca3af;
+    }
+
+    /* Operator Instructions */
+    .operator-hint {
+      margin-top: 10px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      line-height: 1.4;
+      text-align: center;
+    }
+    .entry-hint {
+      background: rgba(21, 128, 61, 0.08);
+      color: var(--success-text);
+      border: 1px solid rgba(21, 128, 61, 0.2);
+    }
+    .exit-hint {
+      background: rgba(24, 118, 168, 0.08);
+      color: var(--exit-text);
+      border: 1px solid rgba(24, 118, 168, 0.2);
+    }
+
+    /* Themes for Cards */
+    .card-entry {
+      background: var(--success-bg);
+      border-color: var(--success-border);
+    }
+    .card-entry .result-header {
+      background: #dcfce7;
+      color: var(--success-text);
+      border-color: #bbf7d0;
+    }
+    .badge-entry {
+      background: #bbf7d0;
+      color: var(--success-text);
+    }
+
+    .card-exit {
+      background: var(--exit-bg);
+      border-color: var(--exit-border);
+    }
+    .card-exit .result-header {
+      background: #e0f2fe;
+      color: var(--exit-text);
+      border-color: #bae6fd;
+    }
+    .badge-exit {
+      background: #bae6fd;
+      color: var(--exit-text);
+    }
+
+    .card-pending {
+      background: var(--warning-bg);
+      border-color: var(--warning-border);
+    }
+    .card-pending .result-header {
+      background: #fef3c7;
+      color: var(--warning-text);
+      border-color: #fde68a;
+    }
+
+    .card-error {
+      background: var(--danger-bg);
+      border-color: var(--danger-border);
+    }
+    .card-error .result-header {
+      background: #fee2e2;
+      color: var(--danger-text);
+      border-color: #fecaca;
+    }
+
+    .card-unconfirmed {
+      background: #fffbeb;
+      border-color: #f59e0b;
+    }
+    .card-unconfirmed .result-header {
+      background: #fef3c7;
+      color: var(--warning-text);
+      border-color: #fde68a;
+    }
+
+    /* Meta Rows for Errors/Pending */
     .result-meta-row {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 4px;
+      align-items: baseline;
+      margin-bottom: 5px;
+      font-size: 12px;
     }
     .result-meta-label {
       color: var(--muted);
@@ -264,58 +610,12 @@
     .result-meta-val {
       font-weight: 700;
       color: var(--ink);
+      text-align: right;
     }
 
-    /* Card Themes */
-    .card-entry {
-      background: #f0fdf4;
-      border-color: #86efac;
-    }
-    .card-entry .result-header {
-      background: #dcfce7;
-      color: #15803d;
-      border-bottom: 1px solid #bbf7d0;
-    }
-    .card-exit {
-      background: #f0f9ff;
-      border-color: #7dd3fc;
-    }
-    .card-exit .result-header {
-      background: #e0f2fe;
-      color: #0369a1;
-      border-bottom: 1px solid #bae6fd;
-    }
-    .card-error {
-      background: #fef2f2;
-      border-color: #fca5a5;
-    }
-    .card-error .result-header {
-      background: #fee2e2;
-      color: #991b1b;
-      border-bottom: 1px solid #fecaca;
-    }
-    .card-pending {
-      background: #fffbeb;
-      border-color: #fde68a;
-    }
-    .card-pending .result-header {
-      background: #fef3c7;
-      color: #92400e;
-      border-bottom: 1px solid #fde68a;
-    }
-    .card-unconfirmed {
-      background: #fffbeb;
-      border-color: #f59e0b;
-    }
-    .card-unconfirmed .result-header {
-      background: #fef3c7;
-      color: #b45309;
-      border-bottom: 1px solid #fde68a;
-    }
-
-    /* Controls */
+    /* ─── Controls Section ─── */
     .controls-section {
-      padding: 0 20px 16px;
+      padding: 0 18px 16px;
       display: flex;
       flex-direction: column;
       gap: 10px;
@@ -325,7 +625,7 @@
       flex-direction: column;
       gap: 5px;
     }
-    .camera-select-wrap label {
+    .camera-select-label {
       font-size: 11px;
       font-weight: 700;
       color: var(--muted);
@@ -334,15 +634,20 @@
     }
     select.camera-select {
       width: 100%;
-      height: 40px;
-      border-radius: 9px;
+      height: 42px;
+      border-radius: var(--radius-sm);
       border: 1px solid var(--line);
-      background: #ffffff;
-      padding: 0 10px;
+      background: var(--white);
+      padding: 0 12px;
       font-size: 13px;
       font-weight: 600;
       color: var(--ink);
       outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    select.camera-select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(7, 133, 27, 0.15);
     }
 
     .btn-row {
@@ -351,21 +656,22 @@
     }
     .btn {
       flex: 1;
-      height: 42px;
+      min-height: 42px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 7px;
-      border-radius: 9px;
+      border-radius: var(--radius-sm);
       font-family: 'DM Sans', sans-serif;
       font-size: 13px;
       font-weight: 700;
       border: 1px solid transparent;
       cursor: pointer;
-      transition: background 0.15s, transform 0.1s;
+      transition: background 0.15s, transform 0.08s, box-shadow 0.15s;
+      user-select: none;
     }
-    .btn:active {
-      transform: scale(0.97);
+    .btn:active:not(:disabled) {
+      transform: scale(0.98);
     }
     .btn:disabled {
       opacity: 0.5;
@@ -374,29 +680,47 @@
     .btn-primary {
       background: var(--primary);
       color: #ffffff;
+      border-color: var(--primary);
     }
     .btn-primary:hover:not(:disabled) {
       background: var(--primary-dark);
+      border-color: var(--primary-dark);
     }
     .btn-outline {
-      background: #ffffff;
+      background: var(--white);
       color: var(--ink);
       border-color: var(--line);
     }
     .btn-outline:hover:not(:disabled) {
-      background: #f3f4f6;
+      background: #f8faf8;
+      border-color: #cbd5e1;
     }
     .btn-danger-outline {
-      background: #ffffff;
+      background: var(--white);
       color: var(--danger);
+      border-color: #fecaca;
+    }
+    .btn-danger-outline:hover:not(:disabled) {
+      background: #fef2f2;
       border-color: #fca5a5;
     }
 
-    /* Scan History */
+    /* ─── Scan History Section ─── */
     .history-section {
-      padding: 14px 20px 16px;
+      padding: 14px 18px 18px;
       border-top: 1px solid var(--line);
-      background: #fbfdfa;
+      background: #fafbfa;
+    }
+    .history-header-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .history-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 7px;
     }
     .history-title {
       font-size: 11px;
@@ -404,50 +728,208 @@
       color: var(--muted);
       text-transform: uppercase;
       letter-spacing: 0.6px;
-      margin-bottom: 8px;
     }
+    .history-count-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 6px;
+      background: var(--line);
+      color: var(--ink-secondary);
+      border-radius: 999px;
+    }
+    .btn-clear-history {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .btn-clear-history:hover {
+      color: var(--danger);
+      background: rgba(180, 35, 24, 0.06);
+    }
+
     .history-list {
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 8px;
+      max-height: 360px;
+      overflow-y: auto;
+      padding-right: 2px;
     }
-    .history-item {
-      padding: 7px 10px;
-      background: #ffffff;
-      border: 1px solid #e5e7eb;
-      border-radius: 8px;
-      font-size: 11.5px;
+    .history-list::-webkit-scrollbar {
+      width: 5px;
+    }
+    .history-list::-webkit-scrollbar-thumb {
+      background: #d1d5db;
+      border-radius: 999px;
+    }
+
+    .history-empty {
+      padding: 18px 12px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      font-style: italic;
+      background: var(--white);
+      border: 1px dashed var(--line);
+      border-radius: var(--radius-sm);
+    }
+
+    /* Informative History Card */
+    .history-item-card {
+      padding: 10px 12px;
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+      transition: border-color 0.15s, transform 0.1s;
+      border-left-width: 4px;
+    }
+    .history-item-card:hover {
+      border-color: #cbd5e1;
+    }
+    .hist-entry {
+      border-left-color: var(--success);
+    }
+    .hist-exit {
+      border-left-color: var(--exit);
+    }
+    .hist-err {
+      border-left-color: var(--danger);
+    }
+    .hist-warn {
+      border-left-color: var(--warning);
+    }
+
+    .hist-top-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 8px;
     }
-    .history-badge {
+    .hist-guest-group {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+      flex: 1;
+    }
+    .hist-action-badge {
       font-weight: 800;
       font-size: 10px;
       padding: 2px 6px;
       border-radius: 4px;
       text-transform: uppercase;
-      margin-right: 6px;
+      letter-spacing: 0.3px;
+      flex-shrink: 0;
     }
     .badge-in {
       background: #dcfce7;
-      color: #15803d;
+      color: var(--success);
     }
     .badge-out {
       background: #e0f2fe;
-      color: #0369a1;
+      color: var(--exit);
     }
     .badge-err {
       background: #fee2e2;
-      color: #991b1b;
+      color: var(--danger);
     }
     .badge-warn {
       background: #fef3c7;
-      color: #b45309;
+      color: var(--warning);
     }
-    .history-time {
+
+    .hist-guest-name {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .hist-time {
       font-size: 11px;
       color: var(--muted);
+      font-family: monospace;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .hist-meta-row {
+      font-size: 11.5px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .hist-meta-row strong {
+      color: var(--ink-secondary);
+    }
+    .hist-meta-dot {
+      color: var(--line);
+    }
+
+    /* Before and After snapshot in history */
+    .hist-state-flow {
+      background: #f8faf8;
+      border: 1px solid #edf2ed;
+      border-radius: 6px;
+      padding: 5px 8px;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+    .flow-pill {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-width: 0;
+      flex: 1;
+    }
+    .flow-lbl {
+      color: var(--muted);
+      font-size: 9.5px;
+      text-transform: uppercase;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .flow-val {
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .flow-arrow {
+      color: #9ca3af;
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+    .flow-val-entry {
+      color: var(--success);
+    }
+    .flow-val-exit {
+      color: var(--exit);
+    }
+    .flow-val-muted {
+      color: var(--muted);
+    }
+
+    .hist-foot-row {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      font-size: 10px;
+      color: #9ca3af;
       font-family: monospace;
     }
 
@@ -458,6 +940,35 @@
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
+
+    /* Mobile adjustments */
+    @media (max-width: 480px) {
+      body {
+        padding: 8px 6px 20px;
+      }
+      .scanner-app-card {
+        border-radius: var(--radius-lg);
+      }
+      .app-header {
+        padding: 14px 14px;
+      }
+      .viewport-section {
+        padding: 12px 14px 10px;
+      }
+      .controls-section {
+        padding: 0 14px 14px;
+      }
+      .history-section {
+        padding: 12px 14px 16px;
+      }
+      .status-comparison-card {
+        padding: 8px 10px;
+        gap: 6px;
+      }
+      .status-val {
+        font-size: 11.5px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -467,19 +978,25 @@
     <header class="app-header">
       <img class="app-logo" src="https://upload.wikimedia.org/wikipedia/commons/4/4b/Logo_UIN_Ar-Raniry.png" alt="Logo UIN Ar-Raniry" onerror="this.src='https://ar-raniry.ac.id/wp-content/uploads/2023/02/cropped-logo-uin-192x192.png'">
       <div class="app-title-wrap">
-        <h1 class="app-title">Pemindai QR Undangan Tamu</h1>
+        <div class="app-brand-row">
+          <h1 class="app-title">Pemindai QR Undangan Tamu</h1>
+          <span id="officer-role-badge" class="role-badge" style="display:none;">Panitia</span>
+        </div>
         <div class="app-sub">Sistem Pengelolaan Wisuda UIN Ar-Raniry</div>
       </div>
     </header>
 
     <!-- Connection Status Banner -->
-    <div id="conn-banner" class="connection-banner conn-standalone">
-      <span id="conn-text">Memeriksa koneksi ke aplikasi utama...</span>
-      <span id="conn-badge" style="font-size:10px;padding:2px 8px;border-radius:999px;background:rgba(0,0,0,0.06);">Standby</span>
+    <div id="conn-banner" class="connection-banner conn-pending" aria-live="polite">
+      <div class="conn-left">
+        <span class="conn-dot"></span>
+        <span id="conn-text" class="conn-text">Memeriksa koneksi ke aplikasi utama...</span>
+      </div>
+      <span id="conn-chip" class="conn-chip">Menghubungkan</span>
     </div>
 
-    <!-- Camera Viewport -->
-    <section class="viewport-section" aria-label="Area Kamera">
+    <!-- Camera Viewport Section -->
+    <section class="viewport-section" aria-label="Area Pemindai Kamera">
       <div class="camera-box">
         <div id="reader"></div>
         <div class="viewfinder-guide" id="viewfinder">
@@ -491,18 +1008,22 @@
       <!-- Real Backend Result Box -->
       <div id="result-box-container" class="result-box-container">
         <!-- Default Idle Instruction -->
-        <div id="status-card-idle" class="result-card card-entry" style="background:#fcfdfa;border-color:#e2ebe1;">
-          <div class="result-body" style="text-align:center;color:var(--muted);padding:10px;">
-            <span id="idle-instruction-text">🟢 Kamera aktif. Hadapkan QR undangan tamu ke kotak kamera.</span>
+        <div id="status-card-idle" class="result-card card-idle">
+          <div class="idle-body">
+            <span class="idle-icon">📷</span>
+            <div class="idle-text-wrap">
+              <div class="idle-title">Kamera Siap Memindai</div>
+              <div class="idle-desc">Arahkan QR Code undangan tamu ke dalam kotak pemindai di atas.</div>
+            </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Controls -->
-    <section class="controls-section">
+    <!-- Controls Section -->
+    <section class="controls-section" aria-label="Kontrol Kamera">
       <div class="camera-select-wrap">
-        <label for="camera-select">Pilih Kamera</label>
+        <label for="camera-select" class="camera-select-label">Pilih Kamera</label>
         <select id="camera-select" class="camera-select" onchange="onCameraSelectChange()">
           <option value="environment">Kamera Belakang (Utama)</option>
           <option value="user">Kamera Depan</option>
@@ -512,24 +1033,30 @@
       <div class="btn-row">
         <button id="btn-start" class="btn btn-primary" onclick="startScanner()">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-          <span>Aktifkan</span>
+          <span>Aktifkan Kamera</span>
         </button>
         <button id="btn-stop" class="btn btn-outline" onclick="stopScanner()" disabled>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12"></rect></svg>
-          <span>Hentikan</span>
+          <span>Hentikan Kamera</span>
         </button>
       </div>
 
-      <button class="btn btn-danger-outline" onclick="closeScannerWindow()" style="height:36px;font-size:12px;">
+      <button class="btn btn-danger-outline" onclick="closeScannerWindow()" style="min-height:36px;font-size:12px;">
         <span>✕ Tutup Jendela Pemindai</span>
       </button>
     </section>
 
-    <!-- Scan History List -->
-    <section class="history-section">
-      <div class="history-title">Riwayat Transaksi Presensi (Sesi Ini)</div>
+    <!-- Scan History List Section -->
+    <section class="history-section" aria-label="Riwayat Presensi">
+      <div class="history-header-bar">
+        <div class="history-title-wrap">
+          <span class="history-title">Riwayat Pemindaian (Sesi Ini)</span>
+          <span id="history-count" class="history-count-badge">0</span>
+        </div>
+        <button id="btn-clear-history" class="btn-clear-history" onclick="clearLocalHistory()" style="display:none;">Bersihkan</button>
+      </div>
       <div id="history-list" class="history-list">
-        <div style="color:var(--muted);font-size:11.5px;font-style:italic;">Belum ada QR yang diproses.</div>
+        <div class="history-empty">Belum ada QR undangan yang diproses pada sesi ini.</div>
       </div>
     </section>
   </main>
@@ -538,15 +1065,16 @@
     // State management
     let html5QrCode = null;
     let isScanning = false;
-    let activeLockedCode = null;          // QR yang saat ini terkunci di depan kamera
+    let activeLockedCode = null;          // QR yang saat ini berada di depan kamera
     let lastSeenTimestamp = 0;            // Timestamp terakhir kali QR terdeteksi di kamera
     let isProcessingTransaction = false;  // Sedang menunggu konfirmasi server
     let pendingRequestId = null;          // Correlation ID transaksi aktif
     let pendingPayload = null;            // Payload QR transaksi aktif
-    let pendingTransactionTimer = null;   // Timer 10 detik deteksi timeout
+    let pendingTransactionTimer = null;   // Timer batas waktu pemrosesan
     let targetOrigin = null;
     let audioCtx = null;
-    const recentScans = [];
+    const recentScans = [];               // Riwayat dengan snapshot status sebelum & sesudah
+    let currentOfficerRole = null;
 
     let isParentConnected = false;        // Status konfirmasi handshake dari aplikasi induk
     let handshakeTimer = null;            // Timer pengulangan handshake
@@ -556,27 +1084,32 @@
     function setConnectionState(isOnline, messageHtml, badgeText, isPending) {
       const banner = document.getElementById('conn-banner');
       const text = document.getElementById('conn-text');
-      const badge = document.getElementById('conn-badge');
-      if (!banner || !text || !badge) return;
+      const chip = document.getElementById('conn-chip');
+      if (!banner || !text || !chip) return;
 
       if (isPending) {
         banner.className = 'connection-banner conn-pending';
-        text.innerHTML = messageHtml || '⏳ Menghubungkan ke aplikasi utama...';
-        badge.textContent = badgeText || 'Menghubungkan';
-        badge.style.background = 'rgba(180, 83, 9, 0.12)';
-        badge.style.color = '#b45309';
+        text.innerHTML = messageHtml || 'Menghubungkan ke aplikasi utama...';
+        chip.textContent = badgeText || 'Menghubungkan';
       } else if (isOnline) {
         banner.className = 'connection-banner conn-online';
-        text.innerHTML = messageHtml || '🟢 <strong>Terhubung</strong> ke Sistem Pengelolaan Wisuda';
-        badge.textContent = badgeText || 'Induk Terhubung';
-        badge.style.background = 'rgba(21, 128, 61, 0.12)';
-        badge.style.color = '#15803d';
+        text.innerHTML = messageHtml || '<strong>Terhubung</strong> ke Sistem Pengelolaan Wisuda';
+        chip.textContent = badgeText || 'Induk Terhubung';
       } else {
         banner.className = 'connection-banner conn-error';
-        text.innerHTML = messageHtml || '🔴 <strong>Belum Terhubung</strong> ke Aplikasi Utama';
-        badge.textContent = badgeText || 'Tidak Terhubung';
-        badge.style.background = 'rgba(185, 28, 28, 0.12)';
-        badge.style.color = '#b91c1c';
+        text.innerHTML = messageHtml || '<strong>Belum Terhubung</strong> ke Aplikasi Utama';
+        chip.textContent = badgeText || 'Tidak Terhubung';
+      }
+    }
+
+    function updateOfficerRoleBadge(role) {
+      const el = document.getElementById('officer-role-badge');
+      if (!el) return;
+      if (role && typeof role === 'string' && role.trim()) {
+        el.textContent = role.trim();
+        el.style.display = 'inline-flex';
+      } else {
+        el.style.display = 'none';
       }
     }
 
@@ -618,7 +1151,7 @@
         if (!window.opener) {
           if (handshakeTimer) clearInterval(handshakeTimer);
           isParentConnected = false;
-          setConnectionState(false, '🔴 Belum Terhubung: Jendela aplikasi utama tidak ditemukan.', 'Tidak Terhubung', false);
+          setConnectionState(false, 'Belum Terhubung: Jendela aplikasi utama tidak ditemukan.', 'Tidak Terhubung', false);
           return;
         }
 
@@ -632,7 +1165,7 @@
         if (isClosed) {
           if (handshakeTimer) clearInterval(handshakeTimer);
           isParentConnected = false;
-          setConnectionState(false, '🔴 Jendela aplikasi utama telah ditutup. Buka kembali melalui aplikasi.', 'Terputus', false);
+          setConnectionState(false, 'Jendela aplikasi utama telah ditutup. Buka kembali melalui aplikasi.', 'Terputus', false);
           return;
         }
 
@@ -647,7 +1180,7 @@
 
         if (handshakeAttempts >= 15 && !isParentConnected) {
           if (handshakeTimer) clearInterval(handshakeTimer);
-          setConnectionState(false, '🔴 Gagal terhubung ke aplikasi utama (Handshake Timeout). Buka ulang dari aplikasi.', 'Timeout', false);
+          setConnectionState(false, 'Gagal terhubung ke aplikasi utama (Handshake Timeout). Buka ulang dari aplikasi.', 'Timeout', false);
         }
       }
 
@@ -681,12 +1214,11 @@
       }
 
       if (window.opener && !isClosed) {
-        // Status awal: Menghubungkan (belum terkonfirmasi)
-        setConnectionState(false, '⏳ Menghubungkan ke Sistem Pengelolaan Wisuda...', 'Menghubungkan', true);
+        setConnectionState(false, 'Menghubungkan ke Sistem Pengelolaan Wisuda...', 'Menghubungkan', true);
         startHandshakeSequence();
       } else {
         isParentConnected = false;
-        setConnectionState(false, '🔴 Belum Terhubung: Buka dari aplikasi utama untuk mencatat presensi.', 'Tidak Terhubung', false);
+        setConnectionState(false, 'Belum Terhubung: Buka dari aplikasi utama untuk mencatat presensi.', 'Tidak Terhubung', false);
       }
     })();
 
@@ -695,13 +1227,13 @@
       if (isParentConnected) {
         if (!window.opener) {
           isParentConnected = false;
-          setConnectionState(false, '🔴 Jendela aplikasi utama tidak ditemukan.', 'Terputus', false);
+          setConnectionState(false, 'Jendela aplikasi utama tidak ditemukan.', 'Terputus', false);
           return;
         }
         try {
           if (window.opener.closed === true) {
             isParentConnected = false;
-            setConnectionState(false, '🔴 Jendela aplikasi utama telah ditutup oleh pengguna.', 'Terputus', false);
+            setConnectionState(false, 'Jendela aplikasi utama telah ditutup oleh pengguna.', 'Terputus', false);
           }
         } catch (e) {}
       }
@@ -709,19 +1241,16 @@
 
     // Setup listener for incoming messages from Parent Window (GAS Web App)
     window.addEventListener('message', function (event) {
-      // 1. Validasi origin pengirim: harus origin Google Apps Script atau localhost terdaftar
       if (!isAllowedParentOrigin(event.origin)) {
         console.warn('[Security] Diabaikan pesan dari origin asing:', event.origin);
         return;
       }
 
-      // 2. Validasi bahwa event.source adalah window.opener yang sah
       if (window.opener && event.source !== window.opener) {
         console.warn('[Security] Diabaikan pesan dari source yang bukan window opener.');
         return;
       }
 
-      // 3. Ikat atau perbarui targetOrigin dari event.origin yang telah diverifikasi
       if (isAllowedParentOrigin(event.origin)) {
         if (!targetOrigin || targetOrigin !== event.origin) {
           console.info('[Security] targetOrigin induk diikat/diperbarui ke:', event.origin);
@@ -739,8 +1268,10 @@
           handshakeTimer = null;
         }
         isParentConnected = true;
-        const roleText = data.role ? ' (' + escapeHtml(data.role) + ')' : '';
-        setConnectionState(true, '🟢 <strong>Terhubung</strong> ke Sistem Pengelolaan Wisuda' + roleText, 'Induk Terhubung', false);
+        currentOfficerRole = data.role || currentOfficerRole;
+        updateOfficerRoleBadge(currentOfficerRole);
+        const roleText = currentOfficerRole ? ' (' + escapeHtml(currentOfficerRole) + ')' : '';
+        setConnectionState(true, '<strong>Terhubung</strong> ke Sistem Pengelolaan Wisuda' + roleText, 'Induk Terhubung', false);
         console.info('[Handshake] Berhasil terhubung ke aplikasi induk:', event.origin);
         return;
       }
@@ -764,7 +1295,6 @@
 
       // 2. REAL BACKEND RESULT RECEIVED
       if (data.type === 'UIN_ARRANIRY_SCAN_RESULT') {
-        // Kirim konfirmasi penerimaan tingkat aplikasi (ACK) kembali ke jendela induk
         if (data.requestId) {
           sendToParent({
             type: 'UIN_ARRANIRY_CLIENT_ACK',
@@ -773,17 +1303,13 @@
           });
         }
 
-        // Cocokkan correlation ID requestId jika tersedia
         if (pendingRequestId && data.requestId && data.requestId !== pendingRequestId) {
           console.warn('[CorrelationID] Mengabaikan respons lama:', data.requestId, 'Expected:', pendingRequestId);
           return;
         }
 
-        // Hentikan timer timeout transaksi
         clearPendingTimer();
 
-        // Jika transaksi berstatus non-terminal / belum selesai di backend:
-        // PERTAHANKAN pendingRequestId dan pendingPayload agar bisa di-retry atau dicek statusnya!
         const nonTerminalCodes = ['TX_UNPROCESSED', 'SCAN_BUSY', 'SCAN_IN_PROGRESS', 'LOCK_TIMEOUT', 'TIMEOUT_UNCONFIRMED'];
         if (data.result && nonTerminalCodes.includes(data.result.resultCode)) {
           isProcessingTransaction = false;
@@ -838,8 +1364,11 @@
       container.innerHTML = `
         <div class="result-card card-unconfirmed">
           <div class="result-header">
-            <span>⚠️</span>
-            <span>TRANSAKSI BELUM TERKONFIRMASI</span>
+            <div class="result-header-left">
+              <span class="result-icon">⚠️</span>
+              <span class="result-title">TRANSAKSI BELUM TERKONFIRMASI</span>
+            </div>
+            <span class="result-action-badge badge-warn">TIMEOUT</span>
           </div>
           <div class="result-body">
             <div style="font-weight:700;margin-bottom:6px;color:#92400e;">
@@ -857,10 +1386,10 @@
               Data mungkin telah tersimpan di Google Sheets atau tertunda antrean server. Periksa status transaksi sebelum memindai ulang untuk mencegah kesalahan status.
             </div>
             <div style="display:flex;gap:8px;margin-top:10px;">
-              <button class="btn btn-primary" onclick="checkCurrentTransactionStatus()" style="flex:1;height:38px;font-size:12px;">
+              <button class="btn btn-primary" onclick="checkCurrentTransactionStatus()" style="flex:1;min-height:38px;font-size:12px;">
                 🔍 Periksa Status Transaksi
               </button>
-              <button class="btn btn-outline" onclick="resetPendingTransaction()" style="flex:1;height:38px;font-size:12px;">
+              <button class="btn btn-outline" onclick="resetPendingTransaction()" style="flex:1;min-height:38px;font-size:12px;">
                 ↻ Reset Pemindai
               </button>
             </div>
@@ -868,7 +1397,19 @@
         </div>
       `;
 
-      addHistory('BELUM TERKONFIRMASI', 'badge-warn', codeDisplay);
+      addHistoryRecord({
+        requestId: reqDisplay,
+        name: codeDisplay,
+        nim: '—',
+        seat: '',
+        time: formatTimeOnly(),
+        badgeText: 'TIMEOUT',
+        badgeClass: 'badge-warn',
+        cardTheme: 'hist-warn',
+        prevText: 'Belum terkonfirmasi',
+        currText: 'Menunggu konfirmasi server',
+        currClass: 'flow-val-muted'
+      });
     }
 
     // Memeriksa status transaksi saat ini ke server dengan requestId yang sama
@@ -884,7 +1425,6 @@
       const vfLabel = document.getElementById('viewfinder-label');
       if (vfLabel) vfLabel.textContent = '🔄 Menghubungi server untuk cek status...';
 
-      // Set timer singkat untuk respon periksa status (8s)
       clearPendingTimer();
       pendingTransactionTimer = setTimeout(function () {
         clearPendingTimer();
@@ -911,7 +1451,6 @@
       const now = Date.now();
       isProcessingTransaction = true;
 
-      // Start 18s safety timer
       clearPendingTimer();
       pendingTransactionTimer = setTimeout(onTransactionTimeout, 18000);
       pendingProgressTimer = setTimeout(function () {
@@ -930,8 +1469,11 @@
       container.innerHTML = `
         <div class="result-card card-pending">
           <div class="result-header">
-            <span class="spinner" style="display:inline-block;width:12px;height:12px;border:2px solid #92400e;border-top-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
-            <span>MEMPROSES TRANSAKSI PRESENSI...</span>
+            <div class="result-header-left">
+              <span class="spinner" style="display:inline-block;width:12px;height:12px;border:2px solid #92400e;border-top-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
+              <span class="result-title">MEMPROSES ULANG TRANSAKSI...</span>
+            </div>
+            <span class="result-action-badge badge-warn">RETRY</span>
           </div>
           <div class="result-body">
             <div style="font-family:monospace;font-weight:700;color:#92400e;margin-bottom:4px;">${escapeHtml(payload)}</div>
@@ -970,9 +1512,13 @@
 
       const container = document.getElementById('result-box-container');
       container.innerHTML = `
-        <div class="result-card card-entry" style="background:#fcfdfa;border-color:#e2ebe1;">
-          <div class="result-body" style="text-align:center;color:var(--muted);padding:10px;">
-            <span>🟢 Pemindai di-reset. Hadapkan QR undangan tamu ke kotak kamera.</span>
+        <div class="result-card card-idle">
+          <div class="idle-body">
+            <span class="idle-icon">📷</span>
+            <div class="idle-text-wrap">
+              <div class="idle-title">Pemindai Di-reset</div>
+              <div class="idle-desc">Hadapkan QR undangan tamu ke kotak kamera di atas.</div>
+            </div>
           </div>
         </div>
       `;
@@ -995,7 +1541,6 @@
 
         const now = audioCtx.currentTime;
         if (type === 'exit') {
-          // Double chime descending for check-out (E5 -> C5)
           osc.type = 'sine';
           osc.frequency.setValueAtTime(659.25, now);
           osc.frequency.setValueAtTime(523.25, now + 0.1);
@@ -1004,7 +1549,6 @@
           osc.start(now);
           osc.stop(now + 0.25);
         } else if (type === 'error') {
-          // Low buzz for rejection/error
           osc.type = 'sawtooth';
           osc.frequency.setValueAtTime(220, now);
           gain.gain.setValueAtTime(0.25, now);
@@ -1012,7 +1556,6 @@
           osc.start(now);
           osc.stop(now + 0.3);
         } else {
-          // Cheerful chime ascending for check-in (A5 -> C6)
           osc.type = 'sine';
           osc.frequency.setValueAtTime(880, now);
           osc.frequency.setValueAtTime(1046.5, now + 0.08);
@@ -1068,6 +1611,42 @@
       }
     }
 
+    // Formatters for Before/After state
+    function formatPreviousStatusText(prevStatus, prevAction, prevTime) {
+      if (!prevStatus || prevStatus === 'BELUM_ADA' || prevAction === 'TIDAK_ADA') {
+        return 'Belum ada sesi masuk aktif';
+      }
+      if (prevStatus === 'DI_DALAM') {
+        const timePart = prevTime ? (prevTime.includes(' ') ? prevTime.split(' ')[1] : prevTime) : '';
+        return 'MASUK — DI DALAM GEDUNG' + (timePart ? ` (${timePart})` : '');
+      }
+      if (prevStatus === 'DI_LUAR') {
+        const timePart = prevTime ? (prevTime.includes(' ') ? prevTime.split(' ')[1] : prevTime) : '';
+        return 'KELUAR — DI LUAR GEDUNG' + (timePart ? ` (${timePart})` : '');
+      }
+      return String(prevStatus);
+    }
+
+    function formatCurrentStatusText(currStatus, currAction, currTime) {
+      if (currStatus === 'DI_DALAM') {
+        return 'DI DALAM GEDUNG';
+      }
+      if (currStatus === 'DI_LUAR') {
+        return 'KELUAR — DI LUAR GEDUNG';
+      }
+      return String(currStatus || '—');
+    }
+
+    function formatTimeOnly(timestampStr) {
+      if (!timestampStr) {
+        return new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/\./g, ':');
+      }
+      if (typeof timestampStr === 'string' && timestampStr.includes(' ')) {
+        return timestampStr.split(' ')[1];
+      }
+      return String(timestampStr);
+    }
+
     // Render backend result onto scanner UI
     function renderBackendResult(res) {
       if (!res) return;
@@ -1082,14 +1661,17 @@
         const s = res.student || {};
         const isCurrentlyInside = res.currentStatus === 'DI_DALAM';
         const statusBadge = isCurrentlyInside
-          ? '<span class="history-badge badge-in" style="font-size:11px;">DI DALAM GEDUNG</span>'
-          : '<span class="history-badge badge-out" style="font-size:11px;">DI LUAR GEDUNG</span>';
+          ? '<span class="hist-action-badge badge-in" style="font-size:11px;">DI DALAM GEDUNG</span>'
+          : '<span class="hist-action-badge badge-out" style="font-size:11px;">DI LUAR GEDUNG</span>';
 
         container.innerHTML = `
           <div class="result-card card-unconfirmed">
             <div class="result-header">
-              <span>ℹ️</span>
-              <span>BELUM TERCATAT DI SERVER</span>
+              <div class="result-header-left">
+                <span class="result-icon">ℹ️</span>
+                <span class="result-title">BELUM TERCATAT DI SERVER</span>
+              </div>
+              <span class="result-action-badge badge-warn">UNPROCESSED</span>
             </div>
             <div class="result-body">
               <div style="font-weight:700;margin-bottom:8px;color:#92400e;">
@@ -1115,10 +1697,10 @@
                 Transaksi dengan ID ini belum dieksekusi. Klik <strong>Proses Sekarang</strong> untuk mencatat ${isCurrentlyInside ? 'Check-out (Keluar)' : 'Check-in (Masuk)'} secara aman.
               </div>
               <div style="display:flex;gap:8px;margin-top:10px;">
-                <button class="btn btn-primary" onclick="retryCurrentTransaction()" style="flex:1;height:38px;font-size:12px;background:#15803d;border-color:#15803d;">
+                <button class="btn btn-primary" onclick="retryCurrentTransaction()" style="flex:1;min-height:38px;font-size:12px;background:#15803d;border-color:#15803d;">
                   🔁 Proses Sekarang
                 </button>
-                <button class="btn btn-outline" onclick="resetPendingTransaction()" style="flex:1;height:38px;font-size:12px;">
+                <button class="btn btn-outline" onclick="resetPendingTransaction()" style="flex:1;min-height:38px;font-size:12px;">
                   ↻ Batal / Reset
                 </button>
               </div>
@@ -1136,10 +1718,13 @@
         const activeTx = res.activeRequestId ? `<div class="result-meta-row" style="font-size:10.5px;color:var(--muted);"><span class="result-meta-label">Transaksi Server Aktif</span><span class="result-meta-val" style="font-family:monospace;color:#b45309;">${escapeHtml(res.activeRequestId)}</span></div>` : '';
 
         container.innerHTML = `
-          <div class="result-card card-unconfirmed" style="background:#fffbeb;border-color:#fde68a;">
-            <div class="result-header" style="color:#b45309;">
-              <span class="spinner" style="display:inline-block;width:12px;height:12px;border:2px solid #b45309;border-top-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
-              <span>SISTEM SEDANG MEMPROSES</span>
+          <div class="result-card card-unconfirmed">
+            <div class="result-header">
+              <div class="result-header-left">
+                <span class="spinner" style="display:inline-block;width:12px;height:12px;border:2px solid #b45309;border-top-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
+                <span class="result-title">SISTEM SEDANG MEMPROSES</span>
+              </div>
+              <span class="result-action-badge badge-warn">BUSY</span>
             </div>
             <div class="result-body">
               <div style="font-weight:700;margin-bottom:8px;color:#92400e;">
@@ -1155,14 +1740,14 @@
               </div>
               <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">
                 <div style="display:flex;gap:8px;">
-                  <button class="btn btn-primary" onclick="retryCurrentTransaction()" style="flex:1;height:38px;font-size:12px;background:#15803d;border-color:#15803d;">
+                  <button class="btn btn-primary" onclick="retryCurrentTransaction()" style="flex:1;min-height:38px;font-size:12px;background:#15803d;border-color:#15803d;">
                     🔁 Coba Kirim Lagi
                   </button>
-                  <button class="btn btn-primary" onclick="checkCurrentTransactionStatus()" style="flex:1;height:38px;font-size:12px;">
+                  <button class="btn btn-primary" onclick="checkCurrentTransactionStatus()" style="flex:1;min-height:38px;font-size:12px;">
                     🔍 Cek Status
                   </button>
                 </div>
-                <button class="btn btn-outline" onclick="resetPendingTransaction()" style="width:100%;height:34px;font-size:11.5px;">
+                <button class="btn btn-outline" onclick="resetPendingTransaction()" style="width:100%;min-height:34px;font-size:11.5px;">
                   ↻ Reset / Batalkan
                 </button>
               </div>
@@ -1171,18 +1756,19 @@
         `;
         if (vfBox) vfBox.classList.add('locked');
         if (vfLabel) vfLabel.textContent = '⏳ Server Sedang Memproses — Klik Coba Kirim Lagi atau Cek Status';
-        const codeDisplay = (res.student && res.student.name) ? res.student.name : (res.requestId || 'TX');
-        addHistory('SISTEM SEDANG MEMPROSES', 'badge-warn', codeDisplay);
         return;
       }
 
-      // Kasus Khusus: Transaksi sedang dalam proses eksekusi di server (SCAN_IN_PROGRESS)
+      // Kasus Khusus: Transaksi sedang dalam antrean backend (SCAN_IN_PROGRESS)
       if (res.resultCode === 'SCAN_IN_PROGRESS') {
         container.innerHTML = `
           <div class="result-card card-pending">
             <div class="result-header">
-              <span class="spinner" style="display:inline-block;width:12px;height:12px;border:2px solid #92400e;border-top-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
-              <span>SEDANG DIPROSES DI SERVER</span>
+              <div class="result-header-left">
+                <span class="spinner" style="display:inline-block;width:12px;height:12px;border:2px solid #92400e;border-top-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
+                <span class="result-title">SEDANG DIPROSES DI SERVER</span>
+              </div>
+              <span class="result-action-badge badge-warn">PROCESSING</span>
             </div>
             <div class="result-body">
               <div style="font-weight:700;margin-bottom:8px;color:#92400e;">
@@ -1196,10 +1782,10 @@
                 Mohon tunggu beberapa detik hingga server menulis ke Google Sheets.
               </div>
               <div style="display:flex;gap:8px;margin-top:10px;">
-                <button class="btn btn-primary" onclick="checkCurrentTransactionStatus()" style="flex:1;height:38px;font-size:12px;">
+                <button class="btn btn-primary" onclick="checkCurrentTransactionStatus()" style="flex:1;min-height:38px;font-size:12px;">
                   🔍 Periksa Status Sekarang
                 </button>
-                <button class="btn btn-outline" onclick="resetPendingTransaction()" style="flex:1;height:38px;font-size:12px;">
+                <button class="btn btn-outline" onclick="resetPendingTransaction()" style="flex:1;min-height:38px;font-size:12px;">
                   ↻ Reset Pemindai
                 </button>
               </div>
@@ -1211,14 +1797,17 @@
         return;
       }
 
-      // Kasus Khusus: Lock contention di Google Apps Script (LOCK_TIMEOUT)
+      // Kasus Khusus: Lock contention di Apps Script (LOCK_TIMEOUT)
       if (res.resultCode === 'LOCK_TIMEOUT') {
         playBeep('error');
         container.innerHTML = `
-          <div class="result-card card-unconfirmed" style="background:#fffbeb;border-color:#fde68a;">
-            <div class="result-header" style="color:#b45309;">
-              <span>⚠️</span>
-              <span>SERVER SIBUK (LOCK TIMEOUT)</span>
+          <div class="result-card card-unconfirmed">
+            <div class="result-header">
+              <div class="result-header-left">
+                <span class="result-icon">⚠️</span>
+                <span class="result-title">SERVER SIBUK (LOCK TIMEOUT)</span>
+              </div>
+              <span class="result-action-badge badge-warn">LOCK BUSY</span>
             </div>
             <div class="result-body">
               <div style="font-weight:700;margin-bottom:8px;color:#92400e;">
@@ -1232,10 +1821,10 @@
                 Kunci konkurensi database terlewati karena server sibuk. Klik <strong>Coba Kirim Lagi</strong> dengan ID yang sama.
               </div>
               <div style="display:flex;gap:8px;margin-top:10px;">
-                <button class="btn btn-primary" onclick="retryCurrentTransaction()" style="flex:1;height:38px;font-size:12px;background:#15803d;border-color:#15803d;">
+                <button class="btn btn-primary" onclick="retryCurrentTransaction()" style="flex:1;min-height:38px;font-size:12px;background:#15803d;border-color:#15803d;">
                   🔁 Coba Kirim Lagi
                 </button>
-                <button class="btn btn-outline" onclick="resetPendingTransaction()" style="flex:1;height:38px;font-size:12px;">
+                <button class="btn btn-outline" onclick="resetPendingTransaction()" style="flex:1;min-height:38px;font-size:12px;">
                   ↻ Batal / Reset
                 </button>
               </div>
@@ -1244,10 +1833,10 @@
         `;
         if (vfBox) vfBox.classList.add('locked');
         if (vfLabel) vfLabel.textContent = '⚠️ Server Sibuk — Klik Coba Kirim Lagi';
-        addHistory('SERVER SIBUK', 'badge-warn', res.requestId || 'TX');
         return;
       }
 
+      // ─── TRANSAKSI TERMINAL (SUKSES MASUK, SUKSES KELUAR, ATAU DITOLAK) ───
       const isEntry = res.resultCode === 'BERHASIL_MASUK';
       const isExit = res.resultCode === 'BERHASIL_KELUAR';
       const isStatusInside = res.resultCode === 'STATUS_DI_DALAM';
@@ -1263,98 +1852,189 @@
         playBeep('error');
       }
 
-      // Card styling
-      let cardClass = 'card-error';
-      let icon = '✕';
-      if (isEntry || isStatusInside) {
-        cardClass = 'card-entry';
-        icon = '✓';
-      } else if (isExit || isStatusOutside) {
-        cardClass = 'card-exit';
-        icon = '✓';
-      }
+      const s = res.student || {};
+      const guestName = s.name || (activeLockedCode || 'Tamu / Wisudawan');
+      const guestNim = s.nim || '—';
+      const guestSeat = s.seat || '—';
+      const txTime = res.time || res.currentTimestamp || '';
+      const txReqId = res.requestId || pendingRequestId || '—';
 
-      let studentRows = '';
-      if (res.student) {
-        const s = res.student;
-        studentRows = `
-          <div class="result-meta-row">
-            <span class="result-meta-label">Wisudawan</span>
-            <span class="result-meta-val" style="color:var(--primary);">${escapeHtml(s.name || '—')}</span>
-          </div>
-          <div class="result-meta-row">
-            <span class="result-meta-label">NIM</span>
-            <span class="result-meta-val">${escapeHtml(s.nim || '—')}</span>
-          </div>
-          <div class="result-meta-row">
-            <span class="result-meta-label">Kursi Wisudawan</span>
-            <span class="result-meta-val">${escapeHtml(s.seat || '—')}</span>
-          </div>
-        `;
-      }
+      // Format snapshot sebelum & sesudah
+      const prevStatusStr = formatPreviousStatusText(res.previousStatus, res.previousAction, res.previousTimestamp);
+      const currStatusStr = formatCurrentStatusText(res.currentStatus, res.currentAction, txTime);
 
-      let timeInfo = '';
-      if (res.time) {
-        timeInfo = `
-          <div class="result-meta-row">
-            <span class="result-meta-label">${isExit ? 'Waktu Keluar' : 'Waktu Masuk'}</span>
-            <span class="result-meta-val" style="font-family:monospace;">${escapeHtml(res.time)}</span>
-          </div>
-        `;
-      }
+      if (isEntry) {
+        // Kartu Sukses Masuk
+        container.innerHTML = `
+          <div class="result-card card-entry">
+            <div class="result-header">
+              <div class="result-header-left">
+                <svg class="result-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+                <span class="result-title">BERHASIL MASUK</span>
+              </div>
+              <span class="result-action-badge badge-entry">CHECK-IN</span>
+            </div>
+            <div class="result-body">
+              <div class="guest-name">${escapeHtml(guestName)}</div>
+              <div class="guest-meta">
+                <span>NIM: <strong>${escapeHtml(guestNim)}</strong></span>
+                <span class="meta-dot">·</span>
+                <span>Kursi: <strong>${escapeHtml(guestSeat)}</strong></span>
+              </div>
 
-      let idInfo = '';
-      if (res.requestId) {
-        idInfo = `
-          <div class="result-meta-row" style="font-size:10.5px;color:var(--muted);margin-top:4px;">
-            <span class="result-meta-label">ID Transaksi</span>
-            <span class="result-meta-val" style="font-family:monospace;font-weight:normal;">${escapeHtml(res.requestId)}</span>
-          </div>
-        `;
-      }
+              <div class="status-comparison-card">
+                <div class="status-col">
+                  <span class="status-label">Sebelum scan</span>
+                  <div class="status-val status-val-prev">${escapeHtml(prevStatusStr)}</div>
+                </div>
+                <div class="status-arrow">➔</div>
+                <div class="status-col">
+                  <span class="status-label">Setelah scan</span>
+                  <div class="status-val status-val-entry">DI DALAM GEDUNG</div>
+                  <div class="status-sub">Sesi masuk tercatat</div>
+                </div>
+              </div>
 
-      container.innerHTML = `
-        <div class="result-card ${cardClass}">
-          <div class="result-header">
-            <span>${icon}</span>
-            <span>${escapeHtml(res.badge || (isSuccess ? 'BERHASIL' : 'TRANSAKSI GAGAL'))}</span>
-          </div>
-          <div class="result-body">
-            <div style="font-weight:700;margin-bottom:8px;">${escapeHtml(res.message || '')}</div>
-            ${studentRows}
-            ${timeInfo}
-            ${idInfo}
-            <div style="margin-top:8px;padding-top:6px;border-top:1px dashed rgba(0,0,0,0.1);font-size:11px;color:var(--muted);text-align:center;">
-              ${isSuccess ? '🔒 Transaksi tercatat. <strong>Angkat QR dari kamera</strong> untuk transaksi berikutnya.' : 'Silakan coba kembali.'}
+              <div class="result-footer-meta">
+                <div class="footer-time">Waktu masuk: <strong>${escapeHtml(txTime)}</strong></div>
+                <div class="footer-req-id">ID: ${escapeHtml(txReqId)}</div>
+              </div>
+
+              <div class="operator-hint entry-hint">
+                🔒 Transaksi tercatat di Google Sheets. <strong>Angkat QR dari kamera</strong> untuk transaksi berikutnya.
+              </div>
             </div>
           </div>
-        </div>
-      `;
+        `;
+      } else if (isExit) {
+        // Kartu Sukses Keluar
+        container.innerHTML = `
+          <div class="result-card card-exit">
+            <div class="result-header">
+              <div class="result-header-left">
+                <svg class="result-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                  <polyline points="16 17 21 12 16 7"></polyline>
+                  <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                <span class="result-title">BERHASIL KELUAR</span>
+              </div>
+              <span class="result-action-badge badge-exit">CHECK-OUT</span>
+            </div>
+            <div class="result-body">
+              <div class="guest-name">${escapeHtml(guestName)}</div>
+              <div class="guest-meta">
+                <span>NIM: <strong>${escapeHtml(guestNim)}</strong></span>
+                <span class="meta-dot">·</span>
+                <span>Kursi: <strong>${escapeHtml(guestSeat)}</strong></span>
+              </div>
 
-      // Visual Viewfinder lock
+              <div class="status-comparison-card">
+                <div class="status-col">
+                  <span class="status-label">Sebelum scan</span>
+                  <div class="status-val status-val-prev-active">${escapeHtml(prevStatusStr)}</div>
+                </div>
+                <div class="status-arrow">➔</div>
+                <div class="status-col">
+                  <span class="status-label">Setelah scan</span>
+                  <div class="status-val status-val-exit">KELUAR — DI LUAR GEDUNG</div>
+                  <div class="status-sub">Slot tamu kembali bebas</div>
+                </div>
+              </div>
+
+              <div class="result-footer-meta">
+                <div class="footer-time">Waktu keluar: <strong>${escapeHtml(txTime)}</strong></div>
+                <div class="footer-req-id">ID: ${escapeHtml(txReqId)}</div>
+              </div>
+
+              <div class="operator-hint exit-hint">
+                🔒 Tamu telah keluar gedung. <strong>Angkat QR dari kamera</strong> untuk transaksi berikutnya.
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        // Kartu Kesalahan / Penolakan
+        const badgeTitle = res.badge || 'TRANSAKSI DITOLAK / GAGAL';
+        container.innerHTML = `
+          <div class="result-card card-error">
+            <div class="result-header">
+              <div class="result-header-left">
+                <span class="result-icon">✕</span>
+                <span class="result-title">${escapeHtml(badgeTitle)}</span>
+              </div>
+              <span class="result-action-badge badge-err">GAGAL</span>
+            </div>
+            <div class="result-body">
+              <div style="font-weight:700;color:var(--danger);margin-bottom:6px;">
+                ${escapeHtml(res.message || 'Transaksi presensi ditolak oleh server.')}
+              </div>
+              ${s.name ? `
+                <div class="result-meta-row">
+                  <span class="result-meta-label">Wisudawan</span>
+                  <span class="result-meta-val">${escapeHtml(s.name)}</span>
+                </div>
+                <div class="result-meta-row">
+                  <span class="result-meta-label">NIM</span>
+                  <span class="result-meta-val">${escapeHtml(s.nim || '—')}</span>
+                </div>
+              ` : ''}
+              <div class="result-footer-meta">
+                <div class="footer-time">${escapeHtml(txTime || '—')}</div>
+                <div class="footer-req-id">ID: ${escapeHtml(txReqId)}</div>
+              </div>
+              <div style="margin-top:8px;font-size:11px;color:var(--muted);text-align:center;">
+                Silakan periksa kartu atau barcode undangan tamu.
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // Visual Viewfinder Lock
       if (vfBox) {
         vfBox.classList.add('locked');
       }
       if (vfLabel) {
-        vfLabel.innerHTML = '🔒 QR Terkunci — <strong>Angkat QR</strong> untuk transaksi berikutnya';
+        if (isSuccess) {
+          vfLabel.innerHTML = '🔒 QR Terkunci — <strong>Angkat QR</strong> untuk transaksi berikutnya';
+        } else {
+          vfLabel.textContent = '✕ Transaksi Ditolak / Gagal';
+        }
       }
 
-      // Add to recent list
-      const label = isEntry ? 'BERHASIL MASUK' : (isExit ? 'BERHASIL KELUAR' : (res.badge || 'GAGAL'));
+      // Simpan snapshot independen ke riwayat transaksi
+      const badgeText = isEntry ? 'MASUK' : (isExit ? 'KELUAR' : (res.badge || 'GAGAL'));
       const badgeClass = isEntry ? 'badge-in' : (isExit ? 'badge-out' : 'badge-err');
-      const name = (res.student && res.student.name) ? res.student.name : (activeLockedCode || 'QR');
-      addHistory(label, badgeClass, name);
+      const cardTheme = isEntry ? 'hist-entry' : (isExit ? 'hist-exit' : 'hist-err');
+      const currClass = isEntry ? 'flow-val-entry' : (isExit ? 'flow-val-exit' : 'flow-val-muted');
+
+      addHistoryRecord({
+        requestId: txReqId,
+        name: guestName,
+        nim: guestNim,
+        seat: guestSeat,
+        time: formatTimeOnly(txTime),
+        badgeText: badgeText,
+        badgeClass: badgeClass,
+        cardTheme: cardTheme,
+        prevText: prevStatusStr,
+        currText: currStatusStr,
+        currClass: currClass
+      });
     }
 
     // Heartbeat check (every 250ms) to detect when the QR code is lifted away from the camera
     setInterval(function () {
       if (activeLockedCode) {
         const now = Date.now();
-        // If QR has not been detected for > 1300 ms, user has lifted the QR away!
+        // Jika QR tidak lagi terdeteksi di kamera selama > 1300 ms, operator telah mengangkat QR
         if (now - lastSeenTimestamp > 1300) {
           activeLockedCode = null;
 
-          // Jangan reset jika sedang memproses konfirmasi server
           if (!isProcessingTransaction) {
             const vfBox = document.getElementById('viewfinder-box');
             const vfLabel = document.getElementById('viewfinder-label');
@@ -1377,9 +2057,7 @@
 
       const now = Date.now();
 
-      // 1. KASUS QR SAMA DAN MASIH BERADA DI KAMERA:
-      // Selama QR masih terbaca, perbarui timestamp agar lock tidak terlepas.
-      // JANGAN kirim transaksi baru selama masih dalam satu siklus kehadiran!
+      // 1. KASUS QR SAMA DAN MASIH BERADA DI DEPAN KAMERA:
       if (activeLockedCode === clean) {
         lastSeenTimestamp = now;
         return;
@@ -1390,8 +2068,7 @@
         return;
       }
 
-      // 3. JIKA ADA TRANSAKSI TERTUNDA / BELUM SELESAI (pendingRequestId aktif):
-      // Jangan buat requestId baru jika QR yang dihadapkan sama dengan transaksi pending!
+      // 3. JIKA ADA TRANSAKSI TERTUNDA / BELUM SELESAI:
       if (pendingRequestId && pendingPayload === clean) {
         lastSeenTimestamp = now;
         return;
@@ -1405,7 +2082,6 @@
       pendingRequestId = currentRequestId;
       pendingPayload = clean;
 
-      // Pasang timeout 18 detik dan update progres di 6 detik
       clearPendingTimer();
       pendingTransactionTimer = setTimeout(onTransactionTimeout, 18000);
       pendingProgressTimer = setTimeout(function () {
@@ -1430,8 +2106,11 @@
       container.innerHTML = `
         <div class="result-card card-pending">
           <div class="result-header">
-            <span class="spinner" style="display:inline-block;width:12px;height:12px;border:2px solid #92400e;border-top-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
-            <span>MEMVERIFIKASI TRANSAKSI PRESENSI...</span>
+            <div class="result-header-left">
+              <span class="spinner" style="display:inline-block;width:12px;height:12px;border:2px solid #92400e;border-top-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
+              <span class="result-title">MEMVERIFIKASI TRANSAKSI PRESENSI...</span>
+            </div>
+            <span class="result-action-badge badge-warn">VALIDASI</span>
           </div>
           <div class="result-body">
             <div style="font-family:monospace;font-weight:700;color:#92400e;margin-bottom:4px;">${escapeHtml(clean)}</div>
@@ -1470,9 +2149,8 @@
         pendingRequestId = null;
         pendingPayload = null;
 
-        // Sinkronisasi status banner koneksi seketika
         isParentConnected = false;
-        setConnectionState(false, '🔴 Terputus: ' + sendRes.message, 'Terputus', false);
+        setConnectionState(false, 'Terputus: ' + sendRes.message, 'Terputus', false);
         renderConnectionFailure(clean, currentRequestId, sendRes);
         return;
       }
@@ -1480,7 +2158,6 @@
       // 3. Stage 1 sukses terkirim: Pasang timer bertahap
       clearPendingTimer();
 
-      // Timer Stage 2 (3.5 detik): Pantau konfirmasi ACK dari aplikasi induk
       stage2AckTimer = setTimeout(function () {
         if (isProcessingTransaction && pendingRequestId === currentRequestId) {
           const vfLabel = document.getElementById('viewfinder-label');
@@ -1488,7 +2165,6 @@
         }
       }, 3500);
 
-      // Timer progres lanjutan (7.5 detik): Menunggu eksekusi server
       pendingProgressTimer = setTimeout(function () {
         if (isProcessingTransaction && pendingRequestId === currentRequestId) {
           const vfLabel = document.getElementById('viewfinder-label');
@@ -1496,7 +2172,6 @@
         }
       }, 7500);
 
-      // Timer batas waktu terminal (18 detik)
       pendingTransactionTimer = setTimeout(onTransactionTimeout, 18000);
     }
 
@@ -1525,10 +2200,13 @@
       if (vfLabel) vfLabel.textContent = '❌ ' + badgeTitle;
 
       container.innerHTML = `
-        <div class="result-card card-unconfirmed" style="border-left-color:#dc2626;">
+        <div class="result-card card-unconfirmed" style="border-left-color:var(--danger);">
           <div class="result-header" style="background:#fef2f2;color:#991b1b;border-bottom-color:#fecaca;">
-            <span>❌</span>
-            <span>${escapeHtml(badgeTitle)}</span>
+            <div class="result-header-left">
+              <span class="result-icon">❌</span>
+              <span class="result-title">${escapeHtml(badgeTitle)}</span>
+            </div>
+            <span class="result-action-badge badge-err">GAGAL</span>
           </div>
           <div class="result-body">
             <div style="font-weight:700;color:#991b1b;margin-bottom:6px;">
@@ -1547,7 +2225,7 @@
             </div>
             <div class="result-meta-row">
               <span class="result-meta-label">Status Server</span>
-              <span class="result-meta-val" style="color:#dc2626;font-weight:700;">TIDAK TERCATAT</span>
+              <span class="result-meta-val" style="color:var(--danger);font-weight:700;">TIDAK TERCATAT</span>
             </div>
             <div class="result-meta-row" style="font-size:10.5px;color:var(--muted);margin-top:4px;">
               <span class="result-meta-label">Diagnostik</span>
@@ -1557,10 +2235,10 @@
               👉 <strong>Petunjuk Petugas:</strong> Buka menu <strong>Scan QR Tamu</strong> di aplikasi Sistem Pengelolaan Wisuda, lalu klik tombol <strong>Buka Kamera Pemindai Eksternal</strong> untuk memulai sesi presensi resmi.
             </div>
             <div style="display:flex;gap:8px;margin-top:10px;">
-              <button class="btn btn-primary" onclick="retryConnectionHandshake()" style="flex:1;height:38px;font-size:12px;">
+              <button class="btn btn-primary" onclick="retryConnectionHandshake()" style="flex:1;min-height:38px;font-size:12px;">
                 🔄 Coba Hubungkan Ulang
               </button>
-              <button class="btn btn-outline" onclick="resetPendingTransaction()" style="flex:1;height:38px;font-size:12px;">
+              <button class="btn btn-outline" onclick="resetPendingTransaction()" style="flex:1;min-height:38px;font-size:12px;">
                 ↻ Reset Pemindai
               </button>
             </div>
@@ -1568,14 +2246,26 @@
         </div>
       `;
 
-      addHistory('GAGAL: ' + badgeTitle, 'badge-warn', code);
+      addHistoryRecord({
+        requestId: reqId || '—',
+        name: code,
+        nim: '—',
+        seat: '',
+        time: formatTimeOnly(),
+        badgeText: 'GAGAL',
+        badgeClass: 'badge-err',
+        cardTheme: 'hist-err',
+        prevText: 'Tidak terhubung',
+        currText: 'Tidak tercatat di Google Sheets',
+        currClass: 'flow-val-muted'
+      });
     }
 
     // Mencoba melakukan handshake ulang jika koneksi terputus
     function retryConnectionHandshake() {
       const vfLabel = document.getElementById('viewfinder-label');
       if (vfLabel) vfLabel.textContent = '🔄 Menghubungkan ulang ke aplikasi utama...';
-      setConnectionState(false, '⏳ Menghubungkan ulang ke Sistem Pengelolaan Wisuda...', 'Menghubungkan', true);
+      setConnectionState(false, 'Menghubungkan ulang ke Sistem Pengelolaan Wisuda...', 'Menghubungkan', true);
       isParentConnected = false;
       startHandshakeSequence();
     }
@@ -1584,8 +2274,8 @@
       // Periodic tick
     }
 
-    let isStartingScanner = false;        // Mutex lock mencegah inisialisasi kamera berulang
-    let isPopulatingCameras = false;      // Guard daftar kamera
+    let isStartingScanner = false;
+    let isPopulatingCameras = false;
 
     // Populate camera devices secara aman tanpa memicu event onchange berulang
     async function populateCamerasSafe() {
@@ -1601,7 +2291,6 @@
         if (videoDevices.length > 0) {
           const currentVal = select.value || 'environment';
 
-          // Lepas onchange sementara untuk mencegah trigger startScanner berulang
           const oldChange = select.onchange;
           select.onchange = null;
 
@@ -1623,7 +2312,6 @@
             select.appendChild(opt);
           });
 
-          // Pulihkan seleksi
           if (Array.from(select.options).some(o => o.value === currentVal)) {
             select.value = currentVal;
           }
@@ -1656,7 +2344,6 @@
       if (btnStart) btnStart.disabled = true;
 
       try {
-        // 1. Hentikan dan bersihkan instance / stream sebelumnya secara menyeluruh
         await stopScanner();
 
         const select = document.getElementById('camera-select');
@@ -1669,16 +2356,14 @@
           cameraConfig = { deviceId: { exact: chosenValue } };
         }
 
-        // 2. Bersihkan container DOM #reader sepenuhnya sebelum memasang instance baru
         const readerEl = document.getElementById('reader');
         if (readerEl) readerEl.innerHTML = '';
 
         html5QrCode = new Html5Qrcode('reader');
 
-        // Konfigurasi optimal: tanpa memaksakan aspectRatio buatan yang mendistorsi kamera HP
         const config = {
           fps: 12,
-          qrbox: { width: 220, height: 220 },
+          qrbox: { width: 210, height: 210 },
           disableFlip: true
         };
 
@@ -1710,7 +2395,13 @@
         if (container) {
           container.innerHTML = `
             <div class="result-card card-error">
-              <div class="result-header">✕ ${escapeHtml(name)}</div>
+              <div class="result-header">
+                <div class="result-header-left">
+                  <span class="result-icon">✕</span>
+                  <span class="result-title">${escapeHtml(name)}</span>
+                </div>
+                <span class="result-action-badge badge-err">ERROR</span>
+              </div>
               <div class="result-body">${escapeHtml(msg)}<br>Pastikan izin kamera diizinkan pada peramban.</div>
             </div>
           `;
@@ -1733,7 +2424,6 @@
         }
       }
 
-      // Pastikan semua MediaStreamTrack di peramban benar-benar dihentikan
       try {
         const readerEl = document.getElementById('reader');
         if (readerEl) {
@@ -1747,7 +2437,6 @@
             v.srcObject = null;
             try { v.remove(); } catch (re) {}
           });
-          // Kosongkan container dari elemen turunan library
           readerEl.innerHTML = '';
         }
       } catch (ce) {}
@@ -1772,22 +2461,70 @@
       window.close();
     }
 
-    // History helper
-    function addHistory(badgeText, badgeClass, name) {
+    // ─── Riwayat Transaksi Informatif & Mandiri (Snapshot) ───
+    function addHistoryRecord(record) {
+      // Tambahkan transaksi terbaru ke urutan teratas
+      recentScans.unshift(record);
+      // Batasi 25 item riwayat terkini agar performa tetap ringan
+      if (recentScans.length > 25) recentScans.pop();
+
+      renderHistoryList();
+    }
+
+    function renderHistoryList() {
       const list = document.getElementById('history-list');
-      const timeStr = new Date().toLocaleTimeString('id-ID');
-      recentScans.unshift({ badgeText, badgeClass, name, time: timeStr });
-      if (recentScans.length > 5) recentScans.pop();
+      const countBadge = document.getElementById('history-count');
+      const btnClear = document.getElementById('btn-clear-history');
+      if (!list) return;
+
+      if (countBadge) countBadge.textContent = recentScans.length;
+      if (btnClear) btnClear.style.display = recentScans.length > 0 ? 'inline-block' : 'none';
+
+      if (recentScans.length === 0) {
+        list.innerHTML = '<div class="history-empty">Belum ada QR undangan yang diproses pada sesi ini.</div>';
+        return;
+      }
 
       list.innerHTML = recentScans.map(item => `
-        <div class="history-item">
-          <div>
-            <span class="history-badge ${item.badgeClass}">${escapeHtml(item.badgeText)}</span>
-            <strong>${escapeHtml(item.name)}</strong>
+        <div class="history-item-card ${item.cardTheme || 'hist-neutral'}">
+          <div class="hist-top-row">
+            <div class="hist-guest-group">
+              <span class="hist-action-badge ${item.badgeClass}">${escapeHtml(item.badgeText)}</span>
+              <strong class="hist-guest-name">${escapeHtml(item.name)}</strong>
+            </div>
+            <span class="hist-time">${escapeHtml(item.time)}</span>
           </div>
-          <span class="history-time">${item.time}</span>
+
+          <div class="hist-meta-row">
+            <span>NIM: <strong>${escapeHtml(item.nim || '—')}</strong></span>
+            ${item.seat && item.seat !== '—' ? `
+              <span class="hist-meta-dot">·</span>
+              <span>Kursi: <strong>${escapeHtml(item.seat)}</strong></span>
+            ` : ''}
+          </div>
+
+          <div class="hist-state-flow">
+            <div class="flow-pill">
+              <span class="flow-lbl">Sebelum:</span>
+              <span class="flow-val flow-val-muted">${escapeHtml(item.prevText)}</span>
+            </div>
+            <span class="flow-arrow">➔</span>
+            <div class="flow-pill">
+              <span class="flow-lbl">Sesudah:</span>
+              <span class="flow-val ${item.currClass || ''}">${escapeHtml(item.currText)}</span>
+            </div>
+          </div>
+
+          <div class="hist-foot-row">
+            <span>ID: ${escapeHtml(item.requestId || '—')}</span>
+          </div>
         </div>
       `).join('');
+    }
+
+    function clearLocalHistory() {
+      recentScans.length = 0;
+      renderHistoryList();
     }
 
     function escapeHtml(str) {
