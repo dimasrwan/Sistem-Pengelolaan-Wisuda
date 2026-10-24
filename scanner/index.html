@@ -615,7 +615,21 @@
           return;
         }
 
-        if (!window.opener || window.opener.closed) {
+        if (!window.opener) {
+          if (handshakeTimer) clearInterval(handshakeTimer);
+          isParentConnected = false;
+          setConnectionState(false, '🔴 Belum Terhubung: Jendela aplikasi utama tidak ditemukan.', 'Tidak Terhubung', false);
+          return;
+        }
+
+        let isClosed = false;
+        try {
+          isClosed = window.opener.closed === true;
+        } catch (e) {
+          isClosed = false;
+        }
+
+        if (isClosed) {
           if (handshakeTimer) clearInterval(handshakeTimer);
           isParentConnected = false;
           setConnectionState(false, '🔴 Jendela aplikasi utama telah ditutup. Buka kembali melalui aplikasi.', 'Terputus', false);
@@ -623,7 +637,7 @@
         }
 
         handshakeAttempts++;
-        if (targetOrigin) {
+        if (targetOrigin && isAllowedParentOrigin(targetOrigin)) {
           sendToParent({
             type: 'UIN_ARRANIRY_SCANNER_READY',
             timestamp: Date.now(),
@@ -631,14 +645,14 @@
           });
         }
 
-        if (handshakeAttempts >= 12 && !isParentConnected) {
+        if (handshakeAttempts >= 15 && !isParentConnected) {
           if (handshakeTimer) clearInterval(handshakeTimer);
           setConnectionState(false, '🔴 Gagal terhubung ke aplikasi utama (Handshake Timeout). Buka ulang dari aplikasi.', 'Timeout', false);
         }
       }
 
       ping();
-      handshakeTimer = setInterval(ping, 1200);
+      handshakeTimer = setInterval(ping, 1000);
     }
 
     // Parse target origin from query parameter (?parentOrigin=...)
@@ -658,8 +672,15 @@
         }
       }
 
-      // Periksa keberadaan window.opener
-      if (window.opener && !window.opener.closed) {
+      // Periksa keberadaan window.opener secara aman
+      let isClosed = false;
+      try {
+        isClosed = window.opener && window.opener.closed === true;
+      } catch (e) {
+        isClosed = false;
+      }
+
+      if (window.opener && !isClosed) {
         // Status awal: Menghubungkan (belum terkonfirmasi)
         setConnectionState(false, '⏳ Menghubungkan ke Sistem Pengelolaan Wisuda...', 'Menghubungkan', true);
         startHandshakeSequence();
@@ -669,6 +690,23 @@
       }
     })();
 
+    // Heartbeat pemantau integritas koneksi induk setiap 2.5 detik
+    setInterval(function () {
+      if (isParentConnected) {
+        if (!window.opener) {
+          isParentConnected = false;
+          setConnectionState(false, '🔴 Jendela aplikasi utama tidak ditemukan.', 'Terputus', false);
+          return;
+        }
+        try {
+          if (window.opener.closed === true) {
+            isParentConnected = false;
+            setConnectionState(false, '🔴 Jendela aplikasi utama telah ditutup oleh pengguna.', 'Terputus', false);
+          }
+        } catch (e) {}
+      }
+    }, 2500);
+
     // Setup listener for incoming messages from Parent Window (GAS Web App)
     window.addEventListener('message', function (event) {
       // 1. Validasi origin pengirim: harus origin Google Apps Script atau localhost terdaftar
@@ -677,19 +715,18 @@
         return;
       }
 
-      // Jika targetOrigin belum terikat dari URL parameter, ikat secara aman dari event.origin yang telah divalidasi
-      if (!targetOrigin && isAllowedParentOrigin(event.origin)) {
-        targetOrigin = event.origin;
-        console.info('[Security] targetOrigin berhasil diikat dari pesan induk:', targetOrigin);
-      } else if (targetOrigin && event.origin !== targetOrigin) {
-        console.warn('[Security] Origin pengirim tidak cocok dengan targetOrigin induk:', event.origin);
-        return;
-      }
-
       // 2. Validasi bahwa event.source adalah window.opener yang sah
       if (window.opener && event.source !== window.opener) {
         console.warn('[Security] Diabaikan pesan dari source yang bukan window opener.');
         return;
+      }
+
+      // 3. Ikat atau perbarui targetOrigin dari event.origin yang telah diverifikasi
+      if (isAllowedParentOrigin(event.origin)) {
+        if (!targetOrigin || targetOrigin !== event.origin) {
+          console.info('[Security] targetOrigin induk diikat/diperbarui ke:', event.origin);
+          targetOrigin = event.origin;
+        }
       }
 
       const data = event.data;
@@ -708,11 +745,19 @@
         return;
       }
 
-      // 1. ACK received from parent
+      // 1. ACK received from parent (Stage 2 terbukti)
       if (data.type === 'UIN_ARRANIRY_SCAN_ACK') {
         if (!pendingRequestId || data.requestId === pendingRequestId) {
+          if (stage2AckTimer) {
+            clearTimeout(stage2AckTimer);
+            stage2AckTimer = null;
+          }
           const lbl = document.getElementById('viewfinder-label');
           if (lbl) lbl.textContent = '🔄 2/3 Diterima Induk — Memvalidasi di Google Sheets...';
+          const pDesc = document.getElementById('pending-status-desc');
+          if (pDesc) {
+            pDesc.textContent = 'Pesan telah diterima aplikasi induk. Menunggu eksekusi database di Google Sheets...';
+          }
         }
         return;
       }
@@ -757,6 +802,7 @@
       }
     });
 
+    let stage2AckTimer = null;
     let pendingProgressTimer = null;
     function clearPendingTimer() {
       if (pendingTransactionTimer) {
@@ -766,6 +812,10 @@
       if (pendingProgressTimer) {
         clearTimeout(pendingProgressTimer);
         pendingProgressTimer = null;
+      }
+      if (stage2AckTimer) {
+        clearTimeout(stage2AckTimer);
+        stage2AckTimer = null;
       }
     }
 
@@ -978,19 +1028,43 @@
       }
     }
 
-    // Safely send message to opener with strict verified origin (no wildcard)
-    function sendToParent(msg) {
-      if (!window.opener) return false;
-      if (!targetOrigin || !isAllowedParentOrigin(targetOrigin)) {
-        console.warn('[Security] Pengiriman ke induk dibatalkan: targetOrigin tidak valid atau belum diverifikasi:', targetOrigin);
-        return false;
+    // Pemeriksaan integritas koneksi jendela induk
+    function checkParentConnection() {
+      if (!window.opener) {
+        return { ok: false, reason: 'NO_OPENER', message: 'Referensi jendela aplikasi induk tidak ditemukan (window.opener kosong).' };
       }
+      let isClosed = false;
       try {
-        window.opener.postMessage(msg, targetOrigin);
-        return true;
+        isClosed = window.opener.closed === true;
       } catch (e) {
-        console.error('Error posting message to opener:', e);
-        return false;
+        isClosed = false;
+      }
+      if (isClosed) {
+        return { ok: false, reason: 'OPENER_CLOSED', message: 'Jendela aplikasi Sistem Pengelolaan Wisuda telah ditutup.' };
+      }
+
+      if (!targetOrigin || !isAllowedParentOrigin(targetOrigin)) {
+        return { ok: false, reason: 'INVALID_TARGET_ORIGIN', message: 'Origin aplikasi induk belum terikat atau tidak sah: ' + (targetOrigin || 'kosong') };
+      }
+
+      return { ok: true, targetOrigin: targetOrigin };
+    }
+
+    // Mengirim pesan ke jendela opener secara aman dengan targetOrigin terverifikasi
+    function sendToParent(msg) {
+      const conn = checkParentConnection();
+      if (!conn.ok) {
+        console.warn('[sendToParent] Dibatalkan:', conn.reason, conn.message);
+        return { success: false, reason: conn.reason, message: conn.message };
+      }
+
+      try {
+        window.opener.postMessage(msg, conn.targetOrigin);
+        return { success: true, targetOrigin: conn.targetOrigin };
+      } catch (e) {
+        const errDetail = (e && (e.name + ': ' + e.message)) || 'Gagal mengeksekusi postMessage.';
+        console.error('[sendToParent Error]', errDetail);
+        return { success: false, reason: 'POSTMESSAGE_FAILED', message: errDetail };
       }
     }
 
@@ -1361,62 +1435,107 @@
           </div>
           <div class="result-body">
             <div style="font-family:monospace;font-weight:700;color:#92400e;margin-bottom:4px;">${escapeHtml(clean)}</div>
-            <div style="font-size:11.5px;color:#78350f;">Memeriksa status sesi di Google Sheets (Check-in / Check-out otomatis)...</div>
+            <div id="pending-status-desc" style="font-size:11.5px;color:#78350f;">Memeriksa status sesi di Google Sheets (Check-in / Check-out otomatis)...</div>
             <div style="font-size:10.5px;color:var(--muted);margin-top:4px;font-family:monospace;">ID: ${currentRequestId}</div>
           </div>
         </div>
       `;
 
-      // Pastikan scanner benar-benar terhubung ke aplikasi induk
-      if (!isParentConnected || !window.opener || window.opener.closed) {
+      // 1. Validasi status koneksi ke aplikasi induk
+      if (!isParentConnected) {
         playBeep('error');
         clearPendingTimer();
         isProcessingTransaction = false;
         pendingRequestId = null;
         pendingPayload = null;
-        renderDisconnectedError(clean, currentRequestId);
+        renderConnectionFailure(clean, currentRequestId, {
+          reason: 'NOT_CONNECTED_YET',
+          message: 'Pemindai belum terhubung dengan aplikasi Sistem Pengelolaan Wisuda. Buka pemindai melalui menu resmi aplikasi induk.'
+        });
         return;
       }
 
-      // Send to parent window with correlation ID requestId
-      const sent = sendToParent({
+      // 2. Kirim pesan transaksi QR ke aplikasi induk (Stage 1)
+      const sendRes = sendToParent({
         type: 'UIN_ARRANIRY_QR_SCAN',
         payload: clean,
         requestId: currentRequestId,
         timestamp: now
       });
 
-      if (!sent) {
+      if (!sendRes.success) {
         playBeep('error');
         clearPendingTimer();
         isProcessingTransaction = false;
         pendingRequestId = null;
         pendingPayload = null;
-        renderDisconnectedError(clean, currentRequestId);
+
+        // Sinkronisasi status banner koneksi seketika
+        isParentConnected = false;
+        setConnectionState(false, '🔴 Terputus: ' + sendRes.message, 'Terputus', false);
+        renderConnectionFailure(clean, currentRequestId, sendRes);
+        return;
       }
+
+      // 3. Stage 1 sukses terkirim: Pasang timer bertahap
+      clearPendingTimer();
+
+      // Timer Stage 2 (3.5 detik): Pantau konfirmasi ACK dari aplikasi induk
+      stage2AckTimer = setTimeout(function () {
+        if (isProcessingTransaction && pendingRequestId === currentRequestId) {
+          const vfLabel = document.getElementById('viewfinder-label');
+          if (vfLabel) vfLabel.textContent = '⏳ 1/3 QR Terkirim — Menunggu Konfirmasi Penerimaan Induk...';
+        }
+      }, 3500);
+
+      // Timer progres lanjutan (7.5 detik): Menunggu eksekusi server
+      pendingProgressTimer = setTimeout(function () {
+        if (isProcessingTransaction && pendingRequestId === currentRequestId) {
+          const vfLabel = document.getElementById('viewfinder-label');
+          if (vfLabel) vfLabel.textContent = '⏳ 2/3 Sedang Diproses di Server Apps Script...';
+        }
+      }, 7500);
+
+      // Timer batas waktu terminal (18 detik)
+      pendingTransactionTimer = setTimeout(onTransactionTimeout, 18000);
     }
 
-    // Menampilkan pesan kesalahan jika scanner belum terhubung ke aplikasi utama (Tidak ada data sukses palsu)
-    function renderDisconnectedError(code, reqId) {
+    // Menampilkan pesan kesalahan spesifik jika transaksi gagal terkirim ke aplikasi utama
+    function renderConnectionFailure(code, reqId, failureResult) {
       const container = document.getElementById('result-box-container');
       const vfBox = document.getElementById('viewfinder-box');
       const vfLabel = document.getElementById('viewfinder-label');
 
       if (vfBox) vfBox.classList.add('scanned');
-      if (vfLabel) vfLabel.textContent = '❌ Pemindai Belum Terhubung ke Aplikasi Utama';
+
+      const reason = (failureResult && failureResult.reason) || 'NOT_CONNECTED';
+      const detailMsg = (failureResult && failureResult.message) || 'Pemindai tidak terhubung ke aplikasi induk.';
+
+      let badgeTitle = 'BELUM TERHUBUNG KE APLIKASI UTAMA';
+      if (reason === 'NO_OPENER') {
+        badgeTitle = 'REFERENSI JENDELA INDUK TIDAK TERSEDIA';
+      } else if (reason === 'OPENER_CLOSED') {
+        badgeTitle = 'JENDELA INDUK TELAH DITUTUP';
+      } else if (reason === 'INVALID_TARGET_ORIGIN') {
+        badgeTitle = 'ORIGIN INDUK TIDAK VALID';
+      } else if (reason === 'POSTMESSAGE_FAILED') {
+        badgeTitle = 'PESAN QR GAGAL DIKIRIM (CROSS-ORIGIN)';
+      }
+
+      if (vfLabel) vfLabel.textContent = '❌ ' + badgeTitle;
 
       container.innerHTML = `
         <div class="result-card card-unconfirmed" style="border-left-color:#dc2626;">
           <div class="result-header" style="background:#fef2f2;color:#991b1b;border-bottom-color:#fecaca;">
             <span>❌</span>
-            <span>BELUM TERHUBUNG KE APLIKASI UTAMA</span>
+            <span>${escapeHtml(badgeTitle)}</span>
           </div>
           <div class="result-body">
             <div style="font-weight:700;color:#991b1b;margin-bottom:6px;">
               Data Presensi TIDAK TERCATAT di Google Sheets
             </div>
             <div style="font-size:12px;color:#374151;line-height:1.45;margin-bottom:8px;">
-              Pemindai tidak terhubung dengan sesi aplikasi induk Sistem Pengelolaan Wisuda.
+              ${escapeHtml(detailMsg)}
             </div>
             <div class="result-meta-row">
               <span class="result-meta-label">Kode QR</span>
@@ -1430,14 +1549,35 @@
               <span class="result-meta-label">Status Server</span>
               <span class="result-meta-val" style="color:#dc2626;font-weight:700;">TIDAK TERCATAT</span>
             </div>
+            <div class="result-meta-row" style="font-size:10.5px;color:var(--muted);margin-top:4px;">
+              <span class="result-meta-label">Diagnostik</span>
+              <span class="result-meta-val" style="font-family:monospace;font-size:10px;">${escapeHtml(reason)} | Origin: ${escapeHtml(targetOrigin || '—')}</span>
+            </div>
             <div style="background:#fffbeb;border:1px solid #fef3c7;padding:8px 10px;border-radius:6px;font-size:11.5px;color:#92400e;margin-top:10px;">
               👉 <strong>Petunjuk Petugas:</strong> Buka menu <strong>Scan QR Tamu</strong> di aplikasi Sistem Pengelolaan Wisuda, lalu klik tombol <strong>Buka Kamera Pemindai Eksternal</strong> untuk memulai sesi presensi resmi.
+            </div>
+            <div style="display:flex;gap:8px;margin-top:10px;">
+              <button class="btn btn-primary" onclick="retryConnectionHandshake()" style="flex:1;height:38px;font-size:12px;">
+                🔄 Coba Hubungkan Ulang
+              </button>
+              <button class="btn btn-outline" onclick="resetPendingTransaction()" style="flex:1;height:38px;font-size:12px;">
+                ↻ Reset Pemindai
+              </button>
             </div>
           </div>
         </div>
       `;
 
-      addHistory('GAGAL: BELUM TERHUBUNG', 'badge-warn', code);
+      addHistory('GAGAL: ' + badgeTitle, 'badge-warn', code);
+    }
+
+    // Mencoba melakukan handshake ulang jika koneksi terputus
+    function retryConnectionHandshake() {
+      const vfLabel = document.getElementById('viewfinder-label');
+      if (vfLabel) vfLabel.textContent = '🔄 Menghubungkan ulang ke aplikasi utama...';
+      setConnectionState(false, '⏳ Menghubungkan ulang ke Sistem Pengelolaan Wisuda...', 'Menghubungkan', true);
+      isParentConnected = false;
+      startHandshakeSequence();
     }
 
     function onScanProgress() {
