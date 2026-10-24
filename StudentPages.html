@@ -48,113 +48,212 @@
 
       const content = document.getElementById('page-content');
       content.innerHTML =
-        '<div class="breadcrumb" aria-label="Breadcrumb">' +
-          '<a href="javascript:void(0)" onclick="navigate(\'students\')">Data Wisudawan</a>' +
-          '<span class="sep">/</span>' +
-          '<span class="current">Import Data</span>' +
-        '</div>' +
-        pageHeader(
-          'Import Data Wisudawan',
-          'Unggah data wisudawan dari SIAKAD (Excel/CSV) ke gelombang wisuda tujuan.',
-          '<button class="btn btn-outline" onclick="navigate(\'students\')">' +
-            '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>' +
-            'Kembali ke Data Wisudawan</button>'
-        ) +
-        '<div class="import-steps">' +
-          '<div class="import-step-card">' +
-            '<div class="import-step-num">1</div>' +
-            '<div class="import-step-info"><strong>Pilih Gelombang</strong><span>Tentukan periode wisuda</span></div>' +
+        '<div class="import-container">' +
+          '<div class="breadcrumb" aria-label="Breadcrumb">' +
+            '<a href="javascript:void(0)" onclick="navigate(\'students\')">Data Wisudawan</a>' +
+            '<span class="sep">/</span>' +
+            '<span class="current">Import Data</span>' +
           '</div>' +
-          '<div class="import-step-card">' +
-            '<div class="import-step-num">2</div>' +
-            '<div class="import-step-info"><strong>Unggah File</strong><span>File Excel atau CSV</span></div>' +
+          pageHeader(
+            'Import Data Wisudawan',
+            'Unggah data wisudawan dari SIAKAD (Excel/CSV) ke gelombang wisuda tujuan secara terstruktur dan aman.',
+            '<button class="btn btn-outline" onclick="navigate(\'students\')">' +
+              '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>' +
+              'Kembali ke Data Wisudawan</button>'
+          ) +
+
+          '<!-- Stepper 4 Tahap -->' +
+          '<div class="import-steps" id="import-stepper">' +
+            '<div class="import-step-card step-active" id="import-step-1">' +
+              '<div class="import-step-num" id="import-step-num-1">1</div>' +
+              '<div class="import-step-info"><strong>Pilih Gelombang</strong><span>Tentukan periode wisuda</span></div>' +
+            '</div>' +
+            '<div class="import-step-card step-pending" id="import-step-2">' +
+              '<div class="import-step-num" id="import-step-num-2">2</div>' +
+              '<div class="import-step-info"><strong>Unggah Berkas</strong><span>File Excel atau CSV</span></div>' +
+            '</div>' +
+            '<div class="import-step-card step-pending" id="import-step-3">' +
+              '<div class="import-step-num" id="import-step-num-3">3</div>' +
+              '<div class="import-step-info"><strong>Validasi & Pratinjau</strong><span>Pemeriksaan integritas</span></div>' +
+            '</div>' +
+            '<div class="import-step-card step-pending" id="import-step-4">' +
+              '<div class="import-step-num" id="import-step-num-4">4</div>' +
+              '<div class="import-step-info"><strong>Konfirmasi Impor</strong><span>Simpan ke database</span></div>' +
+            '</div>' +
           '</div>' +
-          '<div class="import-step-card">' +
-            '<div class="import-step-num">3</div>' +
-            '<div class="import-step-info"><strong>Validasi & Pratinjau</strong><span>Pemeriksaan integritas</span></div>' +
-          '</div>' +
-          '<div class="import-step-card">' +
-            '<div class="import-step-num">4</div>' +
-            '<div class="import-step-info"><strong>Konfirmasi Impor</strong><span>Simpan ke Google Sheets</span></div>' +
-          '</div>' +
-        '</div>' +
-        '<div class="panel">' +
-          '<div class="panel-head"><div><h2>Formulir Import Data Wisudawan</h2>' +
-          '<div class="import-status-line">Data akan ditambahkan ke periode terpilih tanpa menghapus gelombang lain.</div></div></div>' +
-          '<div class="panel-body">' +
-            '<div class="notice notice-info" style="margin-bottom:18px;">' +
-              '<strong>Ketentuan Import Data:</strong>' +
-              '<ul style="margin:6px 0 0 18px;padding:0;font-size:12.5px;line-height:1.6;">' +
-                '<li>Data akan ditambahkan ke gelombang wisuda yang dipilih. Data wisudawan pada gelombang lain <strong>tidak akan terhapus</strong>.</li>' +
-                '<li>Kolom <strong>NIM</strong> dan <strong>Nama</strong> wajib tersedia pada file. Kolom prodi, fakultas, dan jenjang akan disinkronkan otomatis.</li>' +
-                '<li>Data dengan NIM yang sudah ada pada database atau berulang dalam file akan otomatis terdeteksi saat validasi.</li>' +
+
+          '<!-- Kotak Ketentuan Import Data -->' +
+          '<div class="import-notice-box">' +
+            '<div class="import-notice-icon">' +
+              '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>' +
+            '</div>' +
+            '<div class="import-notice-content">' +
+              '<div class="import-notice-head">Ketentuan Import Data Wisudawan</div>' +
+              '<ul class="import-notice-list">' +
+                '<li>Data akan ditambahkan ke <strong>gelombang wisuda terpilih</strong>. Data wisudawan pada gelombang lain <strong>tidak akan terhapus</strong>.</li>' +
+                '<li>Kolom <strong>NIM</strong> dan <strong>Nama</strong> wajib tersedia pada file. Kolom program studi, fakultas, dan jenjang akan disinkronkan otomatis.</li>' +
+                '<li>Data dengan NIM yang sudah ada pada database atau berulang dalam file akan otomatis terdeteksi pada tahap validasi.</li>' +
               '</ul>' +
             '</div>' +
-            '<div class="import-grid">' +
-              '<div class="import-field">' +
-                '<label for="import-period">1. Gelombang Wisuda Tujuan</label>' +
-                '<select id="import-period" class="field" onchange="runStudentImportPreview()">' +
-                  '<option value="">Memuat periode...</option>' +
-                '</select>' +
-                '<div id="import-period-info" class="import-status-line">Memuat daftar periode...</div>' +
-              '</div>' +
-              '<div class="import-field">' +
-                '<label>Periode Belum Tersedia?</label>' +
-                '<div>' +
-                  '<button type="button" class="btn btn-outline" onclick="toggleNewPeriodForm()">' +
-                    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>' +
+          '</div>' +
+
+          '<div class="panel">' +
+            '<div class="panel-body">' +
+
+              '<!-- TAHAP 1: Gelombang Wisuda Tujuan -->' +
+              '<div class="form-subcard">' +
+                '<div class="form-subcard-head">' +
+                  '<div class="form-subcard-title">' +
+                    '<span class="step-pill active">1</span>' +
+                    '<span>Gelombang Wisuda Tujuan</span>' +
+                  '</div>' +
+                  '<button type="button" class="btn btn-outline btn-sm" onclick="toggleNewPeriodForm()">' +
+                    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>' +
                     'Buat Gelombang Baru' +
                   '</button>' +
                 '</div>' +
-                '<div class="import-status-line">Periode baru akan langsung tersimpan dan siap dipilih.</div>' +
+
+                '<div class="period-select-wrap">' +
+                  '<div class="period-select-main">' +
+                    '<label for="import-period" style="display:block;font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:6px;">Pilih Gelombang Wisuda</label>' +
+                    '<select id="import-period" class="field" onchange="runStudentImportPreview(); updateImportStepper();" style="width:100%;height:42px;">' +
+                      '<option value="">Memuat periode...</option>' +
+                    '</select>' +
+                    '<div id="import-period-info" class="import-status-line" style="margin-top:6px;font-size:12px;color:var(--muted);">Memuat daftar periode...</div>' +
+                  '</div>' +
+                '</div>' +
+
+                '<!-- Form Pembuatan Periode Baru (Collapsible) -->' +
+                '<div class="period-form hidden" id="new-period-form" style="margin-top:16px;padding:16px;background:#f8faf8;border:1px solid #dce8db;border-radius:12px;">' +
+                  '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">' +
+                    '<h4 style="margin:0;font:800 14px Manrope,sans-serif;color:#075e19;">Buat Periode Wisuda Baru</h4>' +
+                    '<button type="button" class="btn-icon btn-sm" onclick="toggleNewPeriodForm(false)" title="Tutup form">' +
+                      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>' +
+                    '</button>' +
+                  '</div>' +
+                  '<div class="period-form-grid">' +
+                    '<div class="import-field"><label for="new-period-name">Nama Periode</label><input id="new-period-name" class="field" placeholder="Wisuda Gelombang IV Tahun 2027"></div>' +
+                    '<div class="import-field"><label for="new-period-year">Tahun</label><input id="new-period-year" class="field" type="number" min="2000" max="2100" placeholder="2027"></div>' +
+                    '<div class="import-field"><label for="new-period-wave">Gelombang</label><input id="new-period-wave" class="field" placeholder="IV"></div>' +
+                    '<div class="import-field"><label for="new-period-date">Tanggal Pelaksanaan</label><input id="new-period-date" class="field" type="date"></div>' +
+                    '<div class="import-field" style="grid-column:1/-1"><label for="new-period-location">Lokasi Pelaksanaan</label><input id="new-period-location" class="field" placeholder="Contoh: Auditorium Prof. Ali Hasjmy"></div>' +
+                  '</div>' +
+                  '<div class="toolbar" style="margin-top:14px">' +
+                    '<button type="button" class="btn btn-sm" onclick="createStudentPeriod()">' +
+                      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
+                      'Simpan Periode' +
+                    '</button>' +
+                    '<button type="button" class="btn btn-outline btn-sm" onclick="toggleNewPeriodForm(false)">Batal</button>' +
+                  '</div>' +
+                  '<div id="new-period-message" style="margin-top:10px"></div>' +
+                '</div>' +
               '</div>' +
-            '</div>' +
-            '<div class="period-form hidden" id="new-period-form">' +
-              '<h3 style="margin:0 0 12px;font:800 14px Manrope,sans-serif">Buat Periode Wisuda Baru</h3>' +
-              '<div class="period-form-grid">' +
-                '<div class="import-field"><label for="new-period-name">Nama periode</label><input id="new-period-name" class="field" placeholder="Wisuda Gelombang IV Tahun 2027"></div>' +
-                '<div class="import-field"><label for="new-period-year">Tahun</label><input id="new-period-year" class="field" type="number" min="2000" max="2100" placeholder="2027"></div>' +
-                '<div class="import-field"><label for="new-period-wave">Gelombang</label><input id="new-period-wave" class="field" placeholder="IV"></div>' +
-                '<div class="import-field"><label for="new-period-date">Tanggal pelaksanaan</label><input id="new-period-date" class="field" type="date"></div>' +
-                '<div class="import-field" style="grid-column:1/-1"><label for="new-period-location">Lokasi</label><input id="new-period-location" class="field" placeholder="Contoh: Auditorium Prof. Ali Hasjmy"></div>' +
+
+              '<!-- TAHAP 2: Unggah Berkas Excel/CSV -->' +
+              '<div class="form-subcard">' +
+                '<div class="form-subcard-head">' +
+                  '<div class="form-subcard-title">' +
+                    '<span class="step-pill" id="subcard-step-2">2</span>' +
+                    '<span>Unggah Berkas Excel atau CSV</span>' +
+                  '</div>' +
+                '</div>' +
+
+                '<!-- Dropzone Area -->' +
+                '<div class="import-drop-zone" id="import-dropzone" onclick="triggerImportFileInput()" ondragover="onImportDragOver(event)" ondragleave="onImportDragLeave(event)" ondrop="onImportFileDrop(event)">' +
+                  '<input type="file" id="student-import-file" accept=".xlsx,.xls,.csv" onchange="processStudentImportFile(this.files&&this.files[0])" style="display:none">' +
+                  '<div id="dropzone-prompt">' +
+                    '<div class="drop-icon-circle">' +
+                      '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+                        '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>' +
+                        '<polyline points="17 8 12 3 7 8"></polyline>' +
+                        '<line x1="12" y1="3" x2="12" y2="15"></line>' +
+                      '</svg>' +
+                    '</div>' +
+                    '<div class="drop-title">Unggah File Excel atau CSV</div>' +
+                    '<div class="drop-sub">Seret berkas ke sini atau <span style="color:var(--primary);font-weight:700;text-decoration:underline;">pilih berkas dari perangkat</span></div>' +
+                    '<div class="drop-meta">' +
+                      '<span class="drop-meta-tag">.xlsx</span>' +
+                      '<span class="drop-meta-tag">.xls</span>' +
+                      '<span class="drop-meta-tag">.csv</span>' +
+                      '<span>·</span>' +
+                      '<span>Maksimal 10.000 baris</span>' +
+                      '<span>·</span>' +
+                      '<span>Batas ukuran 10 MB</span>' +
+                    '</div>' +
+                  '</div>' +
+
+                  '<!-- Card Tampilan Berkas Terpilih -->' +
+                  '<div id="dropzone-file-card" class="file-card-box hidden" onclick="event.stopPropagation()">' +
+                    '<div class="file-card-left">' +
+                      '<div class="file-icon-badge">XLS</div>' +
+                      '<div class="file-card-info" style="text-align:left;">' +
+                        '<div class="file-card-name" id="dropzone-file-name">file.xlsx</div>' +
+                        '<div class="file-card-meta">' +
+                          '<span id="dropzone-file-size">0 KB</span>' +
+                          '<span>·</span>' +
+                          '<span id="dropzone-file-rows">0 baris</span>' +
+                          '<span>·</span>' +
+                          '<span id="dropzone-file-sheet">Sheet1</span>' +
+                        '</div>' +
+                      '</div>' +
+                    '</div>' +
+                    '<div class="file-card-actions">' +
+                      '<button type="button" class="btn btn-outline btn-sm" onclick="triggerImportFileInput()">' +
+                        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>' +
+                        'Ganti Berkas' +
+                      '</button>' +
+                      '<button type="button" class="btn btn-outline btn-sm" onclick="resetStudentImport()" style="color:#cf2e2e;border-color:#f5c6cb;">' +
+                        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>' +
+                        'Hapus' +
+                      '</button>' +
+                    '</div>' +
+                  '</div>' +
+                '</div>' +
+                '<div id="import-file-info" class="import-status-line" style="margin-top:8px;font-size:12px;color:var(--muted);display:none;"></div>' +
               '</div>' +
-              '<div class="toolbar" style="margin-top:14px">' +
-                '<button type="button" class="btn" onclick="createStudentPeriod()">Simpan Periode</button>' +
-                '<button type="button" class="btn btn-outline" onclick="toggleNewPeriodForm(false)">Batal</button>' +
+
+              '<!-- TAHAP 3: Validasi & Pratinjau Data -->' +
+              '<div class="form-subcard">' +
+                '<div class="form-subcard-head">' +
+                  '<div class="form-subcard-title">' +
+                    '<span class="step-pill" id="subcard-step-3">3</span>' +
+                    '<span>Validasi & Pratinjau Data</span>' +
+                  '</div>' +
+                  '<button type="button" id="btn-revalidate" class="btn btn-outline btn-sm" onclick="runStudentImportPreview()">' +
+                    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>' +
+                    'Validasi Ulang' +
+                  '</button>' +
+                '</div>' +
+
+                '<div id="import-preview-container">' +
+                  '<div class="preview-empty-state">' +
+                    '<div class="empty-icon-circle">' +
+                      '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>' +
+                    '</div>' +
+                    '<div class="empty-title">Belum Ada Pratinjau Data</div>' +
+                    '<div class="empty-desc">Pilih gelombang dan unggah file Excel atau CSV untuk memeriksa kelengkapan data sebelum impor.</div>' +
+                  '</div>' +
+                '</div>' +
               '</div>' +
-              '<div id="new-period-message" style="margin-top:10px"></div>' +
-            '</div>' +
-            '<div class="import-drop" style="margin-top:20px;">' +
-              '<strong>2. Unggah File Excel atau CSV</strong>' +
-              '<p>Format yang didukung: <code>.xlsx</code>, <code>.xls</code>, atau <code>.csv</code>. Baris pertama file harus berupa nama kolom (header). Maksimal 10.000 baris dan ukuran berkas maksimal 10 MB.</p>' +
-              '<div style="max-width:420px;margin:0 auto;">' +
-                '<input type="file" id="student-import-file" class="field" accept=".xlsx,.xls,.csv" onchange="processStudentImportFile(this.files&&this.files[0])" style="width:100%">' +
-              '</div>' +
-              '<div id="import-file-info" class="import-status-line" style="margin-top:12px;font-weight:600;">Belum ada file yang dipilih.</div>' +
-            '</div>' +
-            '<div style="margin-top:24px;">' +
-              '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">' +
-                '<h3 style="margin:0;font:800 15px Manrope,sans-serif">3. Hasil Validasi & Pratinjau Data</h3>' +
-                '<button type="button" id="btn-revalidate" class="btn btn-outline btn-sm" onclick="runStudentImportPreview()">' +
-                  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>' +
-                  'Validasi Ulang' +
+
+              '<!-- Ringkasan Pasca-Impor -->' +
+              '<div id="import-summary-container"></div>' +
+
+              '<!-- TAHAP 4: Tombol Aksi & Konfirmasi Impor -->' +
+              '<div class="toolbar" style="margin-top:22px;padding-top:18px;border-top:1px solid var(--line);flex-wrap:wrap;gap:10px;">' +
+                '<button type="button" class="btn" id="confirm-import-btn" onclick="confirmStudentImport()" disabled>' +
+                  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
+                  '4. Konfirmasi & Impor Data Valid' +
+                '</button>' +
+                '<button type="button" class="btn btn-outline" onclick="resetStudentImport()">' +
+                  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>' +
+                  'Reset File' +
+                '</button>' +
+                '<button type="button" class="btn btn-outline" onclick="navigate(\'students\')" style="margin-left:auto;">' +
+                  'Kembali ke Data Wisudawan' +
                 '</button>' +
               '</div>' +
-              '<div id="import-preview-container"><div class="table-empty">Pilih gelombang dan unggah file untuk memeriksa validasi data.</div></div>' +
-            '</div>' +
-            '<div id="import-summary-container" style="margin-top:16px;"></div>' +
-            '<div class="toolbar" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line);">' +
-              '<button type="button" class="btn" id="confirm-import-btn" onclick="confirmStudentImport()" disabled>' +
-                '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
-                '4. Konfirmasi & Impor Data Valid' +
-              '</button>' +
-              '<button type="button" class="btn btn-outline" onclick="resetStudentImport()">' +
-                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>' +
-                'Reset File' +
-              '</button>' +
-              '<button type="button" class="btn btn-outline" onclick="navigate(\'students\')" style="margin-left:auto;">' +
-                'Kembali ke Data Wisudawan' +
-              '</button>' +
+
             '</div>' +
           '</div>' +
         '</div>';
@@ -162,13 +261,163 @@
       syncCustomSelect('import-period');
       loadStudentImportSetup(null, function () {
         if (APP.importRows && APP.importRows.length) {
-          const info = document.getElementById('import-file-info');
-          if (info && APP.importFileName) {
-            info.textContent = APP.importFileName + ' · ' + APP.importRows.length.toLocaleString('id-ID') + ' baris dimuat';
-          }
+          renderDropzoneSelectedFile(
+            APP.importFileName,
+            APP.importFileSize || 0,
+            APP.importRows.length,
+            APP.importSheetName || ''
+          );
           runStudentImportPreview();
+        } else {
+          renderDropzoneEmpty();
         }
+        updateImportStepper();
       });
+    }
+
+    /* Helper Status Stepper Dinamis */
+    function updateImportStepper() {
+      const periodId = (document.getElementById('import-period') || {}).value || '';
+      const hasFile = !!(APP.importRows && APP.importRows.length);
+      const hasPreview = !!(APP.importPreview && APP.importPreview.importable !== undefined);
+      const isImportable = hasPreview && APP.importPreview.importable > 0;
+
+      const checkIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+
+      // Step 1: Gelombang Wisuda
+      const s1 = document.getElementById('import-step-1');
+      const num1 = document.getElementById('import-step-num-1');
+      if (s1 && num1) {
+        if (periodId) {
+          s1.className = 'import-step-card step-completed';
+          num1.innerHTML = checkIcon;
+        } else {
+          s1.className = 'import-step-card step-active';
+          num1.textContent = '1';
+        }
+      }
+
+      // Step 2: Unggah Berkas
+      const s2 = document.getElementById('import-step-2');
+      const num2 = document.getElementById('import-step-num-2');
+      const pill2 = document.getElementById('subcard-step-2');
+      if (s2 && num2) {
+        if (hasFile) {
+          s2.className = 'import-step-card step-completed';
+          num2.innerHTML = checkIcon;
+          if (pill2) pill2.className = 'step-pill active';
+        } else if (periodId) {
+          s2.className = 'import-step-card step-active';
+          num2.textContent = '2';
+          if (pill2) pill2.className = 'step-pill active';
+        } else {
+          s2.className = 'import-step-card step-pending';
+          num2.textContent = '2';
+          if (pill2) pill2.className = 'step-pill';
+        }
+      }
+
+      // Step 3: Validasi & Pratinjau
+      const s3 = document.getElementById('import-step-3');
+      const num3 = document.getElementById('import-step-num-3');
+      const pill3 = document.getElementById('subcard-step-3');
+      if (s3 && num3) {
+        if (isImportable) {
+          s3.className = 'import-step-card step-completed';
+          num3.innerHTML = checkIcon;
+          if (pill3) pill3.className = 'step-pill active';
+        } else if (hasFile) {
+          s3.className = 'import-step-card step-active';
+          num3.textContent = '3';
+          if (pill3) pill3.className = 'step-pill active';
+        } else {
+          s3.className = 'import-step-card step-pending';
+          num3.textContent = '3';
+          if (pill3) pill3.className = 'step-pill';
+        }
+      }
+
+      // Step 4: Konfirmasi Impor
+      const s4 = document.getElementById('import-step-4');
+      const num4 = document.getElementById('import-step-num-4');
+      if (s4 && num4) {
+        if (isImportable) {
+          s4.className = 'import-step-card step-active';
+          num4.textContent = '4';
+        } else {
+          s4.className = 'import-step-card step-pending';
+          num4.textContent = '4';
+        }
+      }
+    }
+
+    /* Helper Drag and Drop Area File */
+    function onImportDragOver(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const dropzone = document.getElementById('import-dropzone');
+      if (dropzone) dropzone.classList.add('drag-active');
+    }
+
+    function onImportDragLeave(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const dropzone = document.getElementById('import-dropzone');
+      if (dropzone) dropzone.classList.remove('drag-active');
+    }
+
+    function onImportFileDrop(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const dropzone = document.getElementById('import-dropzone');
+      if (dropzone) dropzone.classList.remove('drag-active');
+
+      const files = e.dataTransfer && e.dataTransfer.files;
+      if (files && files.length > 0) {
+        processStudentImportFile(files[0]);
+      }
+    }
+
+    function triggerImportFileInput() {
+      const input = document.getElementById('student-import-file');
+      if (input) input.click();
+    }
+
+    function formatImportFileSize(bytes) {
+      if (!bytes || bytes <= 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function renderDropzoneSelectedFile(fileName, fileSize, rowCount, sheetName) {
+      const prompt = document.getElementById('dropzone-prompt');
+      const card = document.getElementById('dropzone-file-card');
+      const nameEl = document.getElementById('dropzone-file-name');
+      const sizeEl = document.getElementById('dropzone-file-size');
+      const rowsEl = document.getElementById('dropzone-file-rows');
+      const sheetEl = document.getElementById('dropzone-file-sheet');
+      const infoEl = document.getElementById('import-file-info');
+
+      if (prompt) prompt.classList.add('hidden');
+      if (card) card.classList.remove('hidden');
+
+      if (nameEl) nameEl.textContent = fileName || 'Berkas Terpilih';
+      if (sizeEl) sizeEl.textContent = fileSize ? formatImportFileSize(fileSize) : '';
+      if (rowsEl) rowsEl.textContent = (rowCount || 0).toLocaleString('id-ID') + ' baris data';
+      if (sheetEl) sheetEl.textContent = sheetName ? 'Sheet: ' + sheetName : 'Data Utama';
+      if (infoEl) infoEl.textContent = fileName + ' · ' + (rowCount || 0).toLocaleString('id-ID') + ' baris';
+    }
+
+    function renderDropzoneEmpty() {
+      const prompt = document.getElementById('dropzone-prompt');
+      const card = document.getElementById('dropzone-file-card');
+      const infoEl = document.getElementById('import-file-info');
+
+      if (prompt) prompt.classList.remove('hidden');
+      if (card) card.classList.add('hidden');
+      if (infoEl) infoEl.textContent = 'Belum ada file yang dipilih.';
     }
 
     function loadStudentImportSetup(selectPeriodId, onComplete) {
@@ -208,10 +457,11 @@
           if (info) {
             info.textContent = APP.importPeriods.length
               ? Number((setup && setup.totalStudents) || 0).toLocaleString('id-ID') +
-                ' baris saat ini di data induk. Pastikan periode tujuan benar.'
+                ' wisudawan saat ini di data induk. Data baru akan ditambahkan ke periode terpilih.'
               : 'Belum ada periode terdaftar. Buat periode baru terlebih dahulu.';
           }
 
+          updateImportStepper();
           if (selectPeriodId) runStudentImportPreview();
           if (typeof onComplete === 'function') onComplete(setup, null);
         })
@@ -230,6 +480,7 @@
           }
 
           showError(error);
+          updateImportStepper();
           if (typeof onComplete === 'function') onComplete(null, error);
         })
         .getStudentImportSetup();
@@ -284,24 +535,42 @@
       if (!file) return;
       if (APP.session.role !== 'Admin') return showToast('Akses ditolak.');
 
-      const info = document.getElementById('import-file-info');
       const preview = document.getElementById('import-preview-container');
       const button = document.getElementById('confirm-import-btn');
 
       if (file.size > 10 * 1024 * 1024) {
-        info.textContent = 'Ukuran file melebihi batas 10 MB.';
         APP.importRows = null;
+        APP.importFileName = '';
+        APP.importFileSize = 0;
         button.disabled = true;
+        renderDropzoneEmpty();
+        updateImportStepper();
+        if (preview) {
+          preview.innerHTML =
+            '<div class="notice notice-error" style="display:flex;align-items:center;gap:10px;">' +
+              '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>' +
+              '<div><strong>Batas Ukuran Terlampaui:</strong> Ukuran file melebihi batas 10 MB (' + formatImportFileSize(file.size) + ').</div>' +
+            '</div>';
+        }
         return;
       }
 
       if (!window.XLSX) {
-        info.textContent = 'Pustaka pembaca Excel belum termuat. Muat ulang halaman dan coba kembali.';
+        if (preview) {
+          preview.innerHTML =
+            '<div class="notice notice-warn">Pustaka pembaca Excel (XLSX) belum selesai dimuat. Silakan muat ulang halaman.</div>';
+        }
         return;
       }
 
-      info.textContent = 'Membaca ' + file.name + '...';
-      preview.innerHTML = '<div class="table-empty">Sedang membaca file...</div>';
+      if (preview) {
+        preview.innerHTML =
+          '<div style="text-align:center;padding:36px 20px;background:#fafbfa;border:1px dashed #d5e2d4;border-radius:12px;">' +
+            '<span class="spinner-sm" style="width:22px;height:22px;border-width:2.5px;border-color:rgba(7,133,27,0.25);border-top-color:#07851b;margin-bottom:12px;"></span>' +
+            '<div style="font-size:14px;font-weight:700;color:#172014;margin-bottom:4px;">Membaca Berkas ' + escapeHtml(file.name) + '...</div>' +
+            '<div style="font-size:12px;color:var(--muted);">Mengekstrak baris data dan struktur kolom berkas.</div>' +
+          '</div>';
+      }
       button.disabled = true;
 
       const reader = new FileReader();
@@ -314,7 +583,7 @@
           });
 
           const sheetName = workbook.SheetNames[0];
-          if (!sheetName) throw new Error('File tidak memiliki sheet yang dapat dibaca.');
+          if (!sheetName) throw new Error('Berkas tidak memiliki sheet yang dapat dibaca.');
 
           const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
             header: 1,
@@ -324,7 +593,7 @@
           });
 
           if (!matrix || matrix.length < 2) {
-            throw new Error('File harus memiliki baris header dan setidaknya satu baris data.');
+            throw new Error('Berkas harus memiliki baris header dan setidaknya satu baris data.');
           }
 
           const headers = matrix[0].map(function (header) {
@@ -332,7 +601,7 @@
           });
 
           if (!headers.some(Boolean)) {
-            throw new Error('Header tidak ditemukan pada baris pertama.');
+            throw new Error('Header kolom tidak ditemukan pada baris pertama.');
           }
 
           const rows = matrix.slice(1)
@@ -356,34 +625,48 @@
           if (!rows.length) throw new Error('Tidak ada baris data setelah header.');
 
           if (rows.length > 10000) {
-            throw new Error('File berisi lebih dari 10.000 baris. Pisahkan file terlebih dahulu.');
+            throw new Error('Berkas berisi lebih dari 10.000 baris. Silakan bagi berkas menjadi beberapa bagian.');
           }
 
           APP.importRows = rows;
           APP.importFileName = file.name;
+          APP.importFileSize = file.size;
+          APP.importSheetName = sheetName;
           APP.importPreview = null;
 
-          info.textContent = file.name + ' · ' +
-            rows.length.toLocaleString('id-ID') +
-            ' baris · sheet: ' + sheetName;
-
+          renderDropzoneSelectedFile(file.name, file.size, rows.length, sheetName);
+          updateImportStepper();
           runStudentImportPreview();
         } catch (error) {
           APP.importRows = null;
           APP.importPreview = null;
+          APP.importFileName = '';
+          APP.importFileSize = 0;
           button.disabled = true;
 
-          preview.innerHTML = '<div class="notice notice-error">' +
-            escapeHtml(getErrorMessage(error)) + '</div>';
+          renderDropzoneEmpty();
+          updateImportStepper();
 
-          info.textContent = 'File belum berhasil dibaca.';
+          if (preview) {
+            preview.innerHTML =
+              '<div class="notice notice-error" style="display:flex;align-items:center;gap:10px;">' +
+                '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>' +
+                '<div><strong>Gagal Membaca Berkas:</strong> ' + escapeHtml(getErrorMessage(error)) + '</div>' +
+              '</div>';
+          }
         }
       };
 
       reader.onerror = function () {
         APP.importRows = null;
+        APP.importPreview = null;
         button.disabled = true;
-        info.textContent = 'Gagal membaca file dari komputer.';
+        renderDropzoneEmpty();
+        updateImportStepper();
+        if (preview) {
+          preview.innerHTML =
+            '<div class="notice notice-error">Gagal membaca berkas dari perangkat Anda.</div>';
+        }
       };
 
       reader.readAsArrayBuffer(file);
@@ -399,18 +682,35 @@
       APP.importPreview = null;
       button.disabled = true;
       button.textContent = '4. Konfirmasi & Impor Data Valid';
+      updateImportStepper();
 
       if (!APP.importRows || !APP.importRows.length) {
-        container.innerHTML = '<div class="table-empty">Unggah file Excel/CSV untuk melihat pratinjau.</div>';
+        container.innerHTML =
+          '<div class="preview-empty-state">' +
+            '<div class="empty-icon-circle">' +
+              '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>' +
+            '</div>' +
+            '<div class="empty-title">Belum Ada Pratinjau Data</div>' +
+            '<div class="empty-desc">Pilih gelombang dan unggah file Excel atau CSV untuk memeriksa kelengkapan data sebelum impor.</div>' +
+          '</div>';
         return;
       }
 
       if (!periodId) {
-        container.innerHTML = '<div class="notice notice-warn">Pilih gelombang tujuan atau buat periode baru sebelum validasi.</div>';
+        container.innerHTML =
+          '<div class="notice notice-warn" style="display:flex;align-items:center;gap:10px;">' +
+            '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>' +
+            '<div>Pilih gelombang wisuda tujuan terlebih dahulu pada langkah ke-1 sebelum validasi data.</div>' +
+          '</div>';
         return;
       }
 
-      container.innerHTML = '<div class="table-empty">Memvalidasi NIM, nama, dan duplikat...</div>';
+      container.innerHTML =
+        '<div style="text-align:center;padding:36px 20px;background:#fafbfa;border:1px dashed #d5e2d4;border-radius:12px;">' +
+          '<span class="spinner-sm" style="width:22px;height:22px;border-width:2.5px;border-color:rgba(7,133,27,0.25);border-top-color:#07851b;margin-bottom:12px;"></span>' +
+          '<div style="font-size:14px;font-weight:700;color:#172014;margin-bottom:4px;">Memvalidasi Data Wisudawan...</div>' +
+          '<div style="font-size:12px;color:var(--muted);">Memeriksa format NIM, nama, duplikasi database induk, dan duplikasi internal file.</div>' +
+        '</div>';
 
       google.script.run
         .withSuccessHandler(function (result) {
@@ -420,14 +720,19 @@
           button.textContent = result.importable > 0
             ? '4. Impor ' + Number(result.importable).toLocaleString('id-ID') + ' Data Valid'
             : '4. Konfirmasi & Impor Data Valid';
+          updateImportStepper();
         })
         .withFailureHandler(function (error) {
           APP.importPreview = null;
           button.disabled = true;
           button.textContent = '4. Konfirmasi & Impor Data Valid';
+          updateImportStepper();
 
-          container.innerHTML = '<div class="notice notice-error">' +
-            escapeHtml(getErrorMessage(error)) + '</div>';
+          container.innerHTML =
+            '<div class="notice notice-error" style="display:flex;align-items:center;gap:10px;">' +
+              '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>' +
+              '<div><strong>Validasi Gagal:</strong> ' + escapeHtml(getErrorMessage(error)) + '</div>' +
+            '</div>';
         })
         .previewStudentImport({
           periodId: periodId,
@@ -435,22 +740,40 @@
         });
     }
 
-    function importStat(label, value) {
-      return '<div class="import-stat"><span>' + escapeHtml(label) +
-        '</span><strong>' + Number(value || 0).toLocaleString('id-ID') +
-        '</strong></div>';
-    }
-
     function renderStudentImportPreview(result) {
       const container = document.getElementById('import-preview-container');
       if (!container) return;
 
       const stats = '<div class="import-stats">' +
-        importStat('Total baris', result.total) +
-        importStat('Siap diimpor', result.importable) +
-        importStat('Sudah ada', result.duplicateExisting) +
-        importStat('Duplikat / invalid', result.duplicateFile + result.invalid) +
-        '</div>';
+        '<div class="import-stat stat-total">' +
+          '<div class="import-stat-head">' +
+            '<span class="import-stat-title">Total Baris File</span>' +
+            '<div class="import-stat-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg></div>' +
+          '</div>' +
+          '<div class="import-stat-num">' + Number(result.total || 0).toLocaleString('id-ID') + '</div>' +
+        '</div>' +
+        '<div class="import-stat stat-importable">' +
+          '<div class="import-stat-head">' +
+            '<span class="import-stat-title">Siap Diimpor</span>' +
+            '<div class="import-stat-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg></div>' +
+          '</div>' +
+          '<div class="import-stat-num">' + Number(result.importable || 0).toLocaleString('id-ID') + '</div>' +
+        '</div>' +
+        '<div class="import-stat stat-existing">' +
+          '<div class="import-stat-head">' +
+            '<span class="import-stat-title">Sudah Ada di Sistem</span>' +
+            '<div class="import-stat-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg></div>' +
+          '</div>' +
+          '<div class="import-stat-num">' + Number(result.duplicateExisting || 0).toLocaleString('id-ID') + '</div>' +
+        '</div>' +
+        '<div class="import-stat stat-invalid">' +
+          '<div class="import-stat-head">' +
+            '<span class="import-stat-title">Duplikat / Tidak Valid</span>' +
+            '<div class="import-stat-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></div>' +
+          '</div>' +
+          '<div class="import-stat-num">' + Number((result.duplicateFile || 0) + (result.invalid || 0)).toLocaleString('id-ID') + '</div>' +
+        '</div>' +
+      '</div>';
 
       const rows = (result.sample || []).map(function (row) {
         const cls = row.status === 'Siap diimpor'
@@ -460,7 +783,7 @@
             : 'badge-yellow';
 
         return '<tr><td>' + row.rowNumber +
-          '</td><td>' + escapeHtml(row.nim || '—') +
+          '</td><td><strong>' + escapeHtml(row.nim || '—') + '</strong>' +
           '</td><td>' + escapeHtml(row.name || '—') +
           '</td><td>' + escapeHtml(row.faculty || '—') +
           '</td><td>' + escapeHtml(row.program || '—') +
@@ -471,13 +794,14 @@
       }).join('');
 
       container.innerHTML =
-        '<div class="notice notice-info">Tujuan impor: <strong>' +
-        escapeHtml(result.periodName) +
-        '</strong>. Pratinjau menampilkan maksimal 30 baris pertama; seluruh data akan divalidasi server.</div>' +
+        '<div class="notice notice-info" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">' +
+          '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>' +
+          '<div>Tujuan impor: <strong>' + escapeHtml(result.periodName) + '</strong>. Pratinjau menampilkan maksimal 30 baris pertama; seluruh baris data akan diproses saat konfirmasi impor.</div>' +
+        '</div>' +
         stats +
         '<div class="import-preview-table"><table><thead><tr>' +
-        '<th>Baris file</th><th>NIM</th><th>Nama</th><th>Fakultas</th><th>Program Studi</th><th>Status</th><th>Keterangan</th>' +
-        '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+        '<th>Baris</th><th>NIM</th><th>Nama Wisudawan</th><th>Fakultas</th><th>Program Studi</th><th>Status</th><th>Keterangan</th>' +
+        '</tr></thead><tbody>' + (rows || '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted);">Tidak ada baris sampel</td></tr>') + '</tbody></table></div>';
     }
 
     function confirmStudentImport() {
@@ -497,11 +821,11 @@
 
       const button = document.getElementById('confirm-import-btn');
       button.disabled = true;
-      button.textContent = 'Menyimpan data...';
+      button.innerHTML = '<span class="spinner-sm" style="margin-right:8px;vertical-align:middle;"></span> Menyimpan data...';
 
       google.script.run
         .withSuccessHandler(function (result) {
-          button.textContent = 'Impor Data Valid';
+          button.textContent = '4. Konfirmasi & Impor Data Valid';
           button.disabled = true;
 
           const container = document.getElementById('import-preview-container');
@@ -511,7 +835,9 @@
               'afterbegin',
               '<div class="notice ' +
               (result.success ? 'notice-success' : 'notice-warn') +
-              '">' + escapeHtml(result.message) + '</div>'
+              '" style="margin-bottom:14px;display:flex;align-items:center;gap:10px;">' +
+              '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
+              '<div><strong>Hasil Impor:</strong> ' + escapeHtml(result.message) + '</div></div>'
             );
           }
 
@@ -520,29 +846,36 @@
           APP.importRows = null;
           APP.importPreview = null;
           APP.importFileName = '';
+          APP.importFileSize = 0;
+          APP.importSheetName = '';
 
           const input = document.getElementById('student-import-file');
           if (input) input.value = '';
 
-          const info = document.getElementById('import-file-info');
-          if (info) info.textContent = 'Import selesai. Pilih file lain untuk impor berikutnya.';
+          renderDropzoneEmpty();
+          updateImportStepper();
 
           const summaryContainer = document.getElementById('import-summary-container');
           if (summaryContainer) {
             summaryContainer.innerHTML =
-              '<div class="notice notice-success" style="margin-top:14px;">' +
-                '<h4 style="margin:0 0 6px;font:800 14px Manrope,sans-serif">Ringkasan Hasil Import</h4>' +
-                '<p style="margin:0 0 10px;font-size:12.5px;">' + escapeHtml(result.message) + '</p>' +
-                '<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">' +
-                  'Data wisudawan telah berhasil disimpan ke Google Sheets. Anda dapat langsung melihat data pada tabel Data Wisudawan atau mengimpor file gelombang lain.' +
+              '<div class="notice notice-success" style="margin-top:16px;padding:18px;border-radius:12px;background:#f2faf4;border:1.5px solid #a3dcaf;">' +
+                '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">' +
+                  '<div style="width:28px;height:28px;border-radius:50%;background:#07851b;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;">' +
+                    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
+                  '</div>' +
+                  '<h4 style="margin:0;font:800 15px Manrope,sans-serif;color:#075e19;">Impor Data Wisudawan Berhasil</h4>' +
                 '</div>' +
-                '<div class="toolbar">' +
+                '<p style="margin:0 0 12px;font-size:13px;color:#223324;line-height:1.5;">' + escapeHtml(result.message) + '</p>' +
+                '<div style="font-size:12px;color:#556657;margin-bottom:14px;line-height:1.5;">' +
+                  'Data wisudawan telah berhasil disimpan ke database Google Sheets dan siap digunakan untuk pembagian kursi, pencetakan buku wisuda, maupun presensi tamu.' +
+                '</div>' +
+                '<div class="toolbar" style="margin-top:0;">' +
                   '<button type="button" class="btn btn-sm" onclick="navigate(\'students\')">' +
-                    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>' +
+                    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>' +
                     'Lihat di Data Wisudawan' +
                   '</button>' +
                   '<button type="button" class="btn btn-outline btn-sm" onclick="resetStudentImport()">' +
-                    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>' +
+                    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>' +
                     'Impor File Lain' +
                   '</button>' +
                 '</div>' +
@@ -555,7 +888,7 @@
           loadStudentImportSetup();
         })
         .withFailureHandler(function (error) {
-          button.textContent = 'Impor Data Valid';
+          button.textContent = '4. Konfirmasi & Impor Data Valid';
           button.disabled = false;
           showError(error);
         })
@@ -568,6 +901,8 @@
     function resetStudentImport() {
       APP.importRows = null;
       APP.importFileName = '';
+      APP.importFileSize = 0;
+      APP.importSheetName = '';
       APP.importPreview = null;
 
       const input = document.getElementById('student-import-file');
@@ -577,8 +912,17 @@
       const summary = document.getElementById('import-summary-container');
 
       if (input) input.value = '';
-      if (info) info.textContent = 'Belum ada file yang dipilih.';
-      if (preview) preview.innerHTML = '<div class="table-empty">Pilih gelombang dan unggah file untuk memeriksa validasi data.</div>';
+      renderDropzoneEmpty();
+      if (preview) {
+        preview.innerHTML =
+          '<div class="preview-empty-state">' +
+            '<div class="empty-icon-circle">' +
+              '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>' +
+            '</div>' +
+            '<div class="empty-title">Belum Ada Pratinjau Data</div>' +
+            '<div class="empty-desc">Pilih gelombang dan unggah file Excel atau CSV untuk memeriksa kelengkapan data sebelum impor.</div>' +
+          '</div>';
+      }
       if (summary) summary.innerHTML = '';
       if (button) {
         button.disabled = true;
@@ -589,6 +933,7 @@
         importPeriodSelect.value = '';
         syncCustomSelect('import-period');
       }
+      updateImportStepper();
     }
 
     let studentRowsCache = [];

@@ -1043,7 +1043,7 @@
       font-size: 13px;
       font-weight: 600;
       color: var(--muted);
-      margin-bottom: 12px;
+      margin-bottom: 14px;
     }
     .breadcrumb a {
       color: var(--green);
@@ -1067,7 +1067,7 @@
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 12px;
-      margin-bottom: 20px;
+      margin-bottom: 22px;
     }
     .import-step-card {
       padding: 12px 14px;
@@ -1077,31 +1077,61 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      transition: border-color .15s, box-shadow .15s;
-    }
-    .import-step-card:hover {
-      border-color: #b4d6b7;
+      transition: all .2s ease;
+      position: relative;
     }
     .import-step-num {
       width: 28px;
       height: 28px;
       border-radius: 50%;
-      background: var(--green-soft);
-      color: var(--green-dark);
+      background: #f1f5f2;
+      color: var(--muted);
       font-weight: 800;
       font-size: 12px;
       display: grid;
       place-items: center;
       flex-shrink: 0;
+      transition: all .2s ease;
     }
     .import-step-info strong {
       display: block;
       font-size: 12px;
       color: var(--ink);
+      line-height: 1.3;
     }
     .import-step-info span {
       font-size: 11px;
       color: var(--muted);
+      line-height: 1.2;
+    }
+
+    /* Stepper States */
+    .import-step-card.step-active {
+      border-color: var(--green);
+      background: #fcfefc;
+      box-shadow: 0 4px 14px rgba(7, 133, 27, 0.08);
+    }
+    .import-step-card.step-active .import-step-num {
+      background: var(--green);
+      color: #fff;
+    }
+    .import-step-card.step-active .import-step-info strong {
+      color: var(--green-dark);
+      font-weight: 800;
+    }
+
+    .import-step-card.step-completed {
+      border-color: #bbf7d0;
+      background: #f7fcf8;
+    }
+    .import-step-card.step-completed .import-step-num {
+      background: var(--green-soft);
+      color: var(--green-dark);
+      border: 1px solid #86efac;
+    }
+
+    .import-step-card.step-pending {
+      opacity: 0.75;
     }
 
     @media (max-width: 768px) {
@@ -1111,6 +1141,284 @@
     }
     @media (max-width: 480px) {
       .import-steps {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Notice Ketentuan Import */
+    .import-notice-box {
+      background: #f7fbf7;
+      border: 1px solid #d4ead6;
+      border-radius: 12px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+    }
+    .import-notice-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 800;
+      font-size: 13px;
+      color: var(--green-dark);
+      margin-bottom: 8px;
+    }
+    .import-notice-head svg {
+      color: var(--green);
+      flex-shrink: 0;
+    }
+    .import-notice-list {
+      margin: 0;
+      padding: 0 0 0 18px;
+      font-size: 12.5px;
+      line-height: 1.65;
+      color: #374151;
+    }
+    .import-notice-list li {
+      margin-bottom: 4px;
+    }
+    .import-notice-list li:last-child {
+      margin-bottom: 0;
+    }
+
+    /* Section Card inside Form */
+    .form-subcard {
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .form-subcard-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #f0f4f0;
+    }
+    .form-subcard-title {
+      font-family: 'Manrope', sans-serif;
+      font-size: 14.5px;
+      font-weight: 800;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .step-pill {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--green-soft);
+      color: var(--green-dark);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    /* Modern Dropzone Area */
+    .import-drop-zone {
+      padding: 28px 20px;
+      border: 2px dashed #a5d8a8;
+      border-radius: 14px;
+      background: #fbfdfb;
+      text-align: center;
+      cursor: pointer;
+      transition: all .2s ease;
+      position: relative;
+    }
+    .import-drop-zone:hover,
+    .import-drop-zone.drag-active {
+      border-color: var(--green);
+      background: #f0fbf1;
+      box-shadow: 0 4px 16px rgba(7, 133, 27, 0.08);
+      transform: translateY(-1px);
+    }
+    .drop-icon-circle {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: var(--green-soft);
+      color: var(--green);
+      display: grid;
+      place-items: center;
+      margin: 0 auto 12px;
+      transition: transform .2s ease;
+    }
+    .import-drop-zone:hover .drop-icon-circle {
+      transform: scale(1.08);
+    }
+    .drop-title {
+      font-family: 'Manrope', sans-serif;
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+    .drop-sub {
+      font-size: 12.5px;
+      color: var(--muted);
+      max-width: 440px;
+      margin: 0 auto 14px;
+      line-height: 1.5;
+    }
+    .drop-hint {
+      margin-top: 12px;
+      font-size: 11.5px;
+      color: var(--muted);
+    }
+
+    /* Selected File Box in Dropzone */
+    .file-card-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      background: #ffffff;
+      border: 1px solid #bbf7d0;
+      border-radius: 12px;
+      padding: 14px 18px;
+      text-align: left;
+      cursor: default;
+      box-shadow: 0 2px 8px rgba(7, 133, 27, 0.05);
+    }
+    .file-card-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      flex: 1;
+    }
+    .file-icon-badge {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      background: #dcfce7;
+      color: var(--green);
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+    .file-card-info {
+      min-width: 0;
+      flex: 1;
+    }
+    .file-card-name {
+      font-weight: 800;
+      font-size: 13.5px;
+      color: var(--ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 2px;
+    }
+    .file-card-meta {
+      font-size: 11.5px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .file-card-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    /* Preview Empty State */
+    .preview-empty-state {
+      padding: 36px 20px;
+      text-align: center;
+      background: #fdfefe;
+      border: 1px dashed var(--line);
+      border-radius: 12px;
+    }
+    .empty-icon-circle {
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: #f1f5f2;
+      color: var(--muted);
+      display: grid;
+      place-items: center;
+      margin: 0 auto 12px;
+    }
+    .empty-title {
+      font-family: 'Manrope', sans-serif;
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--ink-secondary);
+      margin-bottom: 4px;
+    }
+    .empty-desc {
+      font-size: 12px;
+      color: var(--muted);
+      max-width: 420px;
+      margin: 0 auto;
+      line-height: 1.55;
+    }
+
+    /* Modern 4 Metric Stat Cards */
+    .import-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin: 16px 0;
+    }
+    .import-stat {
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
+    }
+    .stat-icon-wrap {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+    .stat-content span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .stat-content strong {
+      display: block;
+      font: 800 20px/1.2 'Manrope', sans-serif;
+      margin-top: 2px;
+    }
+
+    .stat-total .stat-icon-wrap { background: #f3f4f6; color: #4b5563; }
+    .stat-total strong { color: var(--ink); }
+
+    .stat-importable { border-color: #bbf7d0; background: #f7fcf8; }
+    .stat-importable .stat-icon-wrap { background: #dcfce7; color: var(--green); }
+    .stat-importable strong { color: var(--green); }
+
+    .stat-existing { border-color: #fde68a; background: #fffdf7; }
+    .stat-existing .stat-icon-wrap { background: #fef3c7; color: #b45309; }
+    .stat-existing strong { color: #b45309; }
+
+    .stat-invalid { border-color: #fecaca; background: #fffafa; }
+    .stat-invalid .stat-icon-wrap { background: #fee2e2; color: var(--danger); }
+    .stat-invalid strong { color: var(--danger); }
+
+    @media (max-width: 900px) {
+      .import-stats {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    @media (max-width: 480px) {
+      .import-stats {
         grid-template-columns: 1fr;
       }
     }
@@ -2909,5 +3217,545 @@
       font-size: 11.5px;
       color: #555;
       line-height: 1.5;
+    }
+
+    /* =========================================================
+       IMPORT DATA WISUDAWAN — UIN AR-RANIRY REDESIGN
+       ========================================================= */
+    .import-container {
+      max-width: 1060px;
+      margin: 0 auto;
+    }
+
+    /* Breadcrumb Header */
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .breadcrumb a {
+      color: var(--primary);
+      text-decoration: none;
+      transition: color 0.15s ease;
+    }
+    .breadcrumb a:hover {
+      color: #054813;
+      text-decoration: underline;
+    }
+    .breadcrumb .sep {
+      color: #a4b3a2;
+      font-size: 12px;
+    }
+    .breadcrumb .current {
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    /* Stepper 4 Tahap */
+    .import-steps {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+    .import-step-card {
+      background: #ffffff;
+      border: 1.5px solid #e2ebe1;
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+    .import-step-card.step-pending {
+      border-color: #e5ece3;
+      background: #fbfcfb;
+      opacity: 0.75;
+    }
+    .import-step-card.step-pending .import-step-num {
+      background: #edf3ec;
+      color: #728471;
+      border: 1px solid #d8e4d6;
+    }
+    .import-step-card.step-active {
+      border-color: #07851b;
+      background: #ffffff;
+      box-shadow: 0 4px 14px rgba(7, 133, 27, 0.12);
+      opacity: 1;
+    }
+    .import-step-card.step-active .import-step-num {
+      background: #07851b;
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(7, 133, 27, 0.35);
+    }
+    .import-step-card.step-completed {
+      border-color: #a7d9b4;
+      background: #f7fcf8;
+      opacity: 1;
+    }
+    .import-step-card.step-completed .import-step-num {
+      background: #075e19;
+      color: #ffffff;
+    }
+    .import-step-num {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 13px;
+      flex-shrink: 0;
+      transition: all 0.2s ease;
+    }
+    .import-step-info {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .import-step-info strong {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink);
+      line-height: 1.3;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .import-step-info span {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.25;
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Kotak Ketentuan Import */
+    .import-notice-box {
+      background: #f4fbf6;
+      border: 1px solid #cce8d4;
+      border-radius: 12px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+    .import-notice-icon {
+      color: #07851b;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .import-notice-content {
+      flex: 1;
+      min-width: 0;
+    }
+    .import-notice-head {
+      font-size: 13.5px;
+      font-weight: 800;
+      color: #075e19;
+      margin-bottom: 6px;
+      font-family: 'Manrope', sans-serif;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .import-notice-list {
+      margin: 0;
+      padding-left: 18px;
+      font-size: 12.5px;
+      color: #2b3d2e;
+      line-height: 1.55;
+    }
+    .import-notice-list li {
+      margin-bottom: 4px;
+    }
+    .import-notice-list li:last-child {
+      margin-bottom: 0;
+    }
+    .import-notice-list strong {
+      color: #075e19;
+    }
+
+    /* Subcard Formulir */
+    .form-subcard {
+      background: #ffffff;
+      border: 1px solid #e2ebe1;
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 20px;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .form-subcard:hover {
+      border-color: #cbdcc9;
+    }
+    .form-subcard-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .form-subcard-title {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 14.5px;
+      font-weight: 800;
+      color: #172014;
+      font-family: 'Manrope', sans-serif;
+      margin: 0;
+    }
+    .step-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #eaf5ec;
+      color: #07851b;
+      font-size: 11.5px;
+      font-weight: 800;
+    }
+    .step-pill.active {
+      background: #07851b;
+      color: #ffffff;
+    }
+
+    /* Gelombang Selector & Subcard Actions */
+    .period-select-wrap {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .period-select-main {
+      flex: 1;
+      min-width: 260px;
+    }
+
+    /* Drag & Drop File Zone */
+    .import-drop-zone {
+      border: 2px dashed #b7dabf;
+      background: #fbfdfb;
+      border-radius: 14px;
+      padding: 30px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+    .import-drop-zone:hover,
+    .import-drop-zone.drag-active {
+      border-color: #07851b;
+      background: #f2fbf4;
+      box-shadow: 0 4px 16px rgba(7, 133, 27, 0.08);
+      transform: translateY(-1px);
+    }
+    .drop-icon-circle {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: #eaf6ed;
+      color: #07851b;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+      transition: transform 0.2s ease;
+    }
+    .import-drop-zone:hover .drop-icon-circle {
+      transform: scale(1.06);
+      background: #d8f1de;
+    }
+    .drop-title {
+      font-size: 14.5px;
+      font-weight: 800;
+      color: #172014;
+      margin-bottom: 5px;
+      font-family: 'Manrope', sans-serif;
+    }
+    .drop-sub {
+      font-size: 12.5px;
+      color: #556657;
+      margin-bottom: 12px;
+    }
+    .drop-meta {
+      font-size: 11.5px;
+      color: #748576;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .drop-meta-tag {
+      background: #edf4ee;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+      color: #2b3e2d;
+    }
+
+    /* Selected File Card */
+    .file-card-box {
+      background: #f7fbf8;
+      border: 1.5px solid #b8dfc0;
+      border-radius: 12px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-top: 12px;
+    }
+    .file-card-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+    .file-icon-badge {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: #07851b;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-weight: 800;
+      font-size: 11px;
+    }
+    .file-card-info {
+      min-width: 0;
+    }
+    .file-card-name {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #075e19;
+      word-break: break-all;
+      margin-bottom: 2px;
+    }
+    .file-card-meta {
+      font-size: 12px;
+      color: #5b6f5d;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .file-card-actions {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    /* Empty State Pratinjau */
+    .preview-empty-state {
+      padding: 38px 20px;
+      text-align: center;
+      border: 1px dashed #d5e2d4;
+      border-radius: 12px;
+      background: #fafbfa;
+      margin-top: 8px;
+    }
+    .empty-icon-circle {
+      width: 46px;
+      height: 46px;
+      border-radius: 50%;
+      background: #eef4ed;
+      color: #849683;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+    .empty-title {
+      font-size: 14px;
+      font-weight: 800;
+      color: #2b3e2d;
+      margin-bottom: 4px;
+      font-family: 'Manrope', sans-serif;
+    }
+    .empty-desc {
+      font-size: 12.5px;
+      color: #748576;
+      max-width: 440px;
+      margin: 0 auto;
+      line-height: 1.5;
+    }
+
+    /* Validasi & Pratinjau Stats */
+    .import-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin: 16px 0 18px 0;
+    }
+    .import-stat {
+      background: #ffffff;
+      border-radius: 12px;
+      border: 1px solid #e2ebe1;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .import-stat:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+    }
+    .import-stat-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .import-stat-title {
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #5c6e5e;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .import-stat-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .import-stat-num {
+      font-size: 24px;
+      font-weight: 800;
+      font-family: 'Manrope', sans-serif;
+      line-height: 1.1;
+    }
+    .import-stat.stat-total {
+      border-color: #d1dfd0;
+    }
+    .import-stat.stat-total .import-stat-num {
+      color: #172014;
+    }
+    .import-stat.stat-total .import-stat-icon {
+      background: #eef4ed;
+      color: #4b5f4d;
+    }
+    .import-stat.stat-importable {
+      border-color: #a4deb1;
+      background: #f7fcf8;
+    }
+    .import-stat.stat-importable .import-stat-num {
+      color: #07851b;
+    }
+    .import-stat.stat-importable .import-stat-icon {
+      background: #e5f6e8;
+      color: #07851b;
+    }
+    .import-stat.stat-existing {
+      border-color: #fae4a8;
+      background: #fffdf7;
+    }
+    .import-stat.stat-existing .import-stat-num {
+      color: #b87406;
+    }
+    .import-stat.stat-existing .import-stat-icon {
+      background: #fef6e2;
+      color: #b87406;
+    }
+    .import-stat.stat-invalid {
+      border-color: #f7c9c9;
+      background: #fdf8f8;
+    }
+    .import-stat.stat-invalid .import-stat-num {
+      color: #cf2e2e;
+    }
+    .import-stat.stat-invalid .import-stat-icon {
+      background: #fae8e8;
+      color: #cf2e2e;
+    }
+
+    /* Import Preview Table Container */
+    .import-preview-table {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      margin-top: 14px;
+      max-height: 420px;
+    }
+    .import-preview-table table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .import-preview-table th {
+      background: #f8faf8;
+      color: #354737;
+      font-weight: 700;
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1.5px solid var(--line);
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      white-space: nowrap;
+    }
+    .import-preview-table td {
+      padding: 9px 14px;
+      border-bottom: 1px solid #edf2ed;
+      color: var(--ink);
+      white-space: nowrap;
+    }
+    .import-preview-table tr:hover td {
+      background: #f9fbf9;
+    }
+
+    /* Responsive Rules for Import Page */
+    @media (max-width: 900px) {
+      .import-steps {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .import-stats {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    @media (max-width: 600px) {
+      .import-steps {
+        grid-template-columns: 1fr;
+      }
+      .import-stats {
+        grid-template-columns: 1fr;
+      }
+      .form-subcard {
+        padding: 14px;
+      }
+      .import-drop-zone {
+        padding: 22px 14px;
+      }
+      .file-card-box {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .file-card-actions {
+        width: 100%;
+        margin-top: 6px;
+      }
+      .file-card-actions button {
+        flex: 1;
+      }
     }
 </style>
