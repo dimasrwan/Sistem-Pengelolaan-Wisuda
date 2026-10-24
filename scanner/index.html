@@ -142,12 +142,31 @@
     #reader {
       width: 100% !important;
       border: none !important;
+      position: relative;
+      overflow: hidden;
     }
+    /* Pastikan HANYA SATU elemen video yang aktif dan ditampilkan */
     #reader video {
       width: 100% !important;
-      height: auto !important;
+      height: 100% !important;
+      max-height: 420px;
       object-fit: cover;
+      display: block;
       border-radius: 14px;
+      margin: 0 auto;
+    }
+    #reader video:not(:first-of-type) {
+      display: none !important;
+    }
+    /* Sembunyikan canvas internal library agar tidak tampil bertumpuk */
+    #reader canvas,
+    #qr-canvas,
+    #qr-canvas-visible {
+      display: none !important;
+    }
+    /* Sembunyikan bingkai bawaan html5-qrcode agar tidak bertabrakan dengan overlay custom */
+    #qr-shaded-region {
+      display: none !important;
     }
 
     /* Viewfinder Guidelines */
@@ -162,8 +181,8 @@
       z-index: 10;
     }
     .viewfinder-box {
-      width: 210px;
-      height: 210px;
+      width: 220px;
+      height: 220px;
       border: 2px dashed rgba(255, 255, 255, 0.7);
       border-radius: 18px;
       position: relative;
@@ -1295,15 +1314,27 @@
       // Periodic tick
     }
 
-    // Populate camera devices
-    async function populateCameras() {
+    let isStartingScanner = false;        // Mutex lock mencegah inisialisasi kamera berulang
+    let isPopulatingCameras = false;      // Guard daftar kamera
+
+    // Populate camera devices secara aman tanpa memicu event onchange berulang
+    async function populateCamerasSafe() {
+      if (isPopulatingCameras) return;
+      isPopulatingCameras = true;
+
       const select = document.getElementById('camera-select');
       try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices || !select) return;
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = devices.filter(d => d.kind === 'videoinput');
 
         if (videoDevices.length > 0) {
+          const currentVal = select.value || 'environment';
+
+          // Lepas onchange sementara untuk mencegah trigger startScanner berulang
+          const oldChange = select.onchange;
+          select.onchange = null;
+
           select.innerHTML = '';
           const backOpt = document.createElement('option');
           backOpt.value = 'environment';
@@ -1321,43 +1352,66 @@
             opt.textContent = device.label || ('Kamera ' + (index + 1));
             select.appendChild(opt);
           });
+
+          // Pulihkan seleksi
+          if (Array.from(select.options).some(o => o.value === currentVal)) {
+            select.value = currentVal;
+          }
+          select.onchange = oldChange;
         }
       } catch (e) {
         console.warn('Unable to enumerate cameras:', e);
+      } finally {
+        isPopulatingCameras = false;
       }
     }
 
     function onCameraSelectChange() {
-      if (isScanning) {
+      if (isScanning && !isStartingScanner) {
         startScanner();
       }
     }
 
-    // Start scanner
+    // Start scanner secara aman (menjamin hanya 1 stream video live aktif)
     async function startScanner() {
-      const select = document.getElementById('camera-select');
-      const chosenValue = select.value || 'environment';
-
-      let cameraConfig;
-      if (chosenValue === 'environment' || chosenValue === 'user') {
-        cameraConfig = { facingMode: chosenValue };
-      } else {
-        cameraConfig = { deviceId: { exact: chosenValue } };
+      if (isStartingScanner) {
+        console.log('[Camera] Inisialisasi sedang berlangsung, abaikan panggilan ganda.');
+        return;
       }
+      isStartingScanner = true;
 
-      if (isScanning && html5QrCode) {
-        await stopScanner();
-      }
-
-      html5QrCode = new Html5Qrcode('reader');
-
-      const config = {
-        fps: 12,
-        qrbox: { width: 210, height: 210 },
-        aspectRatio: 1.0
-      };
+      const btnStart = document.getElementById('btn-start');
+      const btnStop = document.getElementById('btn-stop');
+      const vfLabel = document.getElementById('viewfinder-label');
+      if (btnStart) btnStart.disabled = true;
 
       try {
+        // 1. Hentikan dan bersihkan instance / stream sebelumnya secara menyeluruh
+        await stopScanner();
+
+        const select = document.getElementById('camera-select');
+        const chosenValue = select ? (select.value || 'environment') : 'environment';
+
+        let cameraConfig;
+        if (chosenValue === 'environment' || chosenValue === 'user') {
+          cameraConfig = { facingMode: chosenValue };
+        } else {
+          cameraConfig = { deviceId: { exact: chosenValue } };
+        }
+
+        // 2. Bersihkan container DOM #reader sepenuhnya sebelum memasang instance baru
+        const readerEl = document.getElementById('reader');
+        if (readerEl) readerEl.innerHTML = '';
+
+        html5QrCode = new Html5Qrcode('reader');
+
+        // Konfigurasi optimal: tanpa memaksakan aspectRatio buatan yang mendistorsi kamera HP
+        const config = {
+          fps: 12,
+          qrbox: { width: 220, height: 220 },
+          disableFlip: true
+        };
+
         await html5QrCode.start(
           cameraConfig,
           config,
@@ -1366,46 +1420,80 @@
         );
 
         isScanning = true;
-        document.getElementById('btn-start').disabled = true;
-        document.getElementById('btn-stop').disabled = false;
-        document.getElementById('viewfinder-label').textContent = 'Kamera Aktif — Siap Memindai';
+        if (btnStart) btnStart.disabled = true;
+        if (btnStop) btnStop.disabled = false;
+        if (vfLabel) vfLabel.textContent = 'Kamera Aktif — Siap Memindai';
 
-        populateCameras();
+        populateCamerasSafe();
       } catch (err) {
         console.error('Camera start error:', err);
+        isScanning = false;
+        await stopScanner();
+
         const name = err.name || 'CameraError';
         const msg = err.message || 'Kamera tidak dapat diakses.';
-        document.getElementById('viewfinder-label').textContent = '✕ Gagal Membuka Kamera';
-        document.getElementById('btn-start').disabled = false;
-        document.getElementById('btn-stop').disabled = true;
+        if (vfLabel) vfLabel.textContent = '✕ Gagal Membuka Kamera';
+        if (btnStart) btnStart.disabled = false;
+        if (btnStop) btnStop.disabled = true;
 
         const container = document.getElementById('result-box-container');
-        container.innerHTML = `
-          <div class="result-card card-error">
-            <div class="result-header">✕ ${escapeHtml(name)}</div>
-            <div class="result-body">${escapeHtml(msg)}<br>Pastikan izin kamera diizinkan pada peramban.</div>
-          </div>
-        `;
+        if (container) {
+          container.innerHTML = `
+            <div class="result-card card-error">
+              <div class="result-header">✕ ${escapeHtml(name)}</div>
+              <div class="result-body">${escapeHtml(msg)}<br>Pastikan izin kamera diizinkan pada peramban.</div>
+            </div>
+          `;
+        }
+      } finally {
+        isStartingScanner = false;
       }
     }
 
-    // Stop scanner
+    // Stop scanner dan lakukan deep cleanup pada semua track media dan elemen DOM
     async function stopScanner() {
-      if (html5QrCode && isScanning) {
+      if (html5QrCode) {
         try {
-          await html5QrCode.stop();
+          if (html5QrCode.isScanning) {
+            await html5QrCode.stop();
+          }
           html5QrCode.clear();
         } catch (e) {
-          console.warn('Error stopping scanner:', e);
+          console.warn('Error stopping html5QrCode:', e);
         }
       }
+
+      // Pastikan semua MediaStreamTrack di peramban benar-benar dihentikan
+      try {
+        const readerEl = document.getElementById('reader');
+        if (readerEl) {
+          const videos = readerEl.querySelectorAll('video');
+          videos.forEach(v => {
+            if (v.srcObject && typeof v.srcObject.getTracks === 'function') {
+              v.srcObject.getTracks().forEach(track => {
+                try { track.stop(); } catch (te) {}
+              });
+            }
+            v.srcObject = null;
+            try { v.remove(); } catch (re) {}
+          });
+          // Kosongkan container dari elemen turunan library
+          readerEl.innerHTML = '';
+        }
+      } catch (ce) {}
+
+      html5QrCode = null;
       isScanning = false;
       activeLockedCode = null;
       isProcessingTransaction = false;
       clearPendingTimer();
-      document.getElementById('btn-start').disabled = false;
-      document.getElementById('btn-stop').disabled = true;
-      document.getElementById('viewfinder-label').textContent = 'Kamera Dihentikan';
+
+      const btnStart = document.getElementById('btn-start');
+      const btnStop = document.getElementById('btn-stop');
+      const vfLabel = document.getElementById('viewfinder-label');
+      if (btnStart) btnStart.disabled = false;
+      if (btnStop) btnStop.disabled = true;
+      if (vfLabel) vfLabel.textContent = 'Kamera Dihentikan';
     }
 
     // Close window safely
@@ -1447,7 +1535,7 @@
     });
 
     window.addEventListener('DOMContentLoaded', () => {
-      populateCameras();
+      populateCamerasSafe();
       if (window.opener) {
         setTimeout(startScanner, 400);
       }
