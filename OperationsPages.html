@@ -2035,6 +2035,22 @@
           const checkPayload = data.payload || '';
           console.log('[CheckTX] Menerima permintaan periksa transaksi:', checkReqId, checkPayload);
 
+          // Jika checkReqId sama dengan request yang sedang diproses di backend dan belum timeout (<15s)
+          if (APP.scanBusy && APP.activeProcessingRequestId === checkReqId && (Date.now() - (APP.scanBusySince || 0) < 15000)) {
+            sendResultToScannerPopup_({
+              type: 'UIN_ARRANIRY_SCAN_RESULT',
+              requestId: checkReqId,
+              result: {
+                success: false,
+                resultCode: 'SCAN_IN_PROGRESS',
+                badge: 'SEDANG DIPROSES',
+                message: 'Transaksi ' + checkReqId + ' masih diproses di server. Harap tunggu beberapa detik...',
+                requestId: checkReqId
+              }
+            });
+            return;
+          }
+
           google.script.run
             .withSuccessHandler(function (checkRes) {
               if (checkRes) checkRes.requestId = checkReqId;
@@ -2075,8 +2091,18 @@
           });
 
           const now = Date.now();
-          // Debounce kode yang sama
-          if (rawPayload === APP.activeCameraCode && (now - (APP.lastCodeSeenTime || 0) < 1800)) {
+
+          // 1. Auto-expiry untuk APP.scanBusy jika telah melebihi safety threshold (15 detik)
+          if (APP.scanBusy && (now - (APP.scanBusySince || 0) > 15000)) {
+            console.warn('[ScanBusy] Auto-clearing expired scanBusy state after 15s. Previous req:', APP.activeProcessingRequestId);
+            APP.scanBusy = false;
+            APP.activeProcessingRequestId = null;
+            APP.activeProcessingPayload = null;
+            APP.scanBusySince = 0;
+          }
+
+          // 2. Debounce kode yang sama (hanya untuk continuous scan, jangan tolak jika explicit retry)
+          if (!data.isRetry && rawPayload === APP.activeCameraCode && (now - (APP.lastCodeSeenTime || 0) < 1800)) {
             sendResultToScannerPopup_({
               type: 'UIN_ARRANIRY_SCAN_RESULT',
               requestId: reqId,
@@ -2091,6 +2117,7 @@
             return;
           }
 
+          // 3. Modal konfirmasi keluar sedang terbuka di aplikasi induk
           if (APP.pendingGuestExit || document.getElementById('guest-exit-modal-wrap')) {
             sendResultToScannerPopup_({
               type: 'UIN_ARRANIRY_SCAN_RESULT',
@@ -2105,7 +2132,26 @@
             });
             return;
           }
+
+          // 4. Penanganan scanBusy terkorrelasi
           if (APP.scanBusy) {
+            // Jika request yang datang memiliki ID yang persis sama dengan yang sedang diproses
+            if (reqId === APP.activeProcessingRequestId) {
+              sendResultToScannerPopup_({
+                type: 'UIN_ARRANIRY_SCAN_RESULT',
+                requestId: reqId,
+                result: {
+                  success: false,
+                  resultCode: 'SCAN_IN_PROGRESS',
+                  badge: 'SEDANG DIPROSES',
+                  message: 'Transaksi ini sedang dalam antrean pemrosesan server. Harap tunggu konfirmasi.',
+                  requestId: reqId
+                }
+              });
+              return;
+            }
+
+            // Jika ada request lain yang sedang aktif di backend
             sendResultToScannerPopup_({
               type: 'UIN_ARRANIRY_SCAN_RESULT',
               requestId: reqId,
@@ -2113,16 +2159,21 @@
                 success: false,
                 resultCode: 'SCAN_BUSY',
                 badge: 'SISTEM SEDANG MEMPROSES',
-                message: 'Sedang memproses transaksi sebelumnya di server. Harap tunggu sebentar.',
-                requestId: reqId
+                message: 'Server sedang memproses transaksi sebelumnya (' + (APP.activeProcessingRequestId || 'antrean') + '). Harap tunggu sebentar atau periksa status.',
+                requestId: reqId,
+                activeRequestId: APP.activeProcessingRequestId
               }
             });
             return;
           }
 
+          // Set state aktif untuk request ini
           APP.activeCameraCode = rawPayload;
           APP.lastCodeSeenTime = now;
           APP.scanBusy = true;
+          APP.scanBusySince = now;
+          APP.activeProcessingRequestId = reqId;
+          APP.activeProcessingPayload = rawPayload;
           handleScannedGuest(rawPayload, reqId);
         }
       });
@@ -2746,8 +2797,17 @@
       const raw = String(text || '').trim();
       const reqId = String(requestId || ('TX-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8).toUpperCase())).trim();
 
+      function clearProcessingState_() {
+        if (APP.activeProcessingRequestId === reqId) {
+          APP.scanBusy = false;
+          APP.scanBusySince = 0;
+          APP.activeProcessingRequestId = null;
+          APP.activeProcessingPayload = null;
+        }
+      }
+
       if (!APP.session || !['Admin','Panitia'].includes(APP.session.role)) {
-        APP.scanBusy = false;
+        clearProcessingState_();
         sendResultToScannerPopup_({
           type: 'UIN_ARRANIRY_SCAN_RESULT',
           requestId: reqId,
@@ -2763,7 +2823,7 @@
       }
 
       if (!raw) {
-        APP.scanBusy = false;
+        clearProcessingState_();
         sendResultToScannerPopup_({
           type: 'UIN_ARRANIRY_SCAN_RESULT',
           requestId: reqId,
@@ -2778,20 +2838,22 @@
         return showToast('Data QR kosong.');
       }
 
-      displayScanProcessing_(raw);
+      try {
+        displayScanProcessing_(raw);
+      } catch (e) {}
 
       let isFinished = false;
-      // Client-side safety timeout (20 detik) untuk memberi waktu backend Apps Script menyelesaikan penulisan sheets
+      // Client-side safety timeout (18 detik) sinkron dengan batas tunggu scanner
       const clientTimeoutId = setTimeout(function () {
         if (!isFinished) {
           isFinished = true;
-          APP.scanBusy = false;
-          console.warn('[' + reqId + '] Timeout pemanggilan backend Apps Script (20 detik)');
+          clearProcessingState_();
+          console.warn('[' + reqId + '] Timeout pemanggilan backend Apps Script (18 detik)');
           const timeoutRes = {
             success: false,
             resultCode: 'TIMEOUT_UNCONFIRMED',
             badge: 'TRANSAKSI BELUM TERKONFIRMASI',
-            message: 'Server belum memberikan konfirmasi akhir dalam 20 detik. Periksa status presensi sebelum mencoba kembali.',
+            message: 'Server belum memberikan konfirmasi akhir dalam 18 detik. Periksa status presensi sebelum mencoba kembali.',
             requestId: reqId
           };
           renderScanResult(timeoutRes);
@@ -2801,12 +2863,25 @@
             result: timeoutRes
           });
         }
-      }, 20000);
+      }, 18000);
 
       const successCallback = function (result) {
-        if (isFinished) return;
+        if (isFinished) {
+          console.info('[' + reqId + '] Backend selesai terlambat setelah client timeout.');
+          if (result) {
+            result.requestId = reqId;
+            result.isLateResolution = true;
+            sendResultToScannerPopup_({
+              type: 'UIN_ARRANIRY_SCAN_RESULT',
+              requestId: reqId,
+              result: result
+            });
+          }
+          return;
+        }
         isFinished = true;
         clearTimeout(clientTimeoutId);
+        clearProcessingState_();
 
         if (!result) {
           result = {
@@ -2826,15 +2901,13 @@
         });
 
         showToast(result.message || 'Pemindaian selesai.');
-        setTimeout(function () {
-          APP.scanBusy = false;
-        }, 1000);
       };
 
       const failureCallback = function (error) {
         if (isFinished) return;
         isFinished = true;
         clearTimeout(clientTimeoutId);
+        clearProcessingState_();
 
         const errorMsg = getErrorMessage(error);
         console.error('[' + reqId + '] FailureHandler backend:', errorMsg);
@@ -2854,9 +2927,6 @@
         });
 
         showToast(errorMsg);
-        setTimeout(function () {
-          APP.scanBusy = false;
-        }, 1000);
       };
 
       // Alur adaptif otomatis dengan correlation ID requestId

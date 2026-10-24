@@ -737,9 +737,14 @@
         // Hentikan timer timeout transaksi
         clearPendingTimer();
 
-        // Jika transaksi berstatus belum diproses (TX_UNPROCESSED), pertahankan pendingRequestId agar bisa di-retry
-        if (data.result && data.result.resultCode === 'TX_UNPROCESSED') {
+        // Jika transaksi berstatus non-terminal / belum selesai di backend:
+        // PERTAHANKAN pendingRequestId dan pendingPayload agar bisa di-retry atau dicek statusnya!
+        const nonTerminalCodes = ['TX_UNPROCESSED', 'SCAN_BUSY', 'SCAN_IN_PROGRESS', 'LOCK_TIMEOUT', 'TIMEOUT_UNCONFIRMED'];
+        if (data.result && nonTerminalCodes.includes(data.result.resultCode)) {
           isProcessingTransaction = false;
+          if (data.result.requestId) {
+            pendingRequestId = data.result.requestId;
+          }
           renderBackendResult(data.result);
           return;
         }
@@ -1051,6 +1056,124 @@
         return;
       }
 
+      // Kasus Khusus: Sistem sedang memproses transaksi sebelumnya di backend (SCAN_BUSY)
+      if (res.resultCode === 'SCAN_BUSY') {
+        playBeep('error');
+        const activeTx = res.activeRequestId ? `<div class="result-meta-row" style="font-size:10.5px;color:var(--muted);"><span class="result-meta-label">Transaksi Server Aktif</span><span class="result-meta-val" style="font-family:monospace;color:#b45309;">${escapeHtml(res.activeRequestId)}</span></div>` : '';
+
+        container.innerHTML = `
+          <div class="result-card card-unconfirmed" style="background:#fffbeb;border-color:#fde68a;">
+            <div class="result-header" style="color:#b45309;">
+              <span class="spinner" style="display:inline-block;width:12px;height:12px;border:2px solid #b45309;border-top-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
+              <span>SISTEM SEDANG MEMPROSES</span>
+            </div>
+            <div class="result-body">
+              <div style="font-weight:700;margin-bottom:8px;color:#92400e;">
+                ${escapeHtml(res.message || 'Server sedang memproses transaksi sebelumnya. Harap tunggu sebentar.')}
+              </div>
+              <div class="result-meta-row" style="font-size:10.5px;color:var(--muted);margin-top:4px;">
+                <span class="result-meta-label">ID Transaksi Ini</span>
+                <span class="result-meta-val" style="font-family:monospace;font-weight:700;color:var(--ink);">${escapeHtml(res.requestId || pendingRequestId || '—')}</span>
+              </div>
+              ${activeTx}
+              <div style="font-size:11.5px;color:var(--muted);margin:8px 0;line-height:1.4;">
+                Permintaan ini ditahan agar tidak terjadi transaksi ganda. Jika transaksi sebelumnya sudah selesai, klik <strong>Coba Kirim Lagi</strong> atau <strong>Periksa Status</strong>.
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+                <div style="display:flex;gap:8px;">
+                  <button class="btn btn-primary" onclick="retryCurrentTransaction()" style="flex:1;height:38px;font-size:12px;background:#15803d;border-color:#15803d;">
+                    🔁 Coba Kirim Lagi
+                  </button>
+                  <button class="btn btn-primary" onclick="checkCurrentTransactionStatus()" style="flex:1;height:38px;font-size:12px;">
+                    🔍 Cek Status
+                  </button>
+                </div>
+                <button class="btn btn-outline" onclick="resetPendingTransaction()" style="width:100%;height:34px;font-size:11.5px;">
+                  ↻ Reset / Batalkan
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+        if (vfBox) vfBox.classList.add('locked');
+        if (vfLabel) vfLabel.textContent = '⏳ Server Sedang Memproses — Klik Coba Kirim Lagi atau Cek Status';
+        const codeDisplay = (res.student && res.student.name) ? res.student.name : (res.requestId || 'TX');
+        addHistory('SISTEM SEDANG MEMPROSES', 'badge-warn', codeDisplay);
+        return;
+      }
+
+      // Kasus Khusus: Transaksi sedang dalam proses eksekusi di server (SCAN_IN_PROGRESS)
+      if (res.resultCode === 'SCAN_IN_PROGRESS') {
+        container.innerHTML = `
+          <div class="result-card card-pending">
+            <div class="result-header">
+              <span class="spinner" style="display:inline-block;width:12px;height:12px;border:2px solid #92400e;border-top-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;"></span>
+              <span>SEDANG DIPROSES DI SERVER</span>
+            </div>
+            <div class="result-body">
+              <div style="font-weight:700;margin-bottom:8px;color:#92400e;">
+                ${escapeHtml(res.message || 'Transaksi sedang dalam antrean pemrosesan Google Apps Script.')}
+              </div>
+              <div class="result-meta-row" style="font-size:10.5px;color:var(--muted);margin-top:4px;">
+                <span class="result-meta-label">ID Transaksi</span>
+                <span class="result-meta-val" style="font-family:monospace;font-weight:700;color:var(--ink);">${escapeHtml(res.requestId || pendingRequestId || '—')}</span>
+              </div>
+              <div style="font-size:11.5px;color:var(--muted);margin:8px 0;line-height:1.4;">
+                Mohon tunggu beberapa detik hingga server menulis ke Google Sheets.
+              </div>
+              <div style="display:flex;gap:8px;margin-top:10px;">
+                <button class="btn btn-primary" onclick="checkCurrentTransactionStatus()" style="flex:1;height:38px;font-size:12px;">
+                  🔍 Periksa Status Sekarang
+                </button>
+                <button class="btn btn-outline" onclick="resetPendingTransaction()" style="flex:1;height:38px;font-size:12px;">
+                  ↻ Reset Pemindai
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+        if (vfBox) vfBox.classList.add('scanned');
+        if (vfLabel) vfLabel.textContent = '⏳ Transaksi Sedang Diproses di Server...';
+        return;
+      }
+
+      // Kasus Khusus: Lock contention di Google Apps Script (LOCK_TIMEOUT)
+      if (res.resultCode === 'LOCK_TIMEOUT') {
+        playBeep('error');
+        container.innerHTML = `
+          <div class="result-card card-unconfirmed" style="background:#fffbeb;border-color:#fde68a;">
+            <div class="result-header" style="color:#b45309;">
+              <span>⚠️</span>
+              <span>SERVER SIBUK (LOCK TIMEOUT)</span>
+            </div>
+            <div class="result-body">
+              <div style="font-weight:700;margin-bottom:8px;color:#92400e;">
+                ${escapeHtml(res.message || 'Server sedang sibuk mengunci database. Transaksi belum tercatat.')}
+              </div>
+              <div class="result-meta-row" style="font-size:10.5px;color:var(--muted);margin-top:4px;">
+                <span class="result-meta-label">ID Transaksi</span>
+                <span class="result-meta-val" style="font-family:monospace;font-weight:700;color:var(--ink);">${escapeHtml(res.requestId || pendingRequestId || '—')}</span>
+              </div>
+              <div style="font-size:11.5px;color:var(--muted);margin:8px 0;line-height:1.4;">
+                Kunci konkurensi database terlewati karena server sibuk. Klik <strong>Coba Kirim Lagi</strong> dengan ID yang sama.
+              </div>
+              <div style="display:flex;gap:8px;margin-top:10px;">
+                <button class="btn btn-primary" onclick="retryCurrentTransaction()" style="flex:1;height:38px;font-size:12px;background:#15803d;border-color:#15803d;">
+                  🔁 Coba Kirim Lagi
+                </button>
+                <button class="btn btn-outline" onclick="resetPendingTransaction()" style="flex:1;height:38px;font-size:12px;">
+                  ↻ Batal / Reset
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+        if (vfBox) vfBox.classList.add('locked');
+        if (vfLabel) vfLabel.textContent = '⚠️ Server Sibuk — Klik Coba Kirim Lagi';
+        addHistory('SERVER SIBUK', 'badge-warn', res.requestId || 'TX');
+        return;
+      }
+
       const isEntry = res.resultCode === 'BERHASIL_MASUK';
       const isExit = res.resultCode === 'BERHASIL_KELUAR';
       const isStatusInside = res.resultCode === 'STATUS_DI_DALAM';
@@ -1193,7 +1316,14 @@
         return;
       }
 
-      // 3. KODE BARU / PRESENTASI SENGAJA BERIKUTNYA (SETELAH DIANGKAT):
+      // 3. JIKA ADA TRANSAKSI TERTUNDA / BELUM SELESAI (pendingRequestId aktif):
+      // Jangan buat requestId baru jika QR yang dihadapkan sama dengan transaksi pending!
+      if (pendingRequestId && pendingPayload === clean) {
+        lastSeenTimestamp = now;
+        return;
+      }
+
+      // 4. KODE BARU / PRESENTASI SENGAJA BERIKUTNYA (SETELAH DIANGKAT):
       const currentRequestId = 'TX-' + now + '-' + Math.random().toString(36).slice(2, 8).toUpperCase();
       activeLockedCode = clean;
       lastSeenTimestamp = now;
