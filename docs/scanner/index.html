@@ -113,6 +113,16 @@
       color: var(--warning);
       border-color: #fde68a;
     }
+    .conn-pending {
+      background: #fffbeb;
+      color: #b45309;
+      border-color: #fde68a;
+    }
+    .conn-error {
+      background: #fef2f2;
+      color: #991b1b;
+      border-color: #fecaca;
+    }
 
     /* Camera Viewport */
     .viewport-section {
@@ -519,21 +529,97 @@
     let audioCtx = null;
     const recentScans = [];
 
+    let isParentConnected = false;        // Status konfirmasi handshake dari aplikasi induk
+    let handshakeTimer = null;            // Timer pengulangan handshake
+    let handshakeAttempts = 0;            // Jumlah percobaan handshake
+
+    // Pembaruan visual banner koneksi
+    function setConnectionState(isOnline, messageHtml, badgeText, isPending) {
+      const banner = document.getElementById('conn-banner');
+      const text = document.getElementById('conn-text');
+      const badge = document.getElementById('conn-badge');
+      if (!banner || !text || !badge) return;
+
+      if (isPending) {
+        banner.className = 'connection-banner conn-pending';
+        text.innerHTML = messageHtml || '⏳ Menghubungkan ke aplikasi utama...';
+        badge.textContent = badgeText || 'Menghubungkan';
+        badge.style.background = 'rgba(180, 83, 9, 0.12)';
+        badge.style.color = '#b45309';
+      } else if (isOnline) {
+        banner.className = 'connection-banner conn-online';
+        text.innerHTML = messageHtml || '🟢 <strong>Terhubung</strong> ke Sistem Pengelolaan Wisuda';
+        badge.textContent = badgeText || 'Induk Terhubung';
+        badge.style.background = 'rgba(21, 128, 61, 0.12)';
+        badge.style.color = '#15803d';
+      } else {
+        banner.className = 'connection-banner conn-error';
+        text.innerHTML = messageHtml || '🔴 <strong>Belum Terhubung</strong> ke Aplikasi Utama';
+        badge.textContent = badgeText || 'Tidak Terhubung';
+        badge.style.background = 'rgba(185, 28, 28, 0.12)';
+        badge.style.color = '#b91c1c';
+      }
+    }
+
     // Validasi origin induk Google Apps Script atau localhost
     function isAllowedParentOrigin(origin) {
       if (!origin || typeof origin !== 'string') return false;
       const clean = origin.trim().toLowerCase();
-      // Domain Google Apps Script resmi
-      if (clean.endsWith('.script.google.com') ||
-          clean === 'https://script.google.com' ||
-          clean.endsWith('.script.googleusercontent.com')) {
-        return true;
-      }
-      // Local dev
-      if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?$/.test(clean)) {
-        return true;
-      }
+      try {
+        const url = new URL(clean);
+        if (url.protocol === 'https:') {
+          const host = url.hostname.toLowerCase();
+          // 1. Domain script.google.com resmi atau subdomainnya
+          if (host === 'script.google.com' || host.endsWith('.script.google.com')) return true;
+          // 2. Domain sandbox usercontent Google Apps Script
+          if (host === 'script.googleusercontent.com') return true;
+          if (host.endsWith('.googleusercontent.com') && host.includes('script')) return true;
+          // 3. Domain google.com internal yang menjalankan script
+          if (host.endsWith('.google.com') && host.includes('script')) return true;
+        } else if (url.protocol === 'http:') {
+          // Localhost untuk development
+          const host = url.hostname.toLowerCase();
+          if (host === 'localhost' || host === '127.0.0.1') return true;
+        }
+      } catch (e) {}
       return false;
+    }
+
+    // Memulai pengiriman sinyal handshake berkala hingga dikonfirmasi oleh induk
+    function startHandshakeSequence() {
+      if (handshakeTimer) clearInterval(handshakeTimer);
+      handshakeAttempts = 0;
+
+      function ping() {
+        if (isParentConnected) {
+          if (handshakeTimer) clearInterval(handshakeTimer);
+          return;
+        }
+
+        if (!window.opener || window.opener.closed) {
+          if (handshakeTimer) clearInterval(handshakeTimer);
+          isParentConnected = false;
+          setConnectionState(false, '🔴 Jendela aplikasi utama telah ditutup. Buka kembali melalui aplikasi.', 'Terputus', false);
+          return;
+        }
+
+        handshakeAttempts++;
+        if (targetOrigin) {
+          sendToParent({
+            type: 'UIN_ARRANIRY_SCANNER_READY',
+            timestamp: Date.now(),
+            attempt: handshakeAttempts
+          });
+        }
+
+        if (handshakeAttempts >= 12 && !isParentConnected) {
+          if (handshakeTimer) clearInterval(handshakeTimer);
+          setConnectionState(false, '🔴 Gagal terhubung ke aplikasi utama (Handshake Timeout). Buka ulang dari aplikasi.', 'Timeout', false);
+        }
+      }
+
+      ping();
+      handshakeTimer = setInterval(ping, 1200);
     }
 
     // Parse target origin from query parameter (?parentOrigin=...)
@@ -553,25 +639,14 @@
         }
       }
 
-      // Check opener relationship
-      const banner = document.getElementById('conn-banner');
-      const text = document.getElementById('conn-text');
-      const badge = document.getElementById('conn-badge');
-
+      // Periksa keberadaan window.opener
       if (window.opener && !window.opener.closed) {
-        banner.className = 'connection-banner conn-online';
-        text.innerHTML = '🟢 <strong>Terhubung</strong> ke Sistem Pengelolaan Wisuda';
-        badge.textContent = 'Induk Aktif';
-
-        // Notify parent that scanner is ready
-        sendToParent({
-          type: 'UIN_ARRANIRY_SCANNER_READY',
-          timestamp: Date.now()
-        });
+        // Status awal: Menghubungkan (belum terkonfirmasi)
+        setConnectionState(false, '⏳ Menghubungkan ke Sistem Pengelolaan Wisuda...', 'Menghubungkan', true);
+        startHandshakeSequence();
       } else {
-        banner.className = 'connection-banner conn-standalone';
-        text.innerHTML = '🟡 Mode Mandiri (Buka dari aplikasi untuk mencatat presensi)';
-        badge.textContent = 'Stand-alone';
+        isParentConnected = false;
+        setConnectionState(false, '🔴 Belum Terhubung: Buka dari aplikasi utama untuk mencatat presensi.', 'Tidak Terhubung', false);
       }
     })();
 
@@ -582,7 +657,12 @@
         console.warn('[Security] Diabaikan pesan dari origin asing:', event.origin);
         return;
       }
-      if (targetOrigin && event.origin !== targetOrigin) {
+
+      // Jika targetOrigin belum terikat dari URL parameter, ikat secara aman dari event.origin yang telah divalidasi
+      if (!targetOrigin && isAllowedParentOrigin(event.origin)) {
+        targetOrigin = event.origin;
+        console.info('[Security] targetOrigin berhasil diikat dari pesan induk:', targetOrigin);
+      } else if (targetOrigin && event.origin !== targetOrigin) {
         console.warn('[Security] Origin pengirim tidak cocok dengan targetOrigin induk:', event.origin);
         return;
       }
@@ -596,12 +676,16 @@
       const data = event.data;
       if (!data || typeof data !== 'object') return;
 
-      // 0. Handshake ACK from parent
+      // 0. Handshake ACK dari aplikasi induk
       if (data.type === 'UIN_ARRANIRY_PARENT_ACK') {
-        const text = document.getElementById('conn-text');
-        if (text) {
-          text.innerHTML = '🟢 <strong>Terhubung</strong> ke Sistem Pengelolaan Wisuda' + (data.role ? ' (' + escapeHtml(data.role) + ')' : '');
+        if (handshakeTimer) {
+          clearInterval(handshakeTimer);
+          handshakeTimer = null;
         }
+        isParentConnected = true;
+        const roleText = data.role ? ' (' + escapeHtml(data.role) + ')' : '';
+        setConnectionState(true, '🟢 <strong>Terhubung</strong> ke Sistem Pengelolaan Wisuda' + roleText, 'Induk Terhubung', false);
+        console.info('[Handshake] Berhasil terhubung ke aplikasi induk:', event.origin);
         return;
       }
 
@@ -1134,6 +1218,17 @@
         </div>
       `;
 
+      // Pastikan scanner benar-benar terhubung ke aplikasi induk
+      if (!isParentConnected || !window.opener || window.opener.closed) {
+        playBeep('error');
+        clearPendingTimer();
+        isProcessingTransaction = false;
+        pendingRequestId = null;
+        pendingPayload = null;
+        renderDisconnectedError(clean, currentRequestId);
+        return;
+      }
+
       // Send to parent window with correlation ID requestId
       const sent = sendToParent({
         type: 'UIN_ARRANIRY_QR_SCAN',
@@ -1143,23 +1238,57 @@
       });
 
       if (!sent) {
-        // Standalone mode simulation
-        setTimeout(function () {
-          clearPendingTimer();
-          isProcessingTransaction = false;
-          pendingRequestId = null;
-          pendingPayload = null;
-          renderBackendResult({
-            success: true,
-            resultCode: 'BERHASIL_MASUK',
-            badge: 'SIMULASI MANDIRI',
-            message: 'Mode mandiri: Buka pemindai melalui aplikasi utama untuk mencatat ke Google Sheets.',
-            student: { name: clean, nim: clean, seat: '—' },
-            time: new Date().toLocaleTimeString('id-ID'),
-            requestId: currentRequestId
-          });
-        }, 600);
+        playBeep('error');
+        clearPendingTimer();
+        isProcessingTransaction = false;
+        pendingRequestId = null;
+        pendingPayload = null;
+        renderDisconnectedError(clean, currentRequestId);
       }
+    }
+
+    // Menampilkan pesan kesalahan jika scanner belum terhubung ke aplikasi utama (Tidak ada data sukses palsu)
+    function renderDisconnectedError(code, reqId) {
+      const container = document.getElementById('result-box-container');
+      const vfBox = document.getElementById('viewfinder-box');
+      const vfLabel = document.getElementById('viewfinder-label');
+
+      if (vfBox) vfBox.classList.add('scanned');
+      if (vfLabel) vfLabel.textContent = '❌ Pemindai Belum Terhubung ke Aplikasi Utama';
+
+      container.innerHTML = `
+        <div class="result-card card-unconfirmed" style="border-left-color:#dc2626;">
+          <div class="result-header" style="background:#fef2f2;color:#991b1b;border-bottom-color:#fecaca;">
+            <span>❌</span>
+            <span>BELUM TERHUBUNG KE APLIKASI UTAMA</span>
+          </div>
+          <div class="result-body">
+            <div style="font-weight:700;color:#991b1b;margin-bottom:6px;">
+              Data Presensi TIDAK TERCATAT di Google Sheets
+            </div>
+            <div style="font-size:12px;color:#374151;line-height:1.45;margin-bottom:8px;">
+              Pemindai tidak terhubung dengan sesi aplikasi induk Sistem Pengelolaan Wisuda.
+            </div>
+            <div class="result-meta-row">
+              <span class="result-meta-label">Kode QR</span>
+              <span class="result-meta-val" style="font-family:monospace;font-weight:700;">${escapeHtml(code)}</span>
+            </div>
+            <div class="result-meta-row">
+              <span class="result-meta-label">ID Transaksi</span>
+              <span class="result-meta-val" style="font-family:monospace;">${escapeHtml(reqId || '—')}</span>
+            </div>
+            <div class="result-meta-row">
+              <span class="result-meta-label">Status Server</span>
+              <span class="result-meta-val" style="color:#dc2626;font-weight:700;">TIDAK TERCATAT</span>
+            </div>
+            <div style="background:#fffbeb;border:1px solid #fef3c7;padding:8px 10px;border-radius:6px;font-size:11.5px;color:#92400e;margin-top:10px;">
+              👉 <strong>Petunjuk Petugas:</strong> Buka menu <strong>Scan QR Tamu</strong> di aplikasi Sistem Pengelolaan Wisuda, lalu klik tombol <strong>Buka Kamera Pemindai Eksternal</strong> untuk memulai sesi presensi resmi.
+            </div>
+          </div>
+        </div>
+      `;
+
+      addHistory('GAGAL: BELUM TERHUBUNG', 'badge-warn', code);
     }
 
     function onScanProgress() {

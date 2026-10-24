@@ -2205,6 +2205,9 @@
         }
       } catch (e) {}
 
+      setupExternalScannerListenerOnce_();
+      APP.pendingScanResults = {};
+
       // Buka melalui klik langsung pengguna agar popup tidak diblokir
       APP.externalScannerWindow = window.open(
         targetUrl,
@@ -2219,9 +2222,20 @@
       }
 
       setCameraStatus_('external_on');
-      showToast('Jendela pemindai dibuka. Siap menerima hasil scan.');
+      showToast('Jendela pemindai dibuka. Menghubungkan...');
 
       try { APP.externalScannerWindow.focus(); } catch (e) {}
+
+      // Kirim salam handshake proaktif ke jendela baru setelah jeda inisialisasi
+      setTimeout(function () {
+        if (APP.externalScannerWindow && !APP.externalScannerWindow.closed) {
+          sendResultToScannerPopup_({
+            type: 'UIN_ARRANIRY_PARENT_ACK',
+            role: APP.session ? APP.session.role : null,
+            timestamp: Date.now()
+          });
+        }
+      }, 700);
 
       // Monitor penutupan jendela tanpa mengganggu komunikasi yang sedang berlangsung
       if (APP.externalScannerMonitorInterval) {
@@ -2229,7 +2243,7 @@
       }
       APP.externalScannerMonitorInterval = setInterval(function () {
         try {
-          if (APP.externalScannerWindow && APP.externalScannerWindow.closed) {
+          if (APP.externalScannerWindow && APP.externalScannerWindow.closed === true) {
             clearInterval(APP.externalScannerMonitorInterval);
             APP.externalScannerMonitorInterval = null;
             APP.externalScannerWindow = null;
@@ -2238,7 +2252,7 @@
             showToast('Jendela pemindai ditutup.');
           }
         } catch (e) {}
-      }, 1000);
+      }, 1500);
     }
 
     function toggleExternalScannerConfig() {
