@@ -867,9 +867,13 @@
                 '</div>' +
                 '<p style="margin:0 0 12px;font-size:13px;color:#223324;line-height:1.5;">' + escapeHtml(result.message) + '</p>' +
                 '<div style="font-size:12px;color:#556657;margin-bottom:14px;line-height:1.5;">' +
-                  'Data wisudawan telah berhasil disimpan ke database Google Sheets dan siap digunakan untuk pembagian kursi, pencetakan buku wisuda, maupun presensi tamu.' +
+                  'Data wisudawan telah berhasil disimpan ke database Google Sheets (DATA_WISUDAWAN). Lanjutkan dengan sinkronisasi ke Daftar Panggil dan Denah Kursi untuk mengalokasikan nomor urut fisik dan penempatan resmi.' +
                 '</div>' +
-                '<div class="toolbar" style="margin-top:0;">' +
+                '<div class="toolbar" style="margin-top:0;display:flex;flex-wrap:wrap;gap:8px;">' +
+                  '<button type="button" class="btn btn-green btn-sm" onclick="openSyncOperationsModal(\'calls\', \'' + escapeHtml(result.periodId || periodId) + '\')">' +
+                    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>' +
+                    'Sinkronkan ke Daftar Panggil & Denah Kursi' +
+                  '</button>' +
                   '<button type="button" class="btn btn-sm" onclick="navigate(\'students\')">' +
                     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>' +
                     'Lihat di Data Wisudawan' +

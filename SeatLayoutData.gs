@@ -9,3 +9,58 @@ const OFFICIAL_DAY_LAYOUTS_ = {"1":[["22-S2",1,0,1],["21-S2",1,0,2],["20-S2",1,0
 function getOfficialDayLayouts_() {
   return OFFICIAL_DAY_LAYOUTS_;
 }
+
+/**
+ * Rekapitulasi kapasitas resmi berdasarkan denah fisik gedung UIN Ar-Raniry.
+ * Baris 1-12: Sektor Depan (Perempuan)
+ * Baris 13: Lorong Tengah (Pemisah / Tidak ada kursi)
+ * Baris 14-25: Sektor Belakang (Laki-laki)
+ * Kursi 144-ST: Kursi resmi fisik di Baris 18, Kanan, Kolom 2.
+ */
+function getOfficialCapacitySummary_() {
+  const layouts = getOfficialDayLayouts_();
+  const days = ['1', '2', '3'];
+  const summary = {
+    days: {},
+    grandTotal: { total: 0, female: 0, male: 0 }
+  };
+
+  days.forEach(function (day) {
+    const seats = layouts[day] || [];
+    const units = {};
+    let femaleCount = 0;
+    let maleCount = 0;
+
+    seats.forEach(function (s) {
+      const code = s[0];
+      const row = s[1];
+      const unit = (code || '').split('-')[1] || 'UNKNOWN';
+
+      if (!units[unit]) {
+        units[unit] = { total: 0, female: 0, male: 0 };
+      }
+      units[unit].total++;
+
+      if (row <= 12) {
+        femaleCount++;
+        units[unit].female++;
+      } else if (row >= 14) {
+        maleCount++;
+        units[unit].male++;
+      }
+    });
+
+    summary.days[day] = {
+      total: seats.length,
+      female: femaleCount,
+      male: maleCount,
+      units: units
+    };
+
+    summary.grandTotal.total += seats.length;
+    summary.grandTotal.female += femaleCount;
+    summary.grandTotal.male += maleCount;
+  });
+
+  return summary;
+}

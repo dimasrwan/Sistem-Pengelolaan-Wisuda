@@ -48,11 +48,23 @@
       const dayFilter = APP.callListFilters.day || '';
       const periodFilter = APP.callListFilters.period || '';
 
+      let periodOptions = '<option value="">Periode Aktif (Default)</option>';
+      if (APP.importPeriods && APP.importPeriods.length) {
+        APP.importPeriods.forEach(function (p) {
+          const isSel = (periodFilter === p.id) ? ' selected' : '';
+          periodOptions += '<option value="' + escapeHtml(p.id) + '"' + isSel + '>' + escapeHtml(p.name + (p.wave ? ' (' + p.wave + ')' : '')) + '</option>';
+        });
+      }
+
       document.getElementById('page-content').innerHTML =
         pageHeader('Daftar Panggil','Tinjau, filter, dan perbarui status pemanggilan wisudawan.') +
         '<div class="panel" style="margin-bottom:15px;">' +
         '<div class="panel-body responsive-filter-bar">' +
         '<div class="responsive-filter-inputs">' +
+        '<div><label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Filter Gelombang</label>' +
+        '<select id="call-filter-period" class="field" onchange="onCallPeriodFilterChange(this.value)">' +
+        periodOptions +
+        '</select></div>' +
         '<div><label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Filter Hari Wisuda</label>' +
         '<select id="call-filter-day" class="field" onchange="onCallDayFilterChange(this.value)">' +
         '<option value="" ' + (!dayFilter ? 'selected' : '') + '>Semua Hari</option>' +
@@ -62,6 +74,9 @@
         '</select></div>' +
         '</div>' +
         '<div class="responsive-filter-actions">' +
+        '<button class="btn btn-green btn-sm" onclick="openSyncOperationsModal(\'calls\', APP.callListFilters.period)" title="Sinkronkan wisudawan dari DATA_WISUDAWAN ke DAFTAR_PANGGIL dan DENAH_KURSI">' +
+        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>' +
+        'Sinkronkan Data Wisudawan</button>' +
         '<button class="btn btn-outline btn-sm" onclick="openCallListReportModal()">Pratinjau / Cetak Laporan PDF</button>' +
         '<button class="btn btn-outline btn-sm" onclick="renderCalls()">Muat ulang</button>' +
         '</div>' +
@@ -71,6 +86,20 @@
         '<div class="panel-body"><div id="calls-table">Memuat data...</div></div></div>';
 
       syncCustomSelect('call-filter-day');
+      syncCustomSelect('call-filter-period');
+
+      ensurePeriodsLoaded(function () {
+        const sel = document.getElementById('call-filter-period');
+        if (sel && APP.importPeriods && APP.importPeriods.length) {
+          let opts = '<option value="">Periode Aktif (Default)</option>';
+          APP.importPeriods.forEach(function (p) {
+            const isSel = (APP.callListFilters.period === p.id) ? ' selected' : '';
+            opts += '<option value="' + escapeHtml(p.id) + '"' + isSel + '>' + escapeHtml(p.name + (p.wave ? ' (' + p.wave + ')' : '')) + '</option>';
+          });
+          sel.innerHTML = opts;
+          syncCustomSelect('call-filter-period');
+        }
+      });
 
       google.script.run
         .withSuccessHandler(function (rows) {
@@ -681,6 +710,28 @@
       renderCalls();
     }
 
+    function onCallPeriodFilterChange(val) {
+      closeCallStatusModal();
+      APP.callListFilters.period = val;
+      renderCalls();
+    }
+
+    function ensurePeriodsLoaded(callback) {
+      if (APP.importPeriods && APP.importPeriods.length) {
+        if (typeof callback === 'function') callback();
+        return;
+      }
+      google.script.run
+        .withSuccessHandler(function (setup) {
+          APP.importPeriods = (setup && setup.periods) || [];
+          if (typeof callback === 'function') callback();
+        })
+        .withFailureHandler(function () {
+          if (typeof callback === 'function') callback();
+        })
+        .getStudentImportSetup();
+    }
+
     function renderCallActionButton(row) {
       if (APP.session.role !== 'Admin') {
         return '<span style="color:var(--muted);font-size:12px;">—</span>';
@@ -911,6 +962,428 @@
     });
 
     /* =========================================================
+       MODUL SINKRONISASI DATA WISUDAWAN KE OPERASIONAL
+       ========================================================= */
+
+    function openSyncOperationsModal(origin, initialPeriodId) {
+      if (APP.session.role !== 'Admin') return showToast('Akses ditolak.');
+
+      ensurePeriodsLoaded(function () {
+        const targetPeriod = initialPeriodId || (APP.importPeriods && APP.importPeriods[0] && APP.importPeriods[0].id) || '';
+
+        let periodSelectHtml = '<select id="sync-modal-period" class="field" style="width:100%; font-weight:700;" onchange="runPreflightCheckInModal(\'' + escapeHtml(origin || 'calls') + '\')">';
+        if (APP.importPeriods && APP.importPeriods.length) {
+          APP.importPeriods.forEach(function (p) {
+            const isSel = (p.id === targetPeriod) ? ' selected' : '';
+            periodSelectHtml += '<option value="' + escapeHtml(p.id) + '"' + isSel + '>' + escapeHtml(p.name + (p.wave ? ' (' + p.wave + ')' : '')) + '</option>';
+          });
+        } else {
+          periodSelectHtml += '<option value="">Periode Aktif</option>';
+        }
+        periodSelectHtml += '</select>';
+
+        const modalHtml =
+          '<div id="sync-operations-modal-wrap">' +
+            '<div id="sync-operations-modal" class="student-modal-overlay" onclick="if(event.target===this)closeSyncOperationsModal()">' +
+              '<div class="call-confirm-modal" role="dialog" aria-modal="true" style="width:min(660px,95vw); max-height:92vh; overflow-y:auto;">' +
+                '<div class="call-confirm-header">' +
+                  '<h3 class="call-confirm-title">' +
+                    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#07851b" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' +
+                    'Pre-Flight Check & Sinkronisasi Operasional' +
+                  '</h3>' +
+                  '<button type="button" class="btn btn-outline btn-sm" onclick="closeSyncOperationsModal()" style="padding:4px 8px; border-radius:8px;">✕</button>' +
+                '</div>' +
+                '<div class="call-confirm-body">' +
+                  '<div class="notice notice-info" style="margin-bottom:12px; padding:10px 14px; font-size:12px; line-height:1.5;">' +
+                    '<div style="font-weight:700; color:#064b16; margin-bottom:2px;">Prosedur Pra-Sinkronisasi Aman (Read-Only Audit):</div>' +
+                    'Pemeriksaan awal memastikan kapasitas gedung, pemisahan gender fisik resmi (Perempuan Baris 1-12, Laki-laki Baris 14-25), serta integritas data tanpa mengubah Google Sheets produksi sebelum Admin mengonfirmasi.' +
+                  '</div>' +
+                  '<div style="margin-bottom:14px;">' +
+                    '<label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:6px;">PILIH GELOMBANG / PERIODE WISUDA</label>' +
+                    periodSelectHtml +
+                  '</div>' +
+                  '<div id="sync-modal-result-area">' +
+                    '<div style="padding:24px; text-align:center; color:var(--muted); font-size:13px;">' +
+                      '<span class="spinner" style="margin-right:8px;"></span>Menjalankan audit pra-sinkronisasi (Pre-Flight Check)...' +
+                    '</div>' +
+                  '</div>' +
+                '</div>' +
+                '<div class="call-confirm-footer" style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:16px; padding-top:12px; border-top:1px solid var(--line);">' +
+                  '<div>' +
+                    '<button type="button" id="btn-recheck-sync" class="btn btn-outline btn-sm" onclick="runPreflightCheckInModal(\'' + escapeHtml(origin || 'calls') + '\')" style="display:none;">' +
+                      '↻ Periksa Ulang' +
+                    '</button>' +
+                  '</div>' +
+                  '<div style="display:flex; gap:8px;">' +
+                    '<button type="button" class="btn btn-outline" onclick="closeSyncOperationsModal()">Tutup</button>' +
+                    '<button type="button" id="btn-start-sync" class="btn btn-green" disabled onclick="startOperationsSync(\'' + escapeHtml(origin || 'calls') + '\')">' +
+                      'Pemeriksaan Sedang Berjalan...' +
+                    '</button>' +
+                  '</div>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+
+        const prev = document.getElementById('sync-operations-modal-wrap');
+        if (prev) prev.remove();
+
+        const wrap = document.createElement('div');
+        wrap.id = 'sync-operations-modal-wrap';
+        wrap.innerHTML = modalHtml;
+        document.body.appendChild(wrap);
+        syncCustomSelect('sync-modal-period');
+
+        // Jalankan audit preflight check otomatis saat modal dibuka
+        runPreflightCheckInModal(origin || 'calls');
+      });
+    }
+
+    function closeSyncOperationsModal(needRefresh, origin) {
+      const wrap = document.getElementById('sync-operations-modal-wrap');
+      if (wrap) wrap.remove();
+
+      if (needRefresh) {
+        if (origin === 'calls' || APP.currentPage === 'calls') {
+          renderCalls();
+        } else if (origin === 'seats' || APP.currentPage === 'seats') {
+          renderSeats();
+        } else if (APP.currentPage === 'students') {
+          if (document.getElementById('student-table')) searchStudentRows(true);
+        }
+      }
+    }
+
+    function runPreflightCheckInModal(origin) {
+      const periodSelect = document.getElementById('sync-modal-period');
+      const periodId = periodSelect ? periodSelect.value : '';
+      const resultArea = document.getElementById('sync-modal-result-area');
+      const btn = document.getElementById('btn-start-sync');
+      const recheckBtn = document.getElementById('btn-recheck-sync');
+
+      if (btn) {
+        btn.disabled = true;
+        btn.className = 'btn btn-outline';
+        btn.innerHTML = '<span class="spinner" style="margin-right:6px; display:inline-block; vertical-align:middle;"></span>Memeriksa...';
+      }
+      if (recheckBtn) recheckBtn.style.display = 'none';
+
+      if (resultArea) {
+        resultArea.innerHTML =
+          '<div style="padding:24px; text-align:center; color:var(--muted); font-size:13px;">' +
+            '<span class="spinner" style="margin-right:8px;"></span>Memeriksa kuota fisik gedung, validitas gender, duplikasi, dan isolasi periode...' +
+          '</div>';
+      }
+
+      google.script.run
+        .withSuccessHandler(function (report) {
+          renderPreflightModalReport(report, origin);
+        })
+        .withFailureHandler(function (err) {
+          if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = 'Pemeriksaan Gagal';
+          }
+          if (recheckBtn) recheckBtn.style.display = 'inline-block';
+          if (resultArea) {
+            resultArea.innerHTML =
+              '<div class="notice notice-danger" style="padding:12px; font-size:13px;">' +
+                '<strong>Gagal Menjalankan Pre-Flight Check:</strong> ' + escapeHtml(getErrorMessage(err)) +
+              '</div>';
+          }
+        })
+        .preflightCheckPeriodOperations(periodId);
+    }
+
+    function renderPreflightModalReport(report, origin) {
+      const resultArea = document.getElementById('sync-modal-result-area');
+      const btn = document.getElementById('btn-start-sync');
+      const recheckBtn = document.getElementById('btn-recheck-sync');
+      if (recheckBtn) recheckBtn.style.display = 'inline-block';
+
+      if (!resultArea) return;
+
+      if (!report || !report.success) {
+        resultArea.innerHTML =
+          '<div class="notice notice-danger" style="padding:12px; font-size:13px;">' +
+            escapeHtml(report ? report.message : 'Pemeriksaan awal gagal.') +
+          '</div>';
+        return;
+      }
+
+      const sm = report.summary || {};
+      const isReady = Boolean(report.isReadyForSync);
+
+      // 1. Rekomendasi Banner
+      let bannerClass = isReady ? (report.warnings && report.warnings.length ? 'notice-warn' : 'notice-success') : 'notice-danger';
+      let bannerIcon = isReady ? '✓' : '⚠';
+      let bannerTitle = isReady
+        ? (report.warnings && report.warnings.length ? 'Pemeriksaan Selesai (Ada Catatan)' : 'Pre-Flight Check Lulus: Siap Disinkronkan')
+        : 'Perhatian: Periode Belum Layak Disinkronkan';
+
+      let reportHtml =
+        '<div class="notice ' + bannerClass + '" style="padding:12px 14px; font-size:12px; line-height:1.5; margin-bottom:12px; border-radius:8px;">' +
+          '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">' +
+            '<strong style="font-size:13px;">' + bannerIcon + ' ' + escapeHtml(bannerTitle) + '</strong>' +
+            '<span class="badge ' + (isReady ? 'badge-green' : 'badge-danger') + '" style="font-size:11px; font-weight:800; padding:3px 8px; border-radius:6px;">' +
+              escapeHtml(report.statusText || (isReady ? 'SIAP DISINKRONKAN' : 'BELUM SIAP (TERDAPAT BLOCKER)')) +
+            '</span>' +
+          '</div>' +
+          '<div>' + escapeHtml(report.recommendation || '') + '</div>' +
+        '</div>';
+
+      // 2. Metric Grid Lengkap Sesuai Spesifikasi Audit
+      reportHtml +=
+        '<div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-bottom:12px; font-size:12px; text-align:center;">' +
+          '<div style="background:#f9fbf9; border:1px solid #d0e4d2; border-radius:8px; padding:8px;">' +
+            '<span style="color:var(--muted); font-size:10px; display:block;">Total Peserta Aktif</span>' +
+            '<strong style="font-size:16px; color:#064b16;">' + (sm.totalStudents || 0) + '</strong>' +
+          '</div>' +
+          '<div style="background:#f9fbf9; border:1px solid #d0e4d2; border-radius:8px; padding:8px;">' +
+            '<span style="color:var(--muted); font-size:10px; display:block;">Tersinkron Penuh</span>' +
+            '<strong style="font-size:16px; color:#07851b;">' + (sm.fullySyncedCount || sm.alreadySynced || 0) + '</strong>' +
+          '</div>' +
+          '<div style="background:' + (sm.partialSyncCount > 0 ? '#fff5f5; border:1px solid #f5c6cb' : '#f9fbf9; border:1px solid #d0e4d2') + '; border-radius:8px; padding:8px;">' +
+            '<span style="color:' + (sm.partialSyncCount > 0 ? '#721c24' : 'var(--muted)') + '; font-size:10px; display:block;">Sinkronisasi Parsial</span>' +
+            '<strong style="font-size:16px; color:' + (sm.partialSyncCount > 0 ? '#b02a37' : 'var(--muted)') + ';">' + (sm.partialSyncCount || 0) + '</strong>' +
+          '</div>' +
+          '<div style="background:#f9fbf9; border:1px solid #d0e4d2; border-radius:8px; padding:8px;">' +
+            '<span style="color:var(--muted); font-size:10px; display:block;">Alokasi Baru</span>' +
+            '<strong style="font-size:16px; color:#186838;">' + (sm.newToSync || 0) + '</strong>' +
+          '</div>' +
+          '<div style="background:' + (!isReady ? '#fff5f5; border:1px solid #f5c6cb' : '#f9fbf9; border:1px solid #d0e4d2') + '; border-radius:8px; padding:8px;">' +
+            '<span style="color:' + (!isReady ? '#721c24' : 'var(--muted)') + '; font-size:10px; display:block;">Blocker Ditemukan</span>' +
+            '<strong style="font-size:16px; color:' + (!isReady ? '#b02a37' : '#064b16') + ';">' + ((report.blockers && report.blockers.length) || 0) + '</strong>' +
+          '</div>' +
+          '<div style="background:#f9fbf9; border:1px solid #d0e4d2; border-radius:8px; padding:8px;">' +
+            '<span style="color:var(--muted); font-size:10px; display:block;">Sisa Kursi Gedung</span>' +
+            '<strong style="font-size:16px; color:#064b16;">' + (sm.totalRemainingSeats || 0) + '</strong>' +
+          '</div>' +
+        '</div>';
+
+      // 3. Blocker / Warning Details
+      if (report.partialSyncList && report.partialSyncList.length > 0) {
+        reportHtml +=
+          '<div class="notice notice-danger" style="margin-bottom:12px; padding:10px 12px; font-size:11px;">' +
+            '<strong>' + report.partialSyncList.length + ' Peserta Berstatus Sinkronisasi Parsial (BLOCKER):</strong>' +
+            '<div style="margin-top:6px; max-height:100px; overflow-y:auto; border:1px solid #f5c6cb; background:#fff; border-radius:6px; padding:4px 8px;">' +
+              report.partialSyncList.map(function(item) {
+                return '<div style="padding:2px 0; border-bottom:1px dotted #f8d7da;">' +
+                  escapeHtml(item.nim || '-') + ' — <strong>' + escapeHtml(item.nama) + '</strong> (' + escapeHtml(item.program_studi || item.fakultas) + '): ' + escapeHtml(item.detail) +
+                '</div>';
+              }).join('') +
+            '</div>' +
+            '<div style="margin-top:4px; color:#721c24;">* Peserta hanya memiliki baris di salah satu sheet (DAFTAR_PANGGIL atau DENAH_KURSI). Harus diselesaikan sebelum sinkronisasi.</div>' +
+          '</div>';
+      }
+
+      if (report.syncConflictList && report.syncConflictList.length > 0) {
+        reportHtml +=
+          '<div class="notice notice-danger" style="margin-bottom:12px; padding:10px 12px; font-size:11px;">' +
+            '<strong>' + report.syncConflictList.length + ' Peserta Mengalami Konflik Alokasi (BLOCKER):</strong>' +
+            '<div style="margin-top:6px; max-height:100px; overflow-y:auto; border:1px solid #f5c6cb; background:#fff; border-radius:6px; padding:4px 8px;">' +
+              report.syncConflictList.map(function(item) {
+                return '<div style="padding:2px 0; border-bottom:1px dotted #f8d7da;">' +
+                  escapeHtml(item.nim || '-') + ' — <strong>' + escapeHtml(item.nama) + '</strong> (' + escapeHtml(item.seatCode || '-') + '): ' + escapeHtml((item.issues || []).join('; ')) +
+                '</div>';
+              }).join('') +
+            '</div>' +
+          '</div>';
+      }
+
+      if (report.ambiguousGenderList && report.ambiguousGenderList.length > 0) {
+        reportHtml +=
+          '<div class="notice notice-danger" style="margin-bottom:12px; padding:10px 12px; font-size:11px;">' +
+            '<strong>' + report.ambiguousGenderList.length + ' Peserta Memiliki Gender Kosong / Tidak Terverifikasi (BLOCKER):</strong>' +
+            '<div style="margin-top:6px; max-height:100px; overflow-y:auto; border:1px solid #f5c6cb; background:#fff; border-radius:6px; padding:4px 8px;">' +
+              report.ambiguousGenderList.map(function(item) {
+                return '<div style="padding:2px 0; border-bottom:1px dotted #f8d7da;">' +
+                  escapeHtml(item.nim || '-') + ' — <strong>' + escapeHtml(item.nama) + '</strong> (' + escapeHtml(item.program_studi || item.fakultas) + ') : Nilai: "' + escapeHtml(item.raw_gender) + '"' +
+                '</div>';
+              }).join('') +
+            '</div>' +
+            '<div style="margin-top:4px; color:#721c24;">* Aturan resmi: Wisudawan tanpa gender valid tidak boleh ditempatkan otomatis ke sektor mana pun.</div>' +
+          '</div>';
+      }
+
+      if (report.duplicateErrors && report.duplicateErrors.length > 0) {
+        reportHtml +=
+          '<div class="notice notice-danger" style="margin-bottom:12px; padding:10px 12px; font-size:11px;">' +
+            '<strong>' + report.duplicateErrors.length + ' Konflik Duplikasi Identitas di DATA_WISUDAWAN (BLOCKER):</strong>' +
+            '<ul style="margin:4px 0 0 16px; padding:0;">' +
+              report.duplicateErrors.map(function(e) { return '<li>' + escapeHtml(e) + '</li>'; }).join('') +
+            '</ul>' +
+          '</div>';
+      }
+
+      if (report.duplicateSeatErrors && report.duplicateSeatErrors.length > 0) {
+        reportHtml +=
+          '<div class="notice notice-danger" style="margin-bottom:12px; padding:10px 12px; font-size:11px;">' +
+            '<strong>' + report.duplicateSeatErrors.length + ' Konflik Kursi Ganda pada Penempatan Eksisting (BLOCKER):</strong>' +
+            '<ul style="margin:4px 0 0 16px; padding:0;">' +
+              report.duplicateSeatErrors.map(function(e) { return '<li>' + escapeHtml(e.message) + ' (NIM: ' + escapeHtml(e.nim || '-') + ')</li>'; }).join('') +
+            '</ul>' +
+          '</div>';
+      }
+
+      if (report.placementAnomalies && report.placementAnomalies.length > 0) {
+        reportHtml +=
+          '<div class="notice notice-danger" style="margin-bottom:12px; padding:10px 12px; font-size:11px;">' +
+            '<strong>' + report.placementAnomalies.length + ' Penempatan Eksisting Melanggar Layout / Sektor Gender (BLOCKER):</strong>' +
+            '<ul style="margin:4px 0 0 16px; padding:0;">' +
+              report.placementAnomalies.map(function(a) { return '<li>Kursi ' + escapeHtml(a.seatCode) + ' (Hari ' + escapeHtml(a.day) + '): ' + escapeHtml(a.reason) + '</li>'; }).join('') +
+            '</ul>' +
+          '</div>';
+      }
+
+      if (report.overflowList && report.overflowList.length > 0) {
+        reportHtml +=
+          '<div class="notice notice-danger" style="margin-bottom:12px; padding:10px 12px; font-size:11px;">' +
+            '<strong>' + report.overflowList.length + ' Kelompok Melebihi Kapasitas Resmi Gedung (BLOCKER):</strong>' +
+            '<ul style="margin:4px 0 0 16px; padding:0;">' +
+              report.overflowList.map(function(o) { return '<li>' + escapeHtml(o.message) + '</li>'; }).join('') +
+            '</ul>' +
+          '</div>';
+      }
+
+      // 4. Konfirmasi Keamanan & Isolasi Periode Lain
+      reportHtml +=
+        '<div style="background:#f2faf4; border:1px solid #c3e6cb; border-radius:8px; padding:8px 12px; font-size:11px; color:#155724; display:flex; justify-content:space-between; align-items:center;">' +
+          '<span><strong>Isolasi Periode:</strong> Data periode lain aman dan tidak tersentuh.</span>' +
+          '<span>Periode: <strong>' + escapeHtml(report.periodName || report.periodId) + '</strong></span>' +
+        '</div>';
+
+      resultArea.innerHTML = reportHtml;
+
+      // 5. Update Tombol Aksi
+      if (btn) {
+        if (isReady) {
+          btn.disabled = false;
+          btn.className = 'btn btn-green';
+          btn.innerHTML =
+            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>' +
+            'Jalankan Sinkronisasi Penuh';
+        } else {
+          btn.disabled = true;
+          btn.className = 'btn btn-outline';
+          btn.innerHTML = 'Sinkronisasi Diblokir (Perbaiki Data)';
+          btn.title = 'Perbaiki data yang terblokir di DATA_WISUDAWAN sebelum melanjutkan sinkronisasi.';
+        }
+      }
+    }
+
+    function startOperationsSync(origin) {
+      const periodSelect = document.getElementById('sync-modal-period');
+      const periodId = periodSelect ? periodSelect.value : '';
+      const resultArea = document.getElementById('sync-modal-result-area');
+      const btn = document.getElementById('btn-start-sync');
+      const recheckBtn = document.getElementById('btn-recheck-sync');
+
+      if (!confirm('Apakah Anda yakin ingin menjalankan sinkronisasi resmi untuk periode ini? Nomor panggil dan kursi fisik akan dialokasikan secara permanen.')) {
+        return;
+      }
+
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner" style="margin-right:8px; display:inline-block; vertical-align:middle;"></span>Menyinkronkan...';
+      }
+      if (recheckBtn) recheckBtn.style.display = 'none';
+
+      if (resultArea) {
+        resultArea.innerHTML =
+          '<div style="padding:24px; text-align:center; color:var(--muted); font-size:13px;">' +
+            '<span class="spinner" style="margin-right:8px;"></span>Memproses penempatan denah kursi fisik gedung dan daftar panggil resmi...' +
+          '</div>';
+      }
+
+      google.script.run
+        .withSuccessHandler(function (report) {
+          if (btn) {
+            btn.disabled = false;
+            btn.className = 'btn btn-green';
+            btn.innerHTML = 'Selesai';
+            btn.onclick = function () { closeSyncOperationsModal(true, origin); };
+          }
+
+          if (!resultArea) return;
+
+          if (!report || !report.success) {
+            resultArea.innerHTML =
+              '<div class="notice notice-danger" style="padding:12px; font-size:13px;">' +
+                escapeHtml(report ? report.message : 'Sinkronisasi gagal.') +
+              '</div>';
+            return;
+          }
+
+          let dayDetailsHtml = '';
+          if (report.perDayBreakdown) {
+            dayDetailsHtml = '<div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; margin-top:10px;">';
+            ['1', '2', '3'].forEach(function (d) {
+              const count = report.perDayBreakdown[d] || 0;
+              const dayName = d === '1' ? 'Hari 1 (Selasa)' : (d === '2' ? 'Hari 2 (Rabu)' : 'Hari 3 (Kamis)');
+              dayDetailsHtml +=
+                '<div style="background:#f2faf4; border:1px solid #c3e6cb; border-radius:8px; padding:10px; text-align:center;">' +
+                  '<div style="font-size:11px; font-weight:700; color:#155724;">' + escapeHtml(dayName) + '</div>' +
+                  '<div style="font-size:18px; font-weight:800; color:#07851b; margin-top:4px;">' + count + '</div>' +
+                  '<div style="font-size:10px; color:#556657;">wisudawan</div>' +
+                '</div>';
+            });
+            dayDetailsHtml += '</div>';
+          }
+
+          let unallocatedHtml = '';
+          if (report.unallocatedCount > 0) {
+            unallocatedHtml =
+              '<div class="notice notice-warn" style="margin-top:12px; font-size:12px; padding:10px 12px;">' +
+                '<strong>Peringatan Alokasi:</strong> Terdapat ' + report.unallocatedCount + ' wisudawan yang belum dapat ditempatkan pada kursi fisik (kapasitas penuh atau data belum terverifikasi). Periksa detail pada laporan.' +
+              '</div>';
+          }
+
+          resultArea.innerHTML =
+            '<div class="notice notice-success" style="padding:14px; font-size:13px; line-height:1.5; border-radius:10px;">' +
+              '<div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">' +
+                '<div style="width:24px; height:24px; border-radius:50%; background:#07851b; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px;">✓</div>' +
+                '<strong style="color:#064b16; font-size:14px;">Sinkronisasi Selesai</strong>' +
+              '</div>' +
+              '<div style="font-size:12px; color:#223324; margin-bottom:8px;">' + escapeHtml(report.message) + '</div>' +
+              '<div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-top:8px; font-size:12px; text-align:center;">' +
+                '<div style="background:#fff; border:1px solid #d0e4d2; border-radius:8px; padding:8px;">' +
+                  '<span style="color:var(--muted); font-size:10px; display:block;">Total Data Induk</span>' +
+                  '<strong style="font-size:15px; color:#064b16;">' + (report.totalStudents || 0) + '</strong>' +
+                '</div>' +
+                '<div style="background:#fff; border:1px solid #d0e4d2; border-radius:8px; padding:8px;">' +
+                  '<span style="color:var(--muted); font-size:10px; display:block;">Sudah Terdaftar</span>' +
+                  '<strong style="font-size:15px; color:var(--muted);">' + (report.alreadySynced || 0) + '</strong>' +
+                '</div>' +
+                '<div style="background:#fff; border:1px solid #d0e4d2; border-radius:8px; padding:8px;">' +
+                  '<span style="color:var(--muted); font-size:10px; display:block;">Baru Disinkronkan</span>' +
+                  '<strong style="font-size:15px; color:#07851b;">' + (report.newlySynced || 0) + '</strong>' +
+                '</div>' +
+              '</div>' +
+              dayDetailsHtml +
+              unallocatedHtml +
+            '</div>';
+
+          showToast('Sinkronisasi operasional berhasil.');
+        })
+        .withFailureHandler(function (error) {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = 'Mulai Sinkronisasi';
+          }
+          if (recheckBtn) recheckBtn.style.display = 'inline-block';
+          if (resultArea) {
+            resultArea.innerHTML =
+              '<div class="notice notice-danger" style="padding:12px; font-size:13px;">' +
+                '<strong>Gagal Menjalankan Sinkronisasi:</strong> ' + escapeHtml(getErrorMessage(error)) +
+              '</div>';
+          }
+          showError(error);
+        })
+        .syncPeriodOperations(periodId);
+    }
+
+    /* =========================================================
        MODUL VISUAL DENAH KURSI
        ========================================================= */
 
@@ -965,13 +1438,26 @@
       if (role !== 'Admin') return showToast('Akses ditolak.');
 
       const dayFilter = APP.seatMapFilters.day || '1';
+      const periodFilter = APP.seatMapFilters.period || '';
       const isVisual = APP.seatViewMode === 'visual';
+
+      let periodOptions = '<option value="">Periode Aktif (Default)</option>';
+      if (APP.importPeriods && APP.importPeriods.length) {
+        APP.importPeriods.forEach(function (p) {
+          const isSel = (periodFilter === p.id) ? ' selected' : '';
+          periodOptions += '<option value="' + escapeHtml(p.id) + '"' + isSel + '>' + escapeHtml(p.name + (p.wave ? ' (' + p.wave + ')' : '')) + '</option>';
+        });
+      }
 
       document.getElementById('page-content').innerHTML =
         pageHeader('Denah Kursi','Peta visual tempat duduk dua dimensi gedung wisuda dan data penempatan.') +
         '<div class="panel" style="margin-bottom:15px;">' +
         '<div class="panel-body responsive-filter-bar">' +
         '<div class="responsive-filter-inputs">' +
+        '<div><label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Filter Gelombang</label>' +
+        '<select id="seat-filter-period" class="field" style="font-weight:700;" onchange="onSeatPeriodFilterChange(this.value)">' +
+        periodOptions +
+        '</select></div>' +
         '<div><label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Pilih Hari Wisuda</label>' +
         '<select id="seat-filter-day" class="field" style="font-weight:700;" onchange="onSeatDayFilterChange(this.value)">' +
         '<option value="1" ' + (dayFilter === '1' ? 'selected' : '') + '>Hari Pertama (Selasa, 6 Okt 2026)</option>' +
@@ -985,12 +1471,29 @@
         '</div></div>' +
         '</div>' +
         '<div class="responsive-filter-actions">' +
+        '<button class="btn btn-green btn-sm" onclick="openSyncOperationsModal(\'seats\', APP.seatMapFilters.period)" title="Sinkronkan penempatan kursi dari DATA_WISUDAWAN">' +
+        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>' +
+        'Sinkronkan Denah Kursi</button>' +
         '<button class="btn btn-outline btn-sm" onclick="renderSeats()">Muat ulang</button>' +
         '</div>' +
         '</div></div>' +
         '<div id="seat-main-view">Memuat data denah kursi...</div>';
 
       syncCustomSelect('seat-filter-day');
+      syncCustomSelect('seat-filter-period');
+
+      ensurePeriodsLoaded(function () {
+        const sel = document.getElementById('seat-filter-period');
+        if (sel && APP.importPeriods && APP.importPeriods.length) {
+          let opts = '<option value="">Periode Aktif (Default)</option>';
+          APP.importPeriods.forEach(function (p) {
+            const isSel = (APP.seatMapFilters.period === p.id) ? ' selected' : '';
+            opts += '<option value="' + escapeHtml(p.id) + '"' + isSel + '>' + escapeHtml(p.name + (p.wave ? ' (' + p.wave + ')' : '')) + '</option>';
+          });
+          sel.innerHTML = opts;
+          syncCustomSelect('seat-filter-period');
+        }
+      });
 
       google.script.run
         .withSuccessHandler(function (response) {
@@ -1096,6 +1599,11 @@
 
     function onSeatDayFilterChange(val) {
       APP.seatMapFilters.day = val;
+      renderSeats();
+    }
+
+    function onSeatPeriodFilterChange(val) {
+      APP.seatMapFilters.period = val;
       renderSeats();
     }
 
@@ -1635,23 +2143,67 @@
     function renderBest() {
       if (APP.session.role !== 'Admin') return showToast('Akses ditolak.');
 
+      APP.bestFilters = APP.bestFilters || { period: '' };
+      const periodFilter = APP.bestFilters.period || '';
+
+      let periodOptions = '<option value="">Semua Periode</option>';
+      if (APP.importPeriods && APP.importPeriods.length) {
+        APP.importPeriods.forEach(function (p) {
+          const isSel = (periodFilter === p.id) ? ' selected' : '';
+          periodOptions += '<option value="' + escapeHtml(p.id) + '"' + isSel + '>' + escapeHtml(p.name + (p.wave ? ' (' + p.wave + ')' : '')) + '</option>';
+        });
+      }
+
       document.getElementById('page-content').innerHTML =
-        pageHeader('Lulusan Terbaik','Daftar lulusan terbaik yang tercatat di spreadsheet.') +
-        '<div class="panel"><div class="panel-head"><h2>Data lulusan terbaik</h2></div>' +
+        pageHeader('Lulusan Terbaik','Daftar lulusan terbaik penerima penghargaan yang diverifikasi dengan data induk wisudawan.') +
+        '<div class="panel" style="margin-bottom:15px;">' +
+        '<div class="panel-body responsive-filter-bar">' +
+        '<div class="responsive-filter-inputs">' +
+        '<div><label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Filter Periode Wisuda</label>' +
+        '<select id="best-filter-period" class="field" onchange="onBestPeriodFilterChange(this.value)">' +
+        periodOptions +
+        '</select></div>' +
+        '</div>' +
+        '<div class="responsive-filter-actions">' +
+        '<button class="btn btn-outline btn-sm" onclick="renderBest()">Muat ulang</button>' +
+        '</div>' +
+        '</div></div>' +
+        '<div class="panel"><div class="panel-head"><h2>Data Lulusan Terbaik</h2>' +
+        '<span id="best-count" style="font-size:12px; font-weight:700; color:var(--muted);"></span></div>' +
         '<div class="panel-body"><div id="best-table">Memuat data...</div></div></div>';
+
+      syncCustomSelect('best-filter-period');
+
+      ensurePeriodsLoaded(function () {
+        const sel = document.getElementById('best-filter-period');
+        if (sel && APP.importPeriods && APP.importPeriods.length) {
+          let opts = '<option value="">Semua Periode</option>';
+          APP.importPeriods.forEach(function (p) {
+            const isSel = (APP.bestFilters.period === p.id) ? ' selected' : '';
+            opts += '<option value="' + escapeHtml(p.id) + '"' + isSel + '>' + escapeHtml(p.name + (p.wave ? ' (' + p.wave + ')' : '')) + '</option>';
+          });
+          sel.innerHTML = opts;
+          syncCustomSelect('best-filter-period');
+        }
+      });
 
       google.script.run
         .withSuccessHandler(function (rows) {
           const target = document.getElementById('best-table');
           if (!target) return;
 
+          const countTarget = document.getElementById('best-count');
+          if (countTarget) countTarget.textContent = 'Total: ' + (rows ? rows.length : 0) + ' wisudawan';
+
           target.innerHTML = buildTable(rows, [
             ['Peringkat', 'Peringkat'],
-            ['Nama', 'Nama'],
+            ['NIM', 'NIM'],
+            ['Nama', 'Nama Wisudawan'],
             ['Fakultas', 'Fakultas'],
             ['Program_Studi', 'Program Studi'],
             ['IPK', 'IPK'],
             ['Predikat', 'Predikat'],
+            ['Status_Verifikasi', 'Status Verifikasi Data Induk'],
             ['Catatan', 'Catatan']
           ]);
         })
@@ -1663,7 +2215,13 @@
               escapeHtml(getErrorMessage(error)) + '</div>';
           }
         })
-        .getBestGraduates();
+        .getBestGraduates(APP.bestFilters);
+    }
+
+    function onBestPeriodFilterChange(val) {
+      APP.bestFilters = APP.bestFilters || {};
+      APP.bestFilters.period = val;
+      renderBest();
     }
 
     /* DATA TAMU */
@@ -3079,24 +3637,32 @@
     function formatCell(key, val) {
       const safe = escapeHtml(val || '—');
 
-      if (/status/i.test(key)) {
+      if (/status/i.test(key) || /verifikasi/i.test(key)) {
         let cls = 'badge';
         const normalized = String(val || '').toLowerCase();
 
         if (
           normalized.includes('sudah') ||
           normalized.includes('hadir') ||
+          normalized.includes('terhubung') ||
+          normalized.includes('cocok') ||
+          normalized.includes('valid') ||
           normalized === 'aktif'
         ) {
           cls += ' badge-green';
         } else if (
           normalized.includes('belum') ||
-          normalized.includes('siap')
+          normalized.includes('siap') ||
+          normalized.includes('duplikasi') ||
+          normalized.includes('periksa')
         ) {
           cls += ' badge-yellow';
         } else if (
           normalized.includes('nonaktif') ||
-          normalized.includes('batal')
+          normalized.includes('batal') ||
+          normalized.includes('tidak terdaftar') ||
+          normalized.includes('tidak') ||
+          normalized.includes('gagal')
         ) {
           cls += ' badge-red';
         }
