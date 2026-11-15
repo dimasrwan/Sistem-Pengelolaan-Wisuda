@@ -1845,27 +1845,61 @@
       html += '</div>';
       html += '</div>';
 
+      // Siapkan indeks koordinat terhalang & baris buffer (untuk mode dinamis)
+      const blockedSet = {};
+      if (Array.isArray(resp.blockedCoordinates)) {
+        resp.blockedCoordinates.forEach(function (b) {
+          const bName = b.isKanan === 1 ? 'Kanan' : 'Kiri';
+          blockedSet[b.row + '-' + bName + '-' + b.col] = true;
+        });
+      }
+      const bufferRowSet = {};
+      if (resp.sectorInfo && Array.isArray(resp.sectorInfo.bufferRows)) {
+        resp.sectorInfo.bufferRows.forEach(function (rNum) {
+          bufferRowSet[Number(rNum)] = true;
+        });
+      }
+      const isDynamicRender = resp.allocationMode === 'dynamic_expand';
+
+      function renderDynamicOrLegacyCell(r, blokName, c) {
+        const key = r + '-' + blokName + '-' + c;
+        const s = seatLookup[key];
+        if (!s && blockedSet[key]) {
+          return '<div class="seat-cell seat-empty" style="background:#fde2e4; color:#9d174d; border:1px dashed #f472b6; font-weight:800;" title="Penghalang Permanen (Baris ' + r + ', ' + blokName + ' Kolom ' + c + ')">✕</div>';
+        }
+        if (s && isDynamicRender && s.Status_Kursi === 'Kosong') {
+          const isBuf = !!bufferRowSet[r];
+          const bg = isBuf ? '#fef3c7' : '#f8fafc';
+          const brd = isBuf ? '1px dashed #f59e0b' : '1px solid #cbd5e1';
+          const ttl = isBuf
+            ? ('Baris Buffer Sektor (Kosong) — Baris ' + r + ', ' + blokName + ' Kolom ' + c)
+            : ('Kursi Kosong — Baris ' + r + ', ' + blokName + ' Kolom ' + c);
+          return '<div class="seat-cell seat-empty" style="background:' + bg + '; color:#94a3b8; border:' + brd + ';" title="' + ttl + '">·</div>';
+        }
+        return renderSeatCellHtml(s);
+      }
+
       // Hall Grid 25 Baris
       html += '<div class="seat-hall-grid">';
       for (let r = 1; r <= 25; r++) {
-        html += '<div class="seat-grid-row">';
+        const isAisle = r === 13;
+        const rowStyle = isAisle ? ' style="background:#f1f5f9; border-top:1px dashed #94a3b8; border-bottom:1px dashed #94a3b8;"' : '';
+        html += '<div class="seat-grid-row"' + rowStyle + '>';
 
         // Blok Kiri (Kolom 1..17)
         html += '<div class="seat-block-grid">';
         for (let c = 1; c <= 17; c++) {
-          const s = seatLookup[r + '-Kiri-' + c];
-          html += renderSeatCellHtml(s);
+          html += renderDynamicOrLegacyCell(r, 'Kiri', c);
         }
         html += '</div>';
 
         // Nomor Baris Lorong Tengah (1..25)
-        html += '<div class="seat-aisle-num">' + r + '</div>';
+        html += '<div class="seat-aisle-num" title="' + (isAisle ? 'Lorong Horizontal (Baris 13)' : ('Baris ' + r)) + '">' + r + '</div>';
 
         // Blok Kanan (Kolom 1..17)
         html += '<div class="seat-block-grid">';
         for (let c = 1; c <= 17; c++) {
-          const s = seatLookup[r + '-Kanan-' + c];
-          html += renderSeatCellHtml(s);
+          html += renderDynamicOrLegacyCell(r, 'Kanan', c);
         }
         html += '</div>';
 
@@ -1877,7 +1911,7 @@
       html += buildSeatLegendHtml();
 
       // Tabel Rekapitulasi Alokasi Kursi Gedung
-      html += buildSeatSummaryTableHtml(dayNum);
+      html += buildSeatSummaryTableHtml(dayNum, resp);
 
       html += '</div>'; // seat-plan-wrapper
 
@@ -1988,8 +2022,68 @@
       return h;
     }
 
-    function buildSeatSummaryTableHtml(selectedDay) {
-      // Data Rekap Sesuai Tabel Resmi Denah
+    function buildSeatSummaryTableHtml(selectedDay, resp) {
+      if (resp && resp.allocationMode === 'dynamic_expand') {
+        const seats = Array.isArray(resp.seats) ? resp.seats : [];
+        const unitMap = {};
+        let totalPr = 0;
+        let totalLk = 0;
+        let totalVacant = 0;
+
+        seats.forEach(function (s) {
+          if (s.Status_Kursi === 'Kosong') {
+            totalVacant++;
+            return;
+          }
+          const code = String(s.Nomor_Kursi || '');
+          const unitCode = (code.split('-')[1] || 'LAIN').toUpperCase();
+          if (!unitMap[unitCode]) {
+            unitMap[unitCode] = { kode: unitCode, fakultas: s.Fakultas || unitCode, lk: 0, pr: 0, jml: 0 };
+          }
+          const jk = String(s.Jenis_Kelamin || '').toLowerCase();
+          if (jk.indexOf('perempuan') !== -1 || jk === 'p') {
+            unitMap[unitCode].pr++;
+            totalPr++;
+          } else {
+            unitMap[unitCode].lk++;
+            totalLk++;
+          }
+          unitMap[unitCode].jml++;
+        });
+
+        const bufferRows = (resp.sectorInfo && Array.isArray(resp.sectorInfo.bufferRows) && resp.sectorInfo.bufferRows.length)
+          ? resp.sectorInfo.bufferRows.join(', ')
+          : '-';
+
+        let h = '<div style="margin-top:12px; font-size:12px; color:var(--muted);">' +
+          '<strong>Mode Denah Dinamis</strong> — Kapasitas Fisik Hari ' + escapeHtml(String(selectedDay)) + ': <strong>' + seats.length + '</strong> kursi valid | ' +
+          'Terisi: <strong>' + (totalPr + totalLk) + '</strong> (PR: ' + totalPr + ', LK: ' + totalLk + ') | ' +
+          'Kosong: <strong>' + totalVacant + '</strong> | Baris Buffer Sektor: <strong>' + escapeHtml(bufferRows) + '</strong></div>';
+        h += '<table class="seat-summary-table" style="margin-top:8px;"><thead><tr>' +
+          '<th>FAKULTAS / UNIT</th><th>KODE KURSI</th><th>LK</th><th>PR</th><th>TERISI</th><th>HARI KE-</th>' +
+          '</tr></thead><tbody>';
+
+        const keys = Object.keys(unitMap);
+        if (keys.length === 0) {
+          h += '<tr><td colspan="6">Belum ada kursi teralokasi pada Hari ' + escapeHtml(String(selectedDay)) + '.</td></tr>';
+        } else {
+          keys.forEach(function (k) {
+            const u = unitMap[k];
+            h += '<tr>' +
+              '<td style="text-align:left;">' + escapeHtml(u.fakultas) + '</td>' +
+              '<td><span class="seat-cell seat-unit-' + u.kode.toLowerCase() + '" style="display:inline-block; padding:2px 8px; width:auto; height:auto;">' + escapeHtml(u.kode) + '</span></td>' +
+              '<td>' + u.lk + '</td><td>' + u.pr + '</td><td>' + u.jml + '</td><td>' + escapeHtml(String(selectedDay)) + '</td>' +
+              '</tr>';
+          });
+        }
+        h += '<tr style="font-weight:800; background:#dbe7da;">' +
+          '<td colspan="2">TOTAL TERISI HARI ' + escapeHtml(String(selectedDay)) + '</td>' +
+          '<td>' + totalLk + '</td><td>' + totalPr + '</td><td>' + (totalLk + totalPr) + '</td><td>' + escapeHtml(String(selectedDay)) + '</td>' +
+          '</tr></tbody></table>';
+        return h;
+      }
+
+      // Data Rekap Sesuai Tabel Resmi Denah (legacy_2026)
       const recap = [
         { unit: 'Pascasarjana - S3', kode: 'S3', lk: 19, pr: 12, jml: 31, hariKe: '1', hari: 'Selasa', tgl: '06/10/2026', jmlHr: 559 },
         { unit: 'Pascasarjana - S2', kode: 'S2', lk: 65, pr: 59, jml: 124, hariKe: '1', hari: 'Selasa', tgl: '06/10/2026', jmlHr: '' },

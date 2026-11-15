@@ -232,6 +232,10 @@ function buildSeatOrderIndexMap_() {
 }
 
 function getSeatOrderIndexForCallRow_(seatOrderMap, row) {
+  const explicitOrder = Number(findValue_(row, ['Urutan_Panggil', 'Urutan Panggil']));
+  if (!isNaN(explicitOrder) && explicitOrder > 0) {
+    return explicitOrder;
+  }
   const seatCode = String(findValue_(row, ['Nomor_Kursi', 'Kode_Kursi', 'Kursi']) || '').trim().toUpperCase();
   let day = extractCanonicalDay_(row);
   if (!day && seatCode) {
@@ -422,25 +426,128 @@ function getSeatMap(filters) {
     };
   }
 
-  // 3. Siapkan koordinat fisik denah resmi (UIN Ar-Raniry)
+  // 3. Siapkan koordinat fisik denah resmi atau geometri dinamis
+  const periodConfig = resolvePeriodAllocationConfig_(periodFilter);
+  const isDynamicMode = Boolean(periodConfig && periodConfig.isValid && periodConfig.mode === 'dynamic_expand');
+  const blockedCoordinates = (typeof getBuildingLayoutSpec_ === 'function')
+    ? (getBuildingLayoutSpec_().blockedCoordinates || [])
+    : [];
+
   let officialLayouts = {};
-  if (typeof getOfficialDayLayouts_ === 'function') {
-    try {
-      officialLayouts = getOfficialDayLayouts_() || {};
-    } catch (errLayout) {
-      Logger.log('[getSeatMap] Peringatan memanggil getOfficialDayLayouts_: ' + errLayout.message);
+  if (!isDynamicMode) {
+    if (typeof getOfficialDayLayouts_ === 'function') {
+      try {
+        officialLayouts = getOfficialDayLayouts_() || {};
+      } catch (errLayout) {
+        Logger.log('[getSeatMap] Peringatan memanggil getOfficialDayLayouts_: ' + errLayout.message);
+      }
+    } else if (typeof OFFICIAL_DAY_LAYOUTS_ !== 'undefined') {
+      officialLayouts = OFFICIAL_DAY_LAYOUTS_ || {};
     }
-  } else if (typeof OFFICIAL_DAY_LAYOUTS_ !== 'undefined') {
-    officialLayouts = OFFICIAL_DAY_LAYOUTS_ || {};
   }
-  const dayLayout = (officialLayouts && officialLayouts[dayFilter]) || [];
+  const dayLayout = isDynamicMode ? [] : ((officialLayouts && officialLayouts[dayFilter]) || []);
 
   // 4. Susun data kursi dan tentukan status alokasi yang tepat
   const layoutSeatCodes = {};
   const result = [];
+  const femaleRowsSet = {};
+  const maleRowsSet = {};
 
-  // Kasus A: Tata letak fisik resmi tersedia untuk hari ini
-  if (dayLayout.length > 0) {
+  if (isDynamicMode) {
+    const sheetSeatByCoord = {};
+    Object.keys(sheetSeatByCode).forEach(function (code) {
+      const r = sheetSeatByCode[code];
+      const bRow = Number(findValue_(r, ['Baris'])) || 0;
+      const bBlok = String(findValue_(r, ['Blok']) || '').trim().toLowerCase();
+      const bIsKanan = bBlok === 'kanan' ? 1 : (bBlok === 'kiri' ? 0 : -1);
+      const bCol = Number(findValue_(r, ['Kolom'])) || 0;
+      if (bRow > 0 && bIsKanan !== -1 && bCol > 0) {
+        sheetSeatByCoord[bRow + ':' + bIsKanan + ':' + bCol] = r;
+      }
+    });
+
+    const buildingGrid = (typeof getBuildingSeatGrid_ === 'function') ? getBuildingSeatGrid_() : [];
+    buildingGrid.forEach(function (cell) {
+      const sheetRow = sheetSeatByCoord[cell.row + ':' + cell.isKanan + ':' + cell.col] || null;
+      const code = sheetRow
+        ? String(findValue_(sheetRow, ['Nomor_Kursi', 'Kode_Kursi', 'Kursi']) || '').trim()
+        : '';
+      if (code) layoutSeatCodes[code] = true;
+
+      let idWisudawan = sheetRow ? String(findValue_(sheetRow, ['ID_Wisudawan', 'ID Wisudawan']) || '').trim() : '';
+      const st = idWisudawan ? (studentById[normalize_(idWisudawan)] || null) : null;
+
+      let nama = '';
+      if (st) nama = findValue_(st, ['Nama_Lengkap', 'Nama Wisudawan', 'Nama']);
+      if (!nama && sheetRow) nama = findValue_(sheetRow, ['Nama_Lengkap', 'Nama_Wisudawan', 'Nama']);
+
+      const nim = st ? String(findValue_(st, ['NIM', 'Nomor Induk Mahasiswa']) || '').trim() : '';
+      const fakultas = st ? findValue_(st, ['Fakultas']) :
+        (sheetRow ? findValue_(sheetRow, ['Fakultas']) : (code ? inferFacultyFromSeatCode_(code) : ''));
+      const prodi = st ? findValue_(st, ['Program_Studi', 'Program Studi']) : '';
+      const jk = st ? findValue_(st, ['Jenis_Kelamin', 'Jenis Kelamin']) :
+        (sheetRow ? findValue_(sheetRow, ['Jenis_Kelamin', 'Jenis Kelamin']) : '');
+
+      let statusKursi = 'Kosong';
+      const sheetStatus = sheetRow ? normalize_(findValue_(sheetRow, ['Status_Kursi', 'Status'])) : '';
+      const isMarkedOccupied = ['terisi', 'terdaftar', 'dialokasikan', 'allocated', 'occupied'].indexOf(sheetStatus) !== -1;
+      const hasAllocationReference = Boolean(idWisudawan || nama || isMarkedOccupied);
+
+      if (!hasAllocationReference) {
+        statusKursi = 'Kosong';
+      } else if (idWisudawan && st) {
+        statusKursi = 'Terdaftar';
+        const gClass = classifyGenderForSort_(jk);
+        if (gClass === 'Perempuan') femaleRowsSet[cell.row] = true;
+        else if (gClass === 'Laki-laki') maleRowsSet[cell.row] = true;
+      } else {
+        statusKursi = 'Perlu Verifikasi';
+      }
+
+      const isSelf = Boolean(
+        (studentSeatCode && code && code.toUpperCase() === studentSeatCode.toUpperCase()) ||
+        (studentProfile && idWisudawan && normalize_(idWisudawan) === normalize_(findValue_(studentProfile, ['ID_Wisudawan', 'ID Wisudawan'])))
+      );
+
+      if (isSelf) {
+        if (!selfSeat) {
+          selfSeat = {
+            ID_Kursi: sheetRow ? findValue_(sheetRow, ['ID_Kursi', 'ID Kursi']) : ('KRS-' + code),
+            ID_Wisudawan: idWisudawan,
+            Nama_Wisudawan: nama,
+            NIM: nim,
+            Fakultas: fakultas,
+            Program_Studi: prodi,
+            Nomor_Kursi: code,
+            Hari_Ke: dayFilter
+          };
+        }
+        selfSeat.Blok = cell.blok;
+        selfSeat.Baris = cell.row;
+        selfSeat.Kolom = cell.col;
+        selfSeat.Koordinat_Tersedia = true;
+      }
+
+      result.push({
+        ID_Kursi: sheetRow ? findValue_(sheetRow, ['ID_Kursi', 'ID Kursi']) : '',
+        ID_Wisudawan: idWisudawan,
+        Nama_Lengkap: nama,
+        Nama_Wisudawan: nama,
+        NIM: nim,
+        Fakultas: fakultas,
+        Program_Studi: prodi,
+        Jenis_Kelamin: jk,
+        Blok: cell.blok,
+        Baris: cell.row,
+        Kolom: cell.col,
+        Nomor_Kursi: code,
+        Status_Kursi: statusKursi,
+        Hari_Ke: dayFilter,
+        isSelf: isSelf
+      });
+    });
+  } else if (dayLayout.length > 0) {
+  // Kasus A: Tata letak fisik resmi tersedia untuk hari ini (legacy_2026)
     dayLayout.forEach(function (item) {
       const code = item[0];
       const baris = item[1];
@@ -598,9 +705,27 @@ function getSeatMap(filters) {
 
   Logger.log('[getSeatMap] Selesai pemetaan koordinat - totalSeats: ' + result.length + ', dayLayoutCount: ' + dayLayout.length);
 
+  const femaleRowNums = Object.keys(femaleRowsSet).map(Number).sort(function (a, b) { return a - b; });
+  const maleRowNums = Object.keys(maleRowsSet).map(Number).sort(function (a, b) { return a - b; });
+  const bufferRowNums = [];
+  if (isDynamicMode && femaleRowNums.length > 0 && maleRowNums.length > 0) {
+    const maxF = femaleRowNums[femaleRowNums.length - 1];
+    const minM = maleRowNums[0];
+    for (let r = maxF + 1; r < minM; r++) {
+      if (r !== 13) bufferRowNums.push(r);
+    }
+  }
+
   const response = {
     day: dayFilter,
     period: periodFilter,
+    allocationMode: (periodConfig && periodConfig.mode) || 'legacy_2026',
+    blockedCoordinates: blockedCoordinates,
+    sectorInfo: {
+      femaleRows: femaleRowNums,
+      bufferRows: bufferRowNums,
+      maleRows: maleRowNums
+    },
     total: result.length,
     allocated: result.filter(function (s) { return s.Status_Kursi === 'Terdaftar'; }).length,
     needsVerification: result.filter(function (s) { return s.Status_Kursi === 'Perlu Verifikasi'; }).length,
@@ -738,25 +863,500 @@ function classifyGenderForSort_(value) {
   return 'Ambigu';
 }
 
-function inferUnitAndDayFromFacultyAndJenjang_(fac, jenjang) {
+/**
+ * Urutan resmi unit fakultas/pascasarjana untuk alokasi kursi & daftar panggil.
+ */
+const OFFICIAL_FACULTY_UNIT_ORDER_ = ['S3', 'S2', 'S', 'U', 'D', 'T', 'A', 'E', 'ST', 'IP', 'P'];
+
+/**
+ * Konfigurasi alokasi periode tersimpan internal (tanpa mengubah skema sheet PERIODE_WISUDA).
+ * Periode 2026 tetap menggunakan mode 'legacy_2026' (OFFICIAL_DAY_LAYOUTS_).
+ * Periode baru wajib didaftarkan di sini sebelum sinkronisasi operasional dijalankan.
+ */
+const PERIOD_ALLOCATION_CONFIGS_ = {
+  'WISUDA-GIII-2026': {
+    mode: 'legacy_2026',
+    layoutSource: 'OFFICIAL_DAY_LAYOUTS_',
+    totalDays: 3,
+    days: {
+      '1': ['S3', 'S2', 'S', 'U', 'D'],
+      '2': ['T'],
+      '3': ['A', 'E', 'ST', 'IP', 'P']
+    }
+  }
+};
+
+function resolvePeriodAllocationConfig_(periodId, overrideConfig) {
+  if (overrideConfig && typeof overrideConfig === 'object') {
+    return overrideConfig;
+  }
+  const key = String(periodId || '').trim().toUpperCase();
+  if (!key) {
+    return {
+      mode: 'unconfigured',
+      isValid: false,
+      error: 'ID Periode kosong; konfigurasi alokasi tidak dapat ditentukan.'
+    };
+  }
+  const cfg = PERIOD_ALLOCATION_CONFIGS_[key];
+  if (!cfg) {
+    return {
+      mode: 'unconfigured',
+      isValid: false,
+      periodId: key,
+      error: 'Konfigurasi pembagian hari/fakultas untuk periode "' + periodId + '" belum terdaftar pada PERIOD_ALLOCATION_CONFIGS_.'
+    };
+  }
+  return Object.assign({ isValid: true, periodId: key }, cfg);
+}
+
+function inferUnitAndDayFromFacultyAndJenjang_(fac, jenjang, periodConfig) {
   const f = normalize_(fac || '');
   const j = String(jenjang || '').toUpperCase().trim();
 
+  let unit = '';
   if (f.indexOf('pascasarjana') !== -1 || j === 'S3' || f.indexOf('s3') !== -1 || j === 'S2' || f.indexOf('s2') !== -1) {
-    if (j === 'S3' || f.indexOf('s3') !== -1) return { unit: 'S3', day: '1' };
-    return { unit: 'S2', day: '1' };
+    if (j === 'S3' || f.indexOf('s3') !== -1) unit = 'S3';
+    else unit = 'S2';
+  } else if (f.indexOf('syari') !== -1 || f === 'fsh') {
+    unit = 'S';
+  } else if (f.indexOf('ushuluddin') !== -1 || f === 'fuf') {
+    unit = 'U';
+  } else if (f.indexOf('dakwah') !== -1 || f === 'fdk') {
+    unit = 'D';
+  } else if (f.indexOf('tarbiyah') !== -1 || f === 'ftk') {
+    unit = 'T';
+  } else if (f.indexOf('adab') !== -1 || f === 'fah') {
+    unit = 'A';
+  } else if (f.indexOf('ekonomi') !== -1 || f.indexOf('febi') !== -1 || f.indexOf('bisnis') !== -1) {
+    unit = 'E';
+  } else if (f.indexOf('sains') !== -1 || f.indexOf('teknologi') !== -1 || f.indexOf('fst') !== -1) {
+    unit = 'ST';
+  } else if (f.indexOf('sosial') !== -1 || f.indexOf('pemerintahan') !== -1 || f.indexOf('fisip') !== -1) {
+    unit = 'IP';
+  } else if (f.indexOf('psikologi') !== -1 || f === 'fpsi') {
+    unit = 'P';
   }
-  if (f.indexOf('syari') !== -1) return { unit: 'S', day: '1' };
-  if (f.indexOf('ushuluddin') !== -1) return { unit: 'U', day: '1' };
-  if (f.indexOf('dakwah') !== -1) return { unit: 'D', day: '1' };
-  if (f.indexOf('tarbiyah') !== -1) return { unit: 'T', day: '2' };
-  if (f.indexOf('adab') !== -1) return { unit: 'A', day: '3' };
-  if (f.indexOf('ekonomi') !== -1 || f.indexOf('febi') !== -1 || f.indexOf('bisnis') !== -1) return { unit: 'E', day: '3' };
-  if (f.indexOf('sains') !== -1 || f.indexOf('teknologi') !== -1 || f.indexOf('fst') !== -1) return { unit: 'ST', day: '3' };
-  if (f.indexOf('sosial') !== -1 || f.indexOf('pemerintahan') !== -1 || f.indexOf('fisip') !== -1) return { unit: 'IP', day: '3' };
-  if (f.indexOf('psikologi') !== -1) return { unit: 'P', day: '3' };
 
-  return { unit: 'S', day: '1' };
+  if (!unit) {
+    return {
+      unit: '',
+      day: '',
+      isValid: false,
+      reason: 'Fakultas/Jenjang "' + (fac || '-') + '" (' + (jenjang || '-') + ') tidak dikenali.'
+    };
+  }
+
+  if (periodConfig && periodConfig.days) {
+    for (const dayKey of ['1', '2', '3']) {
+      const unitsInDay = periodConfig.days[dayKey] || [];
+      if (unitsInDay.indexOf(unit) !== -1) {
+        return { unit: unit, day: dayKey, isValid: true };
+      }
+    }
+    return {
+      unit: unit,
+      day: '',
+      isValid: false,
+      reason: 'Unit "' + unit + '" belum dipetakan ke Hari 1/2/3 pada konfigurasi periode.'
+    };
+  }
+
+  // Pemetaan default resmi (digunakan untuk legacy_2026)
+  const legacyDayByUnit = {
+    'S3': '1', 'S2': '1', 'S': '1', 'U': '1', 'D': '1',
+    'T': '2',
+    'A': '3', 'E': '3', 'ST': '3', 'IP': '3', 'P': '3'
+  };
+  return { unit: unit, day: legacyDayByUnit[unit] || '', isValid: Boolean(legacyDayByUnit[unit]) };
+}
+
+/**
+ * Menghitung jumlah baris aktual yang diperlukan untuk menampung `requiredCount` kursi
+ * berdasarkan kapasitas fisik valid per baris (34 untuk Baris 1-12 & 14-22; 28 untuk Baris 23-25)
+ * sesuai arah alokasi baris (`orderedRowNums`). Tidak pernah menggunakan pembagian tetap / 34.
+ */
+function calculateActualRowsNeeded_(requiredCount, orderedRowNums, seatsByRow) {
+  const rows = [];
+  const rowCapacities = {};
+  let accumulatedCapacity = 0;
+
+  for (let i = 0; i < orderedRowNums.length && accumulatedCapacity < requiredCount; i++) {
+    const rowNum = orderedRowNums[i];
+    const rowCap = (seatsByRow[rowNum] || []).length;
+    if (rowCap <= 0) continue;
+    rows.push(rowNum);
+    rowCapacities[rowNum] = rowCap;
+    accumulatedCapacity += rowCap;
+  }
+
+  return {
+    sufficient: accumulatedCapacity >= requiredCount,
+    rows: rows,
+    rowCount: rows.length,
+    totalCapacity: accumulatedCapacity,
+    rowCapacities: rowCapacities
+  };
+}
+
+/**
+ * Mengevaluasi kandidat pembagian sektor Perempuan (dari Baris 1 ke belakang) dan
+ * Laki-laki (dari Baris 25 ke depan) beserta validasi buffer berbasis kapasitas aktual baris.
+ */
+function evaluateSectorSplitCandidate_(fCount, mCount, activeRowNums, seatsByRow) {
+  const totalActiveRows = activeRowNums.length;
+  const frontOrder = activeRowNums.slice(); // 1..12, 14..25
+  const backOrder = activeRowNums.slice().reverse(); // 25..14, 12..1
+
+  const femaleReq = calculateActualRowsNeeded_(fCount, frontOrder, seatsByRow);
+  const maleReq = calculateActualRowsNeeded_(mCount, backOrder, seatsByRow);
+
+  if (!femaleReq.sufficient || !maleReq.sufficient) {
+    return {
+      isValid: false,
+      reason: 'Kapasitas fisik gedung tidak mencukupi (Perempuan butuh ' + fCount + ' kursi, Laki-laki butuh ' + mCount + ' kursi).'
+    };
+  }
+
+  // Pertahankan urutan arah alokasi: Perempuan dari Baris 1 ke belakang, Laki-laki dari Baris 25 ke depan
+  const femaleRows = femaleReq.rows.slice();
+  const maleRows = maleReq.rows.slice();
+
+  // Pastikan sektor tidak tumpang tindih
+  const femaleSet = {};
+  femaleRows.forEach(function (r) { femaleSet[r] = true; });
+  for (let i = 0; i < maleRows.length; i++) {
+    if (femaleSet[maleRows[i]]) {
+      return {
+        isValid: false,
+        femaleRows: femaleRows,
+        maleRows: maleRows,
+        bufferRows: [],
+        bufferSeatCapacity: 0,
+        reason: 'Sektor Perempuan (' + femaleRows.length + ' baris) dan sektor Laki-laki (' + maleRows.length + ' baris) saling bertumpukan pada Baris ' + maleRows[i] + '.'
+      };
+    }
+  }
+
+  const bothGendersPresent = fCount > 0 && mCount > 0;
+  let bufferRows = [];
+  let bufferSeatCapacity = 0;
+  const bufferRowCapacities = {};
+
+  if (bothGendersPresent) {
+    // Baris buffer adalah seluruh baris kursi valid aktif (tidak termasuk Baris 13) di antara kedua sektor
+    const femaleEndIdx = femaleRows.length;
+    const maleStartIdx = totalActiveRows - maleRows.length;
+    if (maleStartIdx <= femaleEndIdx) {
+      return {
+        isValid: false,
+        femaleRows: femaleRows,
+        maleRows: maleRows,
+        bufferRows: [],
+        bufferSeatCapacity: 0,
+        reason: 'Tidak tersedia minimal 1 baris kursi valid penuh sebagai buffer antara sektor Perempuan (butuh ' +
+          femaleRows.length + ' baris untuk ' + fCount + ' wisudawati) dan sektor Laki-laki (butuh ' +
+          maleRows.length + ' baris untuk ' + mCount + ' wisudawan); Baris 13 adalah lorong dan bukan buffer.'
+      };
+    }
+    bufferRows = activeRowNums.slice(femaleEndIdx, maleStartIdx);
+    bufferRows.forEach(function (r) {
+      const cap = (seatsByRow[r] || []).length;
+      bufferRowCapacities[r] = cap;
+      bufferSeatCapacity += cap;
+    });
+
+    if (bufferRows.length < 1 || bufferSeatCapacity <= 0) {
+      return {
+        isValid: false,
+        femaleRows: femaleRows,
+        maleRows: maleRows,
+        bufferRows: bufferRows,
+        bufferSeatCapacity: bufferSeatCapacity,
+        reason: 'Kapasitas baris buffer tidak memenuhi syarat minimal 1 baris kursi valid penuh.'
+      };
+    }
+  }
+
+  return {
+    isValid: true,
+    femaleRows: femaleRows,
+    femaleRowCapacity: femaleReq.totalCapacity,
+    maleRows: maleRows,
+    maleRowCapacity: maleReq.totalCapacity,
+    bufferRows: bufferRows,
+    bufferSeatCapacity: bufferSeatCapacity,
+    bufferRowCapacities: bufferRowCapacities
+  };
+}
+
+/**
+ * Menghitung alokasi kursi dinamis untuk satu hari wisuda (Cross-Aisle + Buffer >= 1 baris kursi valid).
+ * Aturan:
+ * - Baris 13 adalah lorong horizontal (bukan kursi dan bukan buffer).
+ * - Sektor Perempuan dari Baris 1 ke belakang; Sektor Laki-laki dari Baris 25 ke depan.
+ * - Jika kedua gender ada, wajib ada >= 1 baris kursi valid penuh kosong sebagai buffer.
+ * - Dalam setiap baris, urutan kursi RIGHT FIRST (Kanan 17->1, lalu Kiri 17->1).
+ * - Koordinat terhalang (blockedCoordinates) tidak pernah ditempati.
+ */
+function computeDynamicSectorAllocation_(dayStudents, periodConfig, dayKey) {
+  const grid = (typeof getBuildingSeatGrid_ === 'function') ? getBuildingSeatGrid_() : [];
+  if (!grid.length) {
+    return {
+      success: false,
+      day: String(dayKey || ''),
+      error: 'Grid geometri gedung kosong (getBuildingSeatGrid_ tidak tersedia).',
+      allocations: []
+    };
+  }
+
+  // Kelompokkan kursi valid berdasarkan nomor baris aktif (1..12, 14..25)
+  const seatsByRow = {};
+  const activeRowNums = [];
+  grid.forEach(function (seat) {
+    if (!seatsByRow[seat.row]) {
+      seatsByRow[seat.row] = [];
+      activeRowNums.push(seat.row);
+    }
+    seatsByRow[seat.row].push(seat);
+  });
+  activeRowNums.sort(function (a, b) { return a - b; });
+
+  const totalActiveRows = activeRowNums.length; // 24
+  const totalDayCapacity = grid.length; // 798
+
+  // Urutan unit fakultas untuk hari ini
+  const configuredUnits = (periodConfig && periodConfig.days && periodConfig.days[String(dayKey)]) || [];
+  const unitOrder = OFFICIAL_FACULTY_UNIT_ORDER_.filter(function (u) {
+    return configuredUnits.length === 0 || configuredUnits.indexOf(u) !== -1;
+  });
+  configuredUnits.forEach(function (u) {
+    if (unitOrder.indexOf(u) === -1) unitOrder.push(u);
+  });
+
+  const females = [];
+  const males = [];
+  const invalidStudents = [];
+
+  (dayStudents || []).forEach(function (st) {
+    const fac = String(findValue_(st, ['Fakultas']) || '').trim();
+    const jenjang = String(findValue_(st, ['Jenjang']) || '').trim();
+    const uInfo = inferUnitAndDayFromFacultyAndJenjang_(fac, jenjang, periodConfig);
+    const jkVal = findValue_(st, ['Jenis_Kelamin', 'Jenis Kelamin']);
+    const genderClass = classifyGenderForSort_(jkVal);
+
+    if (!uInfo.isValid) {
+      invalidStudents.push({ student: st, reason: uInfo.reason });
+      return;
+    }
+    if (genderClass !== 'Perempuan' && genderClass !== 'Laki-laki') {
+      invalidStudents.push({ student: st, reason: 'Gender tidak terverifikasi ("' + (jkVal || 'kosong') + '").' });
+      return;
+    }
+    const entry = { student: st, unit: uInfo.unit, gender: genderClass };
+    if (genderClass === 'Perempuan') females.push(entry);
+    else males.push(entry);
+  });
+
+  if (invalidStudents.length > 0) {
+    return {
+      success: false,
+      day: String(dayKey || ''),
+      error: invalidStudents.map(function (x) { return x.reason; }).join('; '),
+      invalidStudents: invalidStudents,
+      allocations: []
+    };
+  }
+
+  const sortEntryFn = function (a, b) {
+    const uIdxA = unitOrder.indexOf(a.unit);
+    const uIdxB = unitOrder.indexOf(b.unit);
+    const rankUA = uIdxA === -1 ? 999 : uIdxA;
+    const rankUB = uIdxB === -1 ? 999 : uIdxB;
+    if (rankUA !== rankUB) return rankUA - rankUB;
+
+    const pA = String(findValue_(a.student, ['Program_Studi', 'Program Studi']) || '');
+    const pB = String(findValue_(b.student, ['Program_Studi', 'Program Studi']) || '');
+    const facA = String(findValue_(a.student, ['Fakultas']) || '');
+    const facB = String(findValue_(b.student, ['Fakultas']) || '');
+    const rankPA = getProdiRankForSort_(pA, facA);
+    const rankPB = getProdiRankForSort_(pB, facB);
+    if (rankPA !== rankPB) return rankPA - rankPB;
+
+    const nimA = String(findValue_(a.student, ['NIM', 'Nomor Induk Mahasiswa']) || '');
+    const nimB = String(findValue_(b.student, ['NIM', 'Nomor Induk Mahasiswa']) || '');
+    return nimA.localeCompare(nimB);
+  };
+
+  females.sort(sortEntryFn);
+  males.sort(sortEntryFn);
+
+  const fCount = females.length;
+  const mCount = males.length;
+
+  const splitEval = evaluateSectorSplitCandidate_(fCount, mCount, activeRowNums, seatsByRow);
+  if (!splitEval.isValid) {
+    return {
+      success: false,
+      day: String(dayKey || ''),
+      error: splitEval.reason + ' (Hari ' + dayKey + ').',
+      femaleRowsNeeded: (splitEval.femaleRows || []).length,
+      maleRowsNeeded: (splitEval.maleRows || []).length,
+      bufferRowCount: (splitEval.bufferRows || []).length,
+      bufferSeatCapacity: splitEval.bufferSeatCapacity || 0,
+      allocations: []
+    };
+  }
+
+  const femaleRows = splitEval.femaleRows;
+  const bufferRows = splitEval.bufferRows;
+  const maleRows = splitEval.maleRows;
+
+  const femaleSeats = [];
+  femaleRows.forEach(function (r) {
+    seatsByRow[r].forEach(function (s) { femaleSeats.push(s); });
+  });
+
+  const maleSeats = [];
+  maleRows.forEach(function (r) {
+    seatsByRow[r].forEach(function (s) { maleSeats.push(s); });
+  });
+
+  // Penomoran kursi per unit dalam hari tersebut (1-S3, 2-S3, ..., 1-S, ...)
+  const unitCounters = {};
+  const allocations = [];
+  let callSeq = 0;
+
+  function pushAllocation(entry, seat) {
+    unitCounters[entry.unit] = (unitCounters[entry.unit] || 0) + 1;
+    const seatCode = unitCounters[entry.unit] + '-' + entry.unit;
+    callSeq++;
+    allocations.push({
+      student: entry.student,
+      unit: entry.unit,
+      gender: entry.gender,
+      day: String(dayKey),
+      seatCode: seatCode,
+      row: seat.row,
+      isKanan: seat.isKanan,
+      blok: seat.blok,
+      col: seat.col,
+      callOrder: callSeq
+    });
+  }
+
+  for (let i = 0; i < females.length; i++) {
+    pushAllocation(females[i], femaleSeats[i]);
+  }
+  for (let j = 0; j < males.length; j++) {
+    pushAllocation(males[j], maleSeats[j]);
+  }
+
+  const validation = validateAllocationResult_({
+    day: String(dayKey),
+    totalExpected: fCount + mCount,
+    femaleRows: femaleRows,
+    bufferRows: bufferRows,
+    maleRows: maleRows,
+    allocations: allocations
+  });
+
+  if (!validation.isValid) {
+    return {
+      success: false,
+      day: String(dayKey || ''),
+      error: 'Validasi alokasi dinamis gagal: ' + validation.errors.join('; '),
+      allocations: []
+    };
+  }
+
+  return {
+    success: true,
+    day: String(dayKey),
+    totalStudents: allocations.length,
+    femaleCount: fCount,
+    maleCount: mCount,
+    femaleRows: femaleRows,
+    bufferRows: bufferRows,
+    bufferSeatCapacity: splitEval.bufferSeatCapacity,
+    bufferRowCapacities: splitEval.bufferRowCapacities,
+    maleRows: maleRows,
+    remainingSeats: totalDayCapacity - allocations.length,
+    allocations: allocations
+  };
+}
+
+function validateAllocationResult_(result) {
+  const errors = [];
+  const allocations = (result && result.allocations) || [];
+  if (typeof result.totalExpected === 'number' && allocations.length !== result.totalExpected) {
+    errors.push('Jumlah hasil alokasi (' + allocations.length + ') != jumlah peserta (' + result.totalExpected + ').');
+  }
+
+  const bufferRowSet = {};
+  if (Array.isArray(result.bufferRows)) {
+    result.bufferRows.forEach(function (r) { bufferRowSet[Number(r)] = true; });
+  }
+
+  const seenCoords = {};
+  const seenSeatCodes = {};
+  const rowGenders = {};
+  let maxFemaleRow = 0;
+  let minMaleRow = 999;
+
+  allocations.forEach(function (a) {
+    if (a.row === 13) {
+      errors.push('Kursi "' + a.seatCode + '" berada di Baris 13 (Lorong Horizontal).');
+    }
+    if (bufferRowSet[a.row]) {
+      errors.push('Kursi "' + a.seatCode + '" menempati Baris ' + a.row + ' yang ditetapkan sebagai buffer.');
+    }
+    if (typeof isBlockedSeatCoordinate_ === 'function' && isBlockedSeatCoordinate_(a.row, a.isKanan, a.col)) {
+      errors.push('Kursi "' + a.seatCode + '" menempati koordinat terhalang (Baris ' + a.row + ', ' + a.blok + ' Kolom ' + a.col + ').');
+    }
+    const coordKey = a.row + ':' + a.isKanan + ':' + a.col;
+    if (seenCoords[coordKey]) {
+      errors.push('Koordinat kursi ganda pada ' + coordKey + '.');
+    }
+    seenCoords[coordKey] = true;
+
+    if (seenSeatCodes[a.seatCode]) {
+      errors.push('Kode kursi ganda "' + a.seatCode + '".');
+    }
+    seenSeatCodes[a.seatCode] = true;
+
+    if (!rowGenders[a.row]) rowGenders[a.row] = {};
+    rowGenders[a.row][a.gender] = true;
+
+    if (a.gender === 'Perempuan' && a.row > maxFemaleRow) maxFemaleRow = a.row;
+    if (a.gender === 'Laki-laki' && a.row < minMaleRow) minMaleRow = a.row;
+  });
+
+  Object.keys(rowGenders).forEach(function (r) {
+    if (Object.keys(rowGenders[r]).length > 1) {
+      errors.push('Baris ' + r + ' mencampur gender Perempuan dan Laki-laki.');
+    }
+  });
+
+  if (maxFemaleRow > 0 && minMaleRow < 999) {
+    if (maxFemaleRow >= minMaleRow) {
+      errors.push('Sektor Perempuan (maks baris ' + maxFemaleRow + ') bertabrakan dengan sektor Laki-laki (min baris ' + minMaleRow + ').');
+    } else {
+      // Hitung baris kursi valid penuh di antara maxFemaleRow dan minMaleRow (tidak menghitung Baris 13)
+      let validBufferRows = 0;
+      for (let r = maxFemaleRow + 1; r < minMaleRow; r++) {
+        if (r !== 13) validBufferRows++;
+      }
+      if (validBufferRows < 1) {
+        errors.push('Tidak ada minimal 1 baris kursi valid penuh sebagai buffer antara Baris ' + maxFemaleRow + ' dan Baris ' + minMaleRow + '.');
+      }
+    }
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors: errors
+  };
 }
 
 /**
@@ -770,7 +1370,7 @@ function inferUnitAndDayFromFacultyAndJenjang_(fac, jenjang) {
  * 6. Tidak ditemukan konflik ID, NIM, nomor panggil, kursi, atau sektor gender.
  * 7. Tidak berada di Baris 13 (Lorong Tengah).
  */
-function validateStudentSyncStatus_(st, existingCallByStudentId, existingCallByNim, existingSeatByStudentId, existingSeatByNim, officialLayouts, duplicateMeta) {
+function validateStudentSyncStatus_(st, existingCallByStudentId, existingCallByNim, existingSeatByStudentId, existingSeatByNim, officialLayouts, duplicateMeta, periodConfig) {
   const idWsd = String(findValue_(st, ['ID_Wisudawan', 'ID Wisudawan']) || '').trim();
   const idWsdNorm = normalize_(idWsd);
   const nim = String(findValue_(st, ['NIM', 'Nomor Induk Mahasiswa']) || '').trim();
@@ -866,33 +1466,64 @@ function validateStudentSyncStatus_(st, existingCallByStudentId, existingCallByN
   }
 
   const activeSeatCode = seatMapSeat || callSeat;
-  const expectedUnitInfo = inferUnitAndDayFromFacultyAndJenjang_(fac, jenjang);
+  const expectedUnitInfo = inferUnitAndDayFromFacultyAndJenjang_(fac, jenjang, periodConfig);
 
   let seatDay = extractCanonicalDay_(seatRow) || extractCanonicalDay_(callRow) || inferDayFromSeatCode_(activeSeatCode);
   if (!seatDay) seatDay = expectedUnitInfo.day;
 
-  // 4. Validasi keberadaan di layout resmi denah 2D
-  const dayLayout = (officialLayouts && officialLayouts[seatDay]) || [];
-  const layoutItem = dayLayout.find(function (s) { return String(s[0] || '').trim().toUpperCase() === activeSeatCode; });
+  const isDynamicMode = Boolean(periodConfig && periodConfig.mode === 'dynamic_expand');
 
-  if (!layoutItem) {
-    issues.push('Nomor kursi "' + activeSeatCode + '" tidak terdaftar pada denah fisik resmi UIN Ar-Raniry (Hari ' + seatDay + ').');
-  } else {
-    const row = layoutItem[1];
-    if (row === 13) {
-      issues.push('Kursi "' + activeSeatCode + '" berada di Baris 13 (Lorong Tengah).');
+  if (isDynamicMode) {
+    const rowNum = Number(findValue_(seatRow, ['Baris'])) || 0;
+    const blokStr = String(findValue_(seatRow, ['Blok']) || '').trim().toLowerCase();
+    const isKananVal = blokStr === 'kanan' ? 1 : (blokStr === 'kiri' ? 0 : -1);
+    const colNum = Number(findValue_(seatRow, ['Kolom'])) || 0;
+
+    if (!rowNum || isKananVal === -1 || !colNum) {
+      issues.push('Koordinat kursi (Blok/Baris/Kolom) untuk "' + activeSeatCode + '" tidak lengkap pada DENAH_KURSI.');
+    } else {
+      if (rowNum === 13) {
+        issues.push('Kursi "' + activeSeatCode + '" berada di Baris 13 (Lorong Tengah).');
+      }
+      if (typeof isBlockedSeatCoordinate_ === 'function' && isBlockedSeatCoordinate_(rowNum, isKananVal, colNum)) {
+        issues.push('Kursi "' + activeSeatCode + '" menempati koordinat terhalang permanen.');
+      }
     }
     if (genderClass === 'Ambigu') {
       issues.push('Gender wisudawan kosong atau tidak terverifikasi ("' + (rawJk || 'kosong') + '"), tidak dapat memverifikasi kesesuaian sektor kursi.');
-    } else if (genderClass === 'Perempuan' && row > 12) {
-      issues.push('Wisudawati ditempatkan di baris belakang / sektor laki-laki (Baris ' + row + ', Kursi ' + activeSeatCode + ').');
-    } else if (genderClass === 'Laki-laki' && row < 14) {
-      issues.push('Wisudawan ditempatkan di baris depan / sektor perempuan (Baris ' + row + ', Kursi ' + activeSeatCode + ').');
     }
+    if (!expectedUnitInfo.isValid) {
+      issues.push(expectedUnitInfo.reason || 'Fakultas/unit wisudawan tidak dikenali.');
+    } else {
+      const seatUnit = (activeSeatCode.split('-')[1] || '').toUpperCase();
+      if (seatUnit && expectedUnitInfo.unit && seatUnit !== expectedUnitInfo.unit.toUpperCase()) {
+        issues.push('Unit kursi "' + seatUnit + '" tidak sesuai dengan unit fakultas wisudawan "' + expectedUnitInfo.unit + '".');
+      }
+    }
+  } else {
+    // 4. Validasi keberadaan di layout resmi denah 2D (legacy_2026)
+    const dayLayout = (officialLayouts && officialLayouts[seatDay]) || [];
+    const layoutItem = dayLayout.find(function (s) { return String(s[0] || '').trim().toUpperCase() === activeSeatCode; });
 
-    const seatUnit = (activeSeatCode.split('-')[1] || '').toUpperCase();
-    if (seatUnit && expectedUnitInfo.unit && seatUnit !== expectedUnitInfo.unit.toUpperCase()) {
-      issues.push('Unit kursi "' + seatUnit + '" tidak sesuai dengan unit fakultas wisudawan "' + expectedUnitInfo.unit + '".');
+    if (!layoutItem) {
+      issues.push('Nomor kursi "' + activeSeatCode + '" tidak terdaftar pada denah fisik resmi UIN Ar-Raniry (Hari ' + seatDay + ').');
+    } else {
+      const row = layoutItem[1];
+      if (row === 13) {
+        issues.push('Kursi "' + activeSeatCode + '" berada di Baris 13 (Lorong Tengah).');
+      }
+      if (genderClass === 'Ambigu') {
+        issues.push('Gender wisudawan kosong atau tidak terverifikasi ("' + (rawJk || 'kosong') + '"), tidak dapat memverifikasi kesesuaian sektor kursi.');
+      } else if (genderClass === 'Perempuan' && row > 12) {
+        issues.push('Wisudawati ditempatkan di baris belakang / sektor laki-laki (Baris ' + row + ', Kursi ' + activeSeatCode + ').');
+      } else if (genderClass === 'Laki-laki' && row < 14) {
+        issues.push('Wisudawan ditempatkan di baris depan / sektor perempuan (Baris ' + row + ', Kursi ' + activeSeatCode + ').');
+      }
+
+      const seatUnit = (activeSeatCode.split('-')[1] || '').toUpperCase();
+      if (seatUnit && expectedUnitInfo.unit && seatUnit !== expectedUnitInfo.unit.toUpperCase()) {
+        issues.push('Unit kursi "' + seatUnit + '" tidak sesuai dengan unit fakultas wisudawan "' + expectedUnitInfo.unit + '".');
+      }
     }
   }
 
@@ -1019,9 +1650,14 @@ function preflightCheckPeriodOperations(periodId) {
   const existingCalls = getRows_(CONFIG.SHEETS.CALL_LIST);
   const existingSeats = getRows_(CONFIG.SHEETS.SEATS);
 
-  // Sumber kapasitas resmi dari SeatLayoutData.gs
+  // Sumber kapasitas resmi dari SeatLayoutData.gs & konfigurasi mode periode
+  const periodConfig = resolvePeriodAllocationConfig_(periodId);
+  const isDynamicMode = Boolean(periodConfig && periodConfig.isValid && periodConfig.mode === 'dynamic_expand');
   const officialSummary = (typeof getOfficialCapacitySummary_ === 'function')
     ? getOfficialCapacitySummary_()
+    : null;
+  const buildingSummary = (typeof getBuildingCapacitySummary_ === 'function')
+    ? getBuildingCapacitySummary_()
     : null;
   const officialLayouts = (typeof getOfficialDayLayouts_ === 'function')
     ? getOfficialDayLayouts_()
@@ -1167,6 +1803,7 @@ function preflightCheckPeriodOperations(periodId) {
 
   // 5. Audit Validasi Status Sinkronisasi, Gender & Pengelompokan Unit/Hari
   const ambiguousGenderList = [];
+  const invalidUnitList = [];
   const validStudents = [];
   const fullySyncedStudents = [];
   const partialSyncList = [];
@@ -1189,7 +1826,7 @@ function preflightCheckPeriodOperations(periodId) {
     const nama = String(findValue_(st, ['Nama_Lengkap', 'Nama Wisudawan', 'Nama']) || '').trim();
 
     const genderClass = classifyGenderForSort_(rawJk);
-    const expectedUnitInfo = inferUnitAndDayFromFacultyAndJenjang_(fac, jenjang);
+    const expectedUnitInfo = inferUnitAndDayFromFacultyAndJenjang_(fac, jenjang, periodConfig);
 
     // Jalankan validasi silang komprehensif (cross-sheet validation)
     const syncValidation = validateStudentSyncStatus_(
@@ -1199,7 +1836,8 @@ function preflightCheckPeriodOperations(periodId) {
       existingSeatByStudentId,
       existingSeatByNim,
       officialLayouts,
-      duplicateMeta
+      duplicateMeta,
+      periodConfig
     );
 
     if (syncValidation.status === 'penuh') {
@@ -1239,11 +1877,21 @@ function preflightCheckPeriodOperations(periodId) {
         raw_gender: String(rawJk || '(kosong)'),
         syncStatus: syncValidation.status
       });
+    } else if (!expectedUnitInfo.isValid) {
+      invalidUnitList.push({
+        id_wisudawan: idWsd,
+        nim: nim,
+        nama: nama,
+        fakultas: fac,
+        program_studi: prodi,
+        reason: expectedUnitInfo.reason || 'Fakultas/Jenjang tidak dikenali atau belum dipetakan.'
+      });
     } else {
       validStudents.push(st);
       const day = expectedUnitInfo.day;
       const unit = expectedUnitInfo.unit;
 
+      if (!breakdownByDayAndUnit[day]) breakdownByDayAndUnit[day] = {};
       if (!breakdownByDayAndUnit[day][unit]) {
         breakdownByDayAndUnit[day][unit] = {
           day: day,
@@ -1280,116 +1928,163 @@ function preflightCheckPeriodOperations(periodId) {
   let totalRemainingSeats = 0;
   const overflowList = [];
 
-  for (const day of ['1', '2', '3']) {
-    const dayLayout = officialLayouts[day] || [];
-    const dayUnits = (officialSummary && officialSummary.days[day] && officialSummary.days[day].units) || {};
-
-    for (const unit in dayUnits) {
-      const uStats = dayUnits[unit];
-      const unitSeats = dayLayout.filter(function (s) { return (s[0] || '').split('-')[1] === unit; });
-      const fSeats = unitSeats.filter(function (s) { return s[1] <= 12; });
-      const mSeats = unitSeats.filter(function (s) { return s[1] >= 14; });
-
-      const vacantF = fSeats.filter(function (s) { return !occupiedSeats[day + ':' + s[0].toUpperCase()]; });
-      const vacantM = mSeats.filter(function (s) { return !occupiedSeats[day + ':' + s[0].toUpperCase()]; });
-
-      let newFCount = 0;
-      let newMCount = 0;
-
-      newStudentsToSync.forEach(function (st) {
+  if (!periodConfig || !periodConfig.isValid) {
+    // Konfigurasi periode belum terdaftar; blocker ditambahkan pada langkah 8.
+  } else if (isDynamicMode) {
+    const validDayCap = buildingSummary ? buildingSummary.validSeatsPerDay : 798;
+    for (const day of ['1', '2', '3']) {
+      const dayStudents = validStudents.filter(function (st) {
         const fac = String(findValue_(st, ['Fakultas']) || '').trim();
         const j = String(findValue_(st, ['Jenjang']) || '').trim();
-        const u = inferUnitAndDayFromFacultyAndJenjang_(fac, j);
-        if (u.day === day && u.unit === unit) {
-          const g = classifyGenderForSort_(findValue_(st, ['Jenis_Kelamin', 'Jenis Kelamin']));
-          if (g === 'Perempuan') newFCount++;
-          else if (g === 'Laki-laki') newMCount++;
+        const u = inferUnitAndDayFromFacultyAndJenjang_(fac, j, periodConfig);
+        return u.isValid && u.day === day;
+      });
+
+      const allocRes = computeDynamicSectorAllocation_(dayStudents, periodConfig, day);
+      if (!allocRes.success) {
+        overflowList.push({
+          day: day,
+          unit: (periodConfig.days && periodConfig.days[day] ? periodConfig.days[day].join(', ') : 'Hari ' + day),
+          gender: 'Sektor',
+          overflowCount: dayStudents.length,
+          message: allocRes.error
+        });
+      } else {
+        totalRemainingSeats += allocRes.remainingSeats;
+        capacityAuditByUnit.push({
+          day: day,
+          unit: (periodConfig.days && periodConfig.days[day] ? periodConfig.days[day].join(', ') : 'Hari ' + day),
+          capacityOfficialTotal: validDayCap,
+          femaleCount: allocRes.femaleCount,
+          maleCount: allocRes.maleCount,
+          femaleRows: allocRes.femaleRows,
+          bufferRows: allocRes.bufferRows,
+          maleRows: allocRes.maleRows,
+          remainingSeats: allocRes.remainingSeats
+        });
+      }
+    }
+  } else {
+    for (const day of ['1', '2', '3']) {
+      const dayLayout = officialLayouts[day] || [];
+      const dayUnits = (officialSummary && officialSummary.days[day] && officialSummary.days[day].units) || {};
+
+      for (const unit in dayUnits) {
+        const uStats = dayUnits[unit];
+        const unitSeats = dayLayout.filter(function (s) { return (s[0] || '').split('-')[1] === unit; });
+        const fSeats = unitSeats.filter(function (s) { return s[1] <= 12; });
+        const mSeats = unitSeats.filter(function (s) { return s[1] >= 14; });
+
+        const vacantF = fSeats.filter(function (s) { return !occupiedSeats[day + ':' + s[0].toUpperCase()]; });
+        const vacantM = mSeats.filter(function (s) { return !occupiedSeats[day + ':' + s[0].toUpperCase()]; });
+
+        let newFCount = 0;
+        let newMCount = 0;
+
+        newStudentsToSync.forEach(function (st) {
+          const fac = String(findValue_(st, ['Fakultas']) || '').trim();
+          const j = String(findValue_(st, ['Jenjang']) || '').trim();
+          const u = inferUnitAndDayFromFacultyAndJenjang_(fac, j, periodConfig);
+          if (u.day === day && u.unit === unit) {
+            const g = classifyGenderForSort_(findValue_(st, ['Jenis_Kelamin', 'Jenis Kelamin']));
+            if (g === 'Perempuan') newFCount++;
+            else if (g === 'Laki-laki') newMCount++;
+          }
+        });
+
+        const remF = Math.max(0, vacantF.length - newFCount);
+        const remM = Math.max(0, vacantM.length - newMCount);
+        const overflowF = Math.max(0, newFCount - vacantF.length);
+        const overflowM = Math.max(0, newMCount - vacantM.length);
+
+        totalRemainingSeats += (remF + remM);
+
+        if (overflowF > 0) {
+          overflowList.push({
+            day: day,
+            unit: unit,
+            gender: 'Perempuan',
+            overflowCount: overflowF,
+            message: 'Kekurangan ' + overflowF + ' kursi perempuan di unit ' + unit + ' Hari ' + day + ' (Tersedia: ' + vacantF.length + ', Butuh: ' + newFCount + ')'
+          });
         }
-      });
+        if (overflowM > 0) {
+          overflowList.push({
+            day: day,
+            unit: unit,
+            gender: 'Laki-laki',
+            overflowCount: overflowM,
+            message: 'Kekurangan ' + overflowM + ' kursi laki-laki di unit ' + unit + ' Hari ' + day + ' (Tersedia: ' + vacantM.length + ', Butuh: ' + newMCount + ')'
+          });
+        }
 
-      const remF = Math.max(0, vacantF.length - newFCount);
-      const remM = Math.max(0, vacantM.length - newMCount);
-      const overflowF = Math.max(0, newFCount - vacantF.length);
-      const overflowM = Math.max(0, newMCount - vacantM.length);
-
-      totalRemainingSeats += (remF + remM);
-
-      if (overflowF > 0) {
-        overflowList.push({
+        capacityAuditByUnit.push({
           day: day,
           unit: unit,
-          gender: 'Perempuan',
-          overflowCount: overflowF,
-          message: 'Kekurangan ' + overflowF + ' kursi perempuan di unit ' + unit + ' Hari ' + day + ' (Tersedia: ' + vacantF.length + ', Butuh: ' + newFCount + ')'
+          capacityOfficialTotal: uStats.total,
+          capacityOfficialFemale: uStats.female,
+          capacityOfficialMale: uStats.male,
+          vacantFemaleAvailable: vacantF.length,
+          vacantMaleAvailable: vacantM.length,
+          newFemaleRequested: newFCount,
+          newMaleRequested: newMCount,
+          remainingFemale: remF,
+          remainingMale: remM,
+          overflowFemale: overflowF,
+          overflowMale: overflowM
         });
       }
-      if (overflowM > 0) {
-        overflowList.push({
-          day: day,
-          unit: unit,
-          gender: 'Laki-laki',
-          overflowCount: overflowM,
-          message: 'Kekurangan ' + overflowM + ' kursi laki-laki di unit ' + unit + ' Hari ' + day + ' (Tersedia: ' + vacantM.length + ', Butuh: ' + newMCount + ')'
-        });
-      }
-
-      capacityAuditByUnit.push({
-        day: day,
-        unit: unit,
-        capacityOfficialTotal: uStats.total,
-        capacityOfficialFemale: uStats.female,
-        capacityOfficialMale: uStats.male,
-        vacantFemaleAvailable: vacantF.length,
-        vacantMaleAvailable: vacantM.length,
-        newFemaleRequested: newFCount,
-        newMaleRequested: newMCount,
-        remainingFemale: remF,
-        remainingMale: remM,
-        overflowFemale: overflowF,
-        overflowMale: overflowM
-      });
     }
   }
 
-  // 7. Audit Integritas Penempatan yang Sudah Ada vs Layout Resmi
+  // 7. Audit Integritas Penempatan yang Sudah Ada vs Layout Resmi / Geometri Gedung
   const placementAnomalies = [];
-  seatPlacementsList.forEach(function (p) {
-    const seatItem = (officialLayouts[p.day] || []).find(function (s) { return s[0].toUpperCase() === p.seatCode; });
-    if (!seatItem) {
-      placementAnomalies.push({
-        seatCode: p.seatCode,
-        day: p.day,
-        reason: 'Kode kursi tidak ditemukan pada layout resmi Hari ' + p.day
-      });
-    } else {
-      const row = seatItem[1];
-      if (row === 13) {
+  if (!isDynamicMode) {
+    seatPlacementsList.forEach(function (p) {
+      const seatItem = (officialLayouts[p.day] || []).find(function (s) { return s[0].toUpperCase() === p.seatCode; });
+      if (!seatItem) {
         placementAnomalies.push({
           seatCode: p.seatCode,
           day: p.day,
-          reason: 'Kursi berada di Baris 13 (Lorong Tengah)'
+          reason: 'Kode kursi tidak ditemukan pada layout resmi Hari ' + p.day
         });
+      } else {
+        const row = seatItem[1];
+        if (row === 13) {
+          placementAnomalies.push({
+            seatCode: p.seatCode,
+            day: p.day,
+            reason: 'Kursi berada di Baris 13 (Lorong Tengah)'
+          });
+        }
+        const g = classifyGenderForSort_(p.gender);
+        if (g === 'Perempuan' && row > 12) {
+          placementAnomalies.push({
+            seatCode: p.seatCode,
+            day: p.day,
+            reason: 'Wisudawati ditempatkan di baris belakang (Baris ' + row + ')'
+          });
+        } else if (g === 'Laki-laki' && row < 14) {
+          placementAnomalies.push({
+            seatCode: p.seatCode,
+            day: p.day,
+            reason: 'Wisudawan ditempatkan di baris depan (Baris ' + row + ')'
+          });
+        }
       }
-      const g = classifyGenderForSort_(p.gender);
-      if (g === 'Perempuan' && row > 12) {
-        placementAnomalies.push({
-          seatCode: p.seatCode,
-          day: p.day,
-          reason: 'Wisudawati ditempatkan di baris belakang (Baris ' + row + ')'
-        });
-      } else if (g === 'Laki-laki' && row < 14) {
-        placementAnomalies.push({
-          seatCode: p.seatCode,
-          day: p.day,
-          reason: 'Wisudawan ditempatkan di baris depan (Baris ' + row + ')'
-        });
-      }
-    }
-  });
+    });
+  }
 
   // 8. Evaluasi Kelayakan & Rekomendasi (Strict Blocker Policy)
   const blockers = [];
   const warnings = [];
+
+  if (!periodConfig || !periodConfig.isValid) {
+    blockers.push((periodConfig && periodConfig.error) || ('Konfigurasi alokasi untuk periode "' + periodId + '" belum tersedia.'));
+  }
+  if (invalidUnitList.length > 0) {
+    blockers.push('Terdapat ' + invalidUnitList.length + ' wisudawan dengan Fakultas/Jenjang tidak dikenali atau belum dipetakan ke hari wisuda.');
+  }
 
   if (periodStudents.length === 0) {
     blockers.push('Tidak ada data wisudawan aktif pada periode ' + periodName + '.');
@@ -1478,6 +2173,7 @@ function preflightCheckPeriodOperations(periodId) {
     statusText: isReadyForSync ? 'SIAP DISINKRONKAN' : 'BELUM SIAP (TERDAPAT BLOCKER)',
     periodId: periodId,
     periodName: periodName,
+    allocationMode: (periodConfig && periodConfig.mode) || 'unconfigured',
     summary: {
       totalStudents: periodStudents.length,
       fullySyncedCount: fullySyncedStudents.length,
@@ -1486,13 +2182,14 @@ function preflightCheckPeriodOperations(periodId) {
       alreadySynced: fullySyncedStudents.length,
       newToSync: newStudentsToSync.length,
       ambiguousGenderCount: ambiguousGenderList.length,
+      invalidUnitCount: invalidUnitList.length,
       duplicateIdentityCount: duplicateErrors.length,
       duplicateSeatCount: duplicateSeatErrors.length,
       duplicateCallSeqCount: duplicateCallSeqErrors.length,
       placementAnomalyCount: placementAnomalies.length,
       overflowCount: overflowList.length,
       totalRemainingSeats: totalRemainingSeats,
-      officialTotalCapacity: officialSummary ? officialSummary.grandTotal.total : 1633,
+      officialTotalCapacity: isDynamicMode ? (buildingSummary ? buildingSummary.totalCapacity : 2394) : (officialSummary ? officialSummary.grandTotal.total : 1633),
       otherPeriodsCallCount: otherPeriodsCallCount,
       otherPeriodsSeatCount: otherPeriodsSeatCount
     },
@@ -1654,6 +2351,9 @@ function syncPeriodOperations(periodId) {
     officialLayouts = OFFICIAL_DAY_LAYOUTS_ || {};
   }
 
+  const periodConfig = resolvePeriodAllocationConfig_(periodId);
+  const isDynamicMode = Boolean(periodConfig && periodConfig.isValid && periodConfig.mode === 'dynamic_expand');
+
   periodStudents.forEach(function (st) {
     const syncVal = validateStudentSyncStatus_(
       st,
@@ -1662,7 +2362,8 @@ function syncPeriodOperations(periodId) {
       existingSeatByStudentId,
       existingSeatByNim,
       officialLayouts,
-      duplicateMeta
+      duplicateMeta,
+      periodConfig
     );
 
     if (syncVal.status === 'penuh') {
@@ -1715,39 +2416,6 @@ function syncPeriodOperations(periodId) {
     };
   }
 
-  // 4. Kelompokkan toAllocateStudents berdasarkan Hari & Unit
-  const groups = {};
-  toAllocateStudents.forEach(function (st) {
-    const fac = findValue_(st, ['Fakultas']);
-    const jenjang = findValue_(st, ['Jenjang']);
-    const rawSeat = String(findValue_(st, ['Nomor_Kursi', 'Kode_Kursi', 'Kursi']) || '').trim();
-
-    let day = '';
-    let unit = '';
-
-    if (rawSeat) {
-      day = inferDayFromSeatCode_(rawSeat);
-      unit = rawSeat.split('-')[1] || '';
-    }
-    if (!day || !unit) {
-      const inferred = inferUnitAndDayFromFacultyAndJenjang_(fac, jenjang);
-      day = inferred.day;
-      unit = inferred.unit;
-    }
-
-    if (!day || !unit) {
-      day = '1';
-      unit = 'S';
-    }
-
-    const key = day + ':' + unit;
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(st);
-  });
-
-  // 5. Alokasikan kursi untuk setiap kelompok (menggunakan officialLayouts)
-  const seatOrderMap = (typeof buildSeatOrderIndexMap_ === 'function') ? buildSeatOrderIndexMap_() : {};
-
   const newCallRowsData = [];
   const newSeatRowsData = [];
   const unallocatedList = [];
@@ -1756,7 +2424,138 @@ function syncPeriodOperations(periodId) {
   let day2Count = 0;
   let day3Count = 0;
 
-  for (const groupKey in groups) {
+  if (isDynamicMode) {
+    // Mode Dinamis (Cross-Aisle + Buffer >= 1 baris kursi valid): All-or-nothing per periode
+    const studentsByDay = { '1': [], '2': [], '3': [] };
+    for (let i = 0; i < toAllocateStudents.length; i++) {
+      const st = toAllocateStudents[i];
+      const fac = findValue_(st, ['Fakultas']);
+      const jenjang = findValue_(st, ['Jenjang']);
+      const inferred = inferUnitAndDayFromFacultyAndJenjang_(fac, jenjang, periodConfig);
+      if (!inferred.isValid || !studentsByDay[inferred.day]) {
+        return {
+          success: false,
+          periodId: periodId,
+          periodName: periodName,
+          totalStudents: periodStudents.length,
+          alreadySynced: fullySyncedStudents.length,
+          newlySynced: 0,
+          unallocatedCount: 1,
+          unallocatedList: [{ reason: inferred.reason || 'Unit/hari wisudawan tidak valid.' }],
+          message: 'Sinkronisasi dibatalkan (0 baris ditulis): ' + (inferred.reason || 'Unit/hari wisudawan tidak valid.')
+        };
+      }
+      studentsByDay[inferred.day].push(st);
+    }
+
+    const dynamicResultsByDay = {};
+    for (const dayKey of ['1', '2', '3']) {
+      const allocRes = computeDynamicSectorAllocation_(studentsByDay[dayKey], periodConfig, dayKey);
+      if (!allocRes.success) {
+        return {
+          success: false,
+          periodId: periodId,
+          periodName: periodName,
+          totalStudents: periodStudents.length,
+          alreadySynced: fullySyncedStudents.length,
+          newlySynced: 0,
+          unallocatedCount: studentsByDay[dayKey].length,
+          unallocatedList: [{ day: dayKey, reason: allocRes.error }],
+          message: 'Sinkronisasi dibatalkan (0 baris ditulis) karena Hari ' + dayKey + ' gagal alokasi: ' + allocRes.error
+        };
+      }
+      dynamicResultsByDay[dayKey] = allocRes;
+    }
+
+    ['1', '2', '3'].forEach(function (dayKey) {
+      const allocs = dynamicResultsByDay[dayKey].allocations || [];
+      allocs.forEach(function (a) {
+        const st = a.student;
+        const idWsd = String(findValue_(st, ['ID_Wisudawan', 'ID Wisudawan']) || ('WSD-' + Utilities.getUuid().slice(0, 8).toUpperCase())).trim();
+        const nim = String(findValue_(st, ['NIM', 'Nomor Induk Mahasiswa']) || '').trim();
+        const nama = String(findValue_(st, ['Nama_Lengkap', 'Nama Wisudawan', 'Nama']) || '').trim();
+        const fac = String(findValue_(st, ['Fakultas']) || '').trim();
+        const prodi = String(findValue_(st, ['Program_Studi', 'Program Studi']) || '').trim();
+        const tmpLahir = String(findValue_(st, ['Tempat_Lahir', 'Tempat Lahir']) || '').trim();
+        const tglLahir = String(findValue_(st, ['Tanggal_Lahir', 'Tanggal Lahir']) || '').trim();
+        const ipk = String(findValue_(st, ['IPK']) || '').trim();
+        const predikat = String(findValue_(st, ['Predikat']) || '').trim();
+
+        if (dayKey === '1') day1Count++;
+        else if (dayKey === '2') day2Count++;
+        else if (dayKey === '3') day3Count++;
+
+        newCallRowsData.push({
+          id_panggil: 'PGL-' + Utilities.getUuid().slice(0, 8).toUpperCase(),
+          id_periode: periodId,
+          id_wisudawan: idWsd,
+          nim: nim,
+          nama_wisudawan: nama,
+          fakultas: fac,
+          program_studi: prodi,
+          jenis_kelamin: a.gender,
+          tempat_lahir: tmpLahir,
+          tanggal_lahir: tglLahir,
+          ipk: ipk,
+          predikat: predikat,
+          nomor_kursi: a.seatCode,
+          hari_ke: dayKey,
+          urutan_panggil: a.callOrder,
+          status_panggil: 'Belum Dipanggil',
+          waktu_panggil: ''
+        });
+
+        newSeatRowsData.push({
+          id_kursi: 'KRS-' + a.seatCode,
+          id_periode: periodId,
+          hari_ke: dayKey,
+          nomor_kursi: a.seatCode,
+          id_wisudawan: idWsd,
+          nama_lengkap: nama,
+          fakultas: fac,
+          jenis_kelamin: a.gender,
+          blok: a.blok,
+          baris: a.row,
+          kolom: a.col,
+          status_kursi: 'Terdaftar'
+        });
+      });
+    });
+  } else {
+    // 4. Kelompokkan toAllocateStudents berdasarkan Hari & Unit (legacy_2026)
+    const groups = {};
+    toAllocateStudents.forEach(function (st) {
+      const fac = findValue_(st, ['Fakultas']);
+      const jenjang = findValue_(st, ['Jenjang']);
+      const rawSeat = String(findValue_(st, ['Nomor_Kursi', 'Kode_Kursi', 'Kursi']) || '').trim();
+
+      let day = '';
+      let unit = '';
+
+      if (rawSeat) {
+        day = inferDayFromSeatCode_(rawSeat);
+        unit = rawSeat.split('-')[1] || '';
+      }
+      if (!day || !unit) {
+        const inferred = inferUnitAndDayFromFacultyAndJenjang_(fac, jenjang, periodConfig);
+        day = inferred.day;
+        unit = inferred.unit;
+      }
+
+      if (!day || !unit) {
+        day = '1';
+        unit = 'S';
+      }
+
+      const key = day + ':' + unit;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(st);
+    });
+
+    // 5. Alokasikan kursi untuk setiap kelompok (menggunakan officialLayouts)
+    const seatOrderMap = (typeof buildSeatOrderIndexMap_ === 'function') ? buildSeatOrderIndexMap_() : {};
+
+    for (const groupKey in groups) {
     const parts = groupKey.split(':');
     const day = parts[0];
     const unit = parts[1];
@@ -1949,6 +2748,7 @@ function syncPeriodOperations(periodId) {
 
       allocateStudentToSeat(st, chosenSeat, 'Laki-laki');
     });
+    }
   }
 
   // 6. Penulisan ke Google Sheets dengan LockService

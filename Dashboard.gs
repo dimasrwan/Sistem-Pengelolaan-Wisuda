@@ -230,26 +230,35 @@ function getStudentSeats_(session, profile) {
     }
     if (!day) day = '1';
 
-    // Cari koordinat fisik pada denah resmi
-    const dayLayout = (officialLayouts && officialLayouts[day]) || [];
-    const normCode = seatCode.toUpperCase();
-    let found = dayLayout.find(function (item) {
-      return String(item[0] || '').trim().toUpperCase() === normCode;
-    });
+    const studentPeriodId = String(findValue_(row, ['ID_Periode', 'ID Periode', 'Periode']) || findValue_(profile, ['ID_Periode', 'ID Periode', 'Periode']) || '').trim();
+    const periodCfg = (typeof resolvePeriodAllocationConfig_ === 'function' && studentPeriodId)
+      ? resolvePeriodAllocationConfig_(studentPeriodId)
+      : { mode: 'legacy_2026' };
+    const isDynamicStudentPeriod = Boolean(periodCfg && periodCfg.mode === 'dynamic_expand');
 
-    // Jika belum ditemukan di hari saat ini, periksa hari lain
-    if (!found && officialLayouts) {
-      const allDays = ['1', '2', '3'];
-      for (let i = 0; i < allDays.length; i++) {
-        if (allDays[i] === day) continue;
-        const otherItems = officialLayouts[allDays[i]] || [];
-        const cand = otherItems.find(function (item) {
-          return String(item[0] || '').trim().toUpperCase() === normCode;
-        });
-        if (cand) {
-          found = cand;
-          day = allDays[i];
-          break;
+    let found = null;
+    if (!isDynamicStudentPeriod) {
+      // Cari koordinat fisik pada denah resmi (legacy_2026)
+      const dayLayout = (officialLayouts && officialLayouts[day]) || [];
+      const normCode = seatCode.toUpperCase();
+      found = dayLayout.find(function (item) {
+        return String(item[0] || '').trim().toUpperCase() === normCode;
+      });
+
+      // Jika belum ditemukan di hari saat ini, periksa hari lain
+      if (!found && officialLayouts) {
+        const allDays = ['1', '2', '3'];
+        for (let i = 0; i < allDays.length; i++) {
+          if (allDays[i] === day) continue;
+          const otherItems = officialLayouts[allDays[i]] || [];
+          const cand = otherItems.find(function (item) {
+            return String(item[0] || '').trim().toUpperCase() === normCode;
+          });
+          if (cand) {
+            found = cand;
+            day = allDays[i];
+            break;
+          }
         }
       }
     }
@@ -266,7 +275,13 @@ function getStudentSeats_(session, profile) {
     const hasSheetCoords = sheetBlok && sheetBaris && sheetKolom &&
       sheetBlok !== '—' && sheetBaris !== '—' && sheetKolom !== '—';
 
-    if (found) {
+    if (isDynamicStudentPeriod && hasSheetCoords) {
+      blok = sheetBlok;
+      baris = sheetBaris;
+      kolom = sheetKolom;
+      koordinatTersedia = true;
+      catatanKoordinat = 'Sesuai denah dinamis gedung UIN Ar-Raniry';
+    } else if (found) {
       // Sesuai denah resmi: item = [Kode_Kursi, Baris, isKanan (1=Kanan, 0=Kiri), Kolom]
       baris = String(found[1]);
       blok = found[2] === 1 ? 'Kanan' : 'Kiri';

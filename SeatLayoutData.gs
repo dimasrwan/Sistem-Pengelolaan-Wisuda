@@ -11,6 +11,113 @@ function getOfficialDayLayouts_() {
 }
 
 /**
+ * Spesifikasi geometri fisik gedung untuk generator denah dinamis.
+ * Baris 13 adalah lorong horizontal; lingkaran merah muda pada baris 23-25 adalah penghalang permanen.
+ */
+const BUILDING_LAYOUT_SPEC_ = {
+  totalRows: 25,
+  aisleRows: [13],
+  maxColsPerBlock: 17,
+  blocks: [
+    { isKanan: 1, name: 'Kanan' },
+    { isKanan: 0, name: 'Kiri' }
+  ],
+  allocationOrder: 'RIGHT_FIRST',
+  columnOrder: 'DESC_17_TO_1',
+  blockedCoordinates: [
+    // Blok Kiri (isKanan = 0), Baris 23-25, Kolom 8, 9, 10
+    { row: 23, isKanan: 0, col: 8 },
+    { row: 23, isKanan: 0, col: 9 },
+    { row: 23, isKanan: 0, col: 10 },
+    { row: 24, isKanan: 0, col: 8 },
+    { row: 24, isKanan: 0, col: 9 },
+    { row: 24, isKanan: 0, col: 10 },
+    { row: 25, isKanan: 0, col: 8 },
+    { row: 25, isKanan: 0, col: 9 },
+    { row: 25, isKanan: 0, col: 10 },
+    // Blok Kanan (isKanan = 1), Baris 23-25, Kolom 10, 11, 12
+    { row: 23, isKanan: 1, col: 10 },
+    { row: 23, isKanan: 1, col: 11 },
+    { row: 23, isKanan: 1, col: 12 },
+    { row: 24, isKanan: 1, col: 10 },
+    { row: 24, isKanan: 1, col: 11 },
+    { row: 24, isKanan: 1, col: 12 },
+    { row: 25, isKanan: 1, col: 10 },
+    { row: 25, isKanan: 1, col: 11 },
+    { row: 25, isKanan: 1, col: 12 }
+  ]
+};
+
+const BLOCKED_COORDINATE_SET_ = (function () {
+  var set = {};
+  for (var i = 0; i < BUILDING_LAYOUT_SPEC_.blockedCoordinates.length; i++) {
+    var b = BUILDING_LAYOUT_SPEC_.blockedCoordinates[i];
+    set[b.row + ':' + b.isKanan + ':' + b.col] = true;
+  }
+  return set;
+})();
+
+function getBuildingLayoutSpec_() {
+  return BUILDING_LAYOUT_SPEC_;
+}
+
+function isAisleRow_(row) {
+  return BUILDING_LAYOUT_SPEC_.aisleRows.indexOf(Number(row)) !== -1;
+}
+
+function isBlockedSeatCoordinate_(row, isKanan, col) {
+  return !!BLOCKED_COORDINATE_SET_[Number(row) + ':' + Number(isKanan) + ':' + Number(col)];
+}
+
+/**
+ * Menghasilkan daftar koordinat kursi fisik valid dalam urutan RIGHT FIRST (Kanan 17->1, lalu Kiri 17->1).
+ */
+function getBuildingSeatGrid_() {
+  var seats = [];
+  for (var row = 1; row <= BUILDING_LAYOUT_SPEC_.totalRows; row++) {
+    if (isAisleRow_(row)) continue;
+    var orderInRow = 0;
+    for (var bIdx = 0; bIdx < BUILDING_LAYOUT_SPEC_.blocks.length; bIdx++) {
+      var blk = BUILDING_LAYOUT_SPEC_.blocks[bIdx];
+      for (var col = BUILDING_LAYOUT_SPEC_.maxColsPerBlock; col >= 1; col--) {
+        if (isBlockedSeatCoordinate_(row, blk.isKanan, col)) continue;
+        orderInRow++;
+        seats.push({
+          row: row,
+          isKanan: blk.isKanan,
+          blok: blk.name,
+          col: col,
+          orderInRow: orderInRow
+        });
+      }
+    }
+  }
+  return seats;
+}
+
+function getBuildingCapacitySummary_() {
+  var grid = getBuildingSeatGrid_();
+  var frontCapacity = 0;
+  var backCapacity = 0;
+  for (var i = 0; i < grid.length; i++) {
+    if (grid[i].row < 13) frontCapacity++;
+    else if (grid[i].row > 13) backCapacity++;
+  }
+  return {
+    totalRows: BUILDING_LAYOUT_SPEC_.totalRows,
+    activeRows: BUILDING_LAYOUT_SPEC_.totalRows - BUILDING_LAYOUT_SPEC_.aisleRows.length,
+    aisleRows: BUILDING_LAYOUT_SPEC_.aisleRows.slice(),
+    maxColsPerBlock: BUILDING_LAYOUT_SPEC_.maxColsPerBlock,
+    blockedCountPerDay: BUILDING_LAYOUT_SPEC_.blockedCoordinates.length,
+    validSeatsPerDay: grid.length,
+    frontCapacity: frontCapacity,
+    backCapacity: backCapacity,
+    totalDays: 3,
+    totalCapacity: grid.length * 3
+  };
+}
+
+/**
  * Rekapitulasi kapasitas resmi berdasarkan denah fisik gedung UIN Ar-Raniry.
  * Baris 1-12: Sektor Depan (Perempuan)
  * Baris 13: Lorong Tengah (Pemisah / Tidak ada kursi)
