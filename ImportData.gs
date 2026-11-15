@@ -604,7 +604,7 @@ function importStudentRows(payload) {
     }).join(', ');
 
     logActivity_(
-      session.email,
+      session,
       'IMPORT DATA WISUDAWAN',
       'DATA WISUDAWAN',
       (ctx.mode === 'multi' ? 'Multi-Periode (' + periodSummaryText + ')' : 'Periode ' + ctx.singlePeriodId) +

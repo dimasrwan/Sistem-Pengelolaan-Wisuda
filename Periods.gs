@@ -45,7 +45,7 @@ function verifyImportPeriod_(periodId) {
 
 
 function createWisudaPeriod(payload) {
-  requireRole_(['Admin']);
+  const session = requireRole_(['Admin']);
   payload = payload || {};
 
   const name = String(payload.name || '').trim();
@@ -109,7 +109,7 @@ function createWisudaPeriod(payload) {
   periodSheet.appendRow(values);
 
   logActivity_(
-    getCurrentEmail_(),
+    session,
     'BUAT PERIODE WISUDA',
     'PERIODE WISUDA',
     id + ' - ' + name

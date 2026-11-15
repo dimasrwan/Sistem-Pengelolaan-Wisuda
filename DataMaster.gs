@@ -1976,7 +1976,7 @@ function syncPeriodOperations(periodId) {
     SpreadsheetApp.flush();
 
     logActivity_(
-      session.email,
+      session,
       'SINKRONISASI DAFTAR PANGGIL & KURSI',
       'OPERASIONAL',
       'Periode ' + periodId + '; Baru dialokasikan: ' + newCallRowsData.length + '; Sudah ada: ' + fullySyncedStudents.length + '; Belum teralokasi: ' + unallocatedList.length

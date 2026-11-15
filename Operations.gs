@@ -31,7 +31,7 @@ function updateCallStatus(callId, newStatus) {
       sheet.getRange(r + 1, statusIndex + 1).setValue(newStatus);
 
       logActivity_(
-        session.email,
+        session,
         'UBAH STATUS PANGGIL',
         'DAFTAR PANGGIL',
         String(callId) + ' -> ' + newStatus
@@ -392,7 +392,7 @@ function recordGuestEntry(qrPayload, method) {
     sheet.appendRow(newRow);
 
     logActivity_(
-      session.email,
+      session,
       'SCAN TAMU MASUK',
       'PRESENSI_TAMU',
       'Wisudawan: ' + studentInfo.id + ' (' + studentInfo.name + ')'
@@ -493,7 +493,7 @@ function recordGuestExit(qrPayload, method) {
     }
 
     logActivity_(
-      session.email,
+      session,
       'SCAN TAMU KELUAR',
       'PRESENSI_TAMU',
       'Wisudawan: ' + studentInfo.id + ' (' + studentInfo.name + ')'
@@ -678,7 +678,7 @@ function processGuestScan(qrPayload, method, requestId) {
       });
 
       logActivity_(
-        session.email,
+        session,
         'SCAN TAMU KELUAR',
         'PRESENSI_TAMU',
         exitLogDetail
@@ -733,7 +733,7 @@ function processGuestScan(qrPayload, method, requestId) {
       });
 
       logActivity_(
-        session.email,
+        session,
         'SCAN TAMU MASUK',
         'PRESENSI_TAMU',
         entryLogDetail

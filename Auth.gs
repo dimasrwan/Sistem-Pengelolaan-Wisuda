@@ -141,7 +141,7 @@ function getSession(targetRole) {
   });
 
   logActivity_(
-    email,
+    session,
     'LOGIN',
     'AUTENTIKASI',
     'Login berhasil sebagai ' + session.role + (studentId ? ' (' + studentId + ')' : '')
@@ -245,18 +245,74 @@ function clearDiagnosticLogs() {
 }
 
 
-function logActivity_(email, activity, moduleName, detail) {
+function resolveLogActor_(actor) {
+  if (actor && typeof actor === 'object') {
+    const userId = String(actor.userId || actor.ID_Pengguna || '').trim();
+    const email = String(actor.email || '').trim();
+    const role = String(actor.role || '').trim();
+    return { userId: userId, email: email, role: role };
+  }
+  return {
+    userId: String(actor || '').trim(),
+    email: '',
+    role: ''
+  };
+}
+
+
+function formatLogDetailWithActor_(detail, actorInfo) {
+  const rawDetail = detail == null ? '' : String(detail);
+  const email = actorInfo && actorInfo.email ? actorInfo.email : '';
+  const role = actorInfo && actorInfo.role ? actorInfo.role : '';
+  if (!email && !role) {
+    return rawDetail;
+  }
+
+  const trimmed = rawDetail.trim();
+  if (trimmed.charAt(0) === '{' && trimmed.charAt(trimmed.length - 1) === '}') {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        if (email && !parsed.actorEmail) parsed.actorEmail = email;
+        if (role && !parsed.actorRole) parsed.actorRole = role;
+        return JSON.stringify(parsed);
+      }
+    } catch (e) {}
+  }
+
+  const metaParts = [];
+  if (email) metaParts.push('Email: ' + email);
+  if (role) metaParts.push('Role: ' + role);
+  const suffix = '[' + metaParts.join(' | ') + ']';
+  return rawDetail ? (rawDetail + ' ' + suffix) : suffix;
+}
+
+
+function logActivity_(actor, activity, moduleName, detail) {
   try {
+    const actorInfo = resolveLogActor_(actor);
+    if (!actorInfo.userId || actorInfo.userId.indexOf('@') !== -1) {
+      console.warn(
+        'Log aktivitas dilewati: ID_Pengguna tidak valid atau berupa email (' +
+        (actorInfo.userId || 'kosong') + ') pada aktivitas "' + String(activity || '') + '".'
+      );
+      return false;
+    }
+
+    const finalDetail = formatLogDetailWithActor_(detail, actorInfo);
+
     getSheet_(CONFIG.SHEETS.LOG).appendRow([
       Utilities.getUuid(),
       new Date(),
-      email,
+      actorInfo.userId,
       activity,
       moduleName,
-      detail
+      finalDetail
     ]);
+    return true;
   } catch (err) {
     console.warn('Log aktivitas tidak tersimpan: ' + err.message);
+    return false;
   }
 }
 
