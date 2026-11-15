@@ -61,7 +61,12 @@ function getReportData() {
     seats: getRows_(CONFIG.SHEETS.SEATS),
     bestGraduates: getRows_(CONFIG.SHEETS.BEST),
     guests: getRows_(CONFIG.SHEETS.GUESTS),
-    guestAttendance: getRows_(CONFIG.SHEETS.GUEST_ATTENDANCE)
+    guestAttendance: getRows_(CONFIG.SHEETS.GUEST_ATTENDANCE).map(function (row) {
+      if (row.ID_Periode && normalize_(row.ID_Periode) === 'wisuda-giii-2026') {
+        row.ID_Periode = 'WISUDA-GIII-2026';
+      }
+      return row;
+    })
   };
 }
 
@@ -69,6 +74,42 @@ function getReportData() {
    PRESENSI QR TAMU (POS MASUK & POS KELUAR)
    Admin dan Panitia
    ========================= */
+
+function resolveCanonicalGuestPeriodId_(explicitPeriodId) {
+  var raw = explicitPeriodId != null ? String(explicitPeriodId).trim() : '';
+  if (!raw) {
+    try {
+      var active = typeof getActivePeriod_ === 'function' ? getActivePeriod_() : null;
+      raw = active && active.id ? String(active.id).trim() : '';
+    } catch (e) {
+      raw = '';
+    }
+  }
+
+  if (!raw) {
+    return 'WISUDA-GIII-2026';
+  }
+
+  var normRaw = normalize_(raw);
+  if (normRaw === 'wisuda-giii-2026') {
+    return 'WISUDA-GIII-2026';
+  }
+
+  try {
+    var periods = getRows_(CONFIG.SHEETS.PERIOD);
+    var matched = periods.find(function (p) {
+      return normalize_(findValue_(p, ['ID_Periode', 'ID Periode'])) === normRaw;
+    });
+    if (matched) {
+      var exactId = String(findValue_(matched, ['ID_Periode', 'ID Periode']) || '').trim();
+      if (exactId) {
+        return normalize_(exactId) === 'wisuda-giii-2026' ? 'WISUDA-GIII-2026' : exactId;
+      }
+    }
+  } catch (e) {}
+
+  return raw;
+}
 
 function resolveWisudawanFromQr_(qrPayload, explicitPeriodId) {
   if (qrPayload == null) return null;
@@ -120,7 +161,7 @@ function resolveWisudawanFromQr_(qrPayload, explicitPeriodId) {
   var normId = normalize_(cleanId);
   if (!normId) return null;
 
-  var targetPeriod = resolveTargetPeriodId_(explicitPeriodId);
+  var targetPeriod = resolveCanonicalGuestPeriodId_(explicitPeriodId);
 
   // Jika QR menyertakan ID_Periode dan berbeda dengan periode aktif, tolak
   if (payloadPeriod && targetPeriod && normalize_(payloadPeriod) !== normalize_(targetPeriod)) {
@@ -186,14 +227,22 @@ function resolveWisudawanFromQr_(qrPayload, explicitPeriodId) {
 
   if (!matchedStudent) return null;
 
+  var studentPeriod = String(findValue_(matchedStudent, ['ID_Periode', 'ID Periode']) || '').trim();
+  var canonicalPeriod = targetPeriod || studentPeriod || 'WISUDA-GIII-2026';
+  if (normalize_(canonicalPeriod) === 'wisuda-giii-2026') {
+    canonicalPeriod = 'WISUDA-GIII-2026';
+  }
+
   return {
     student: matchedStudent,
-    targetPeriodId: targetPeriod || findValue_(matchedStudent, ['ID_Periode', 'ID Periode'])
+    targetPeriodId: canonicalPeriod
   };
 }
 
 function formatStudentInfo_(student) {
   if (!student) return null;
+  var rawPeriod = String(findValue_(student, ['ID_Periode', 'ID Periode']) || '').trim();
+  var canonicalPeriod = normalize_(rawPeriod) === 'wisuda-giii-2026' ? 'WISUDA-GIII-2026' : rawPeriod;
   return {
     id: String(findValue_(student, ['ID_Wisudawan', 'ID Wisudawan']) || '').trim(),
     nim: String(findValue_(student, ['NIM']) || '').trim() || '—',
@@ -201,7 +250,7 @@ function formatStudentInfo_(student) {
     faculty: String(findValue_(student, ['Fakultas']) || '').trim() || '—',
     prodi: String(findValue_(student, ['Program_Studi', 'Program Studi']) || '').trim() || '—',
     seat: String(findValue_(student, ['Nomor_Kursi', 'Nomor Kursi']) || '').trim() || '—',
-    periodId: String(findValue_(student, ['ID_Periode', 'ID Periode']) || '').trim()
+    periodId: canonicalPeriod
   };
 }
 
@@ -924,12 +973,17 @@ function recordGuestAttendance(guestId, method, post, requestId) {
 function getGuestAttendanceList(periodFilter) {
   requireRole_(['Admin', 'Panitia']);
 
-  var targetPeriod = resolveTargetPeriodId_(periodFilter);
+  var targetPeriod = resolveCanonicalGuestPeriodId_(periodFilter);
+  var normTargetPeriod = normalize_(targetPeriod);
   var attendanceRows = getRows_(CONFIG.SHEETS.GUEST_ATTENDANCE);
   var studentRows = getRows_(CONFIG.SHEETS.STUDENTS);
 
   var studentMap = {};
   studentRows.forEach(function (s) {
+    var stPeriod = normalize_(findValue_(s, ['ID_Periode', 'ID Periode']));
+    if (normTargetPeriod && stPeriod && stPeriod !== normTargetPeriod) {
+      return;
+    }
     var sid = normalize_(findValue_(s, ['ID_Wisudawan', 'ID Wisudawan']));
     var snim = normalize_(findValue_(s, ['NIM']));
     if (sid) studentMap[sid] = s;
@@ -938,8 +992,9 @@ function getGuestAttendanceList(periodFilter) {
 
   var list = [];
   attendanceRows.forEach(function (row) {
-    var rowPeriod = normalize_(findValue_(row, ['ID_Periode', 'ID Periode']));
-    if (targetPeriod && rowPeriod && rowPeriod !== normalize_(targetPeriod)) {
+    var rawRowPeriod = String(findValue_(row, ['ID_Periode', 'ID Periode']) || '').trim();
+    var rowPeriod = normalize_(rawRowPeriod);
+    if (normTargetPeriod && rowPeriod && rowPeriod !== normTargetPeriod) {
       return;
     }
 
@@ -948,13 +1003,16 @@ function getGuestAttendanceList(periodFilter) {
 
     var student = studentMap[normalize_(idRef)];
     var status = findValue_(row, ['Status']) || 'DI_LUAR';
+    var normalizedDisplayPeriod = rowPeriod === 'wisuda-giii-2026'
+      ? 'WISUDA-GIII-2026'
+      : (rawRowPeriod || targetPeriod);
 
     list.push({
       ID_Presensi: findValue_(row, ['ID_Presensi', 'ID Presensi']),
-      ID_Periode: findValue_(row, ['ID_Periode', 'ID Periode']),
+      ID_Periode: normalizedDisplayPeriod,
       ID_Wisudawan: student ? findValue_(student, ['ID_Wisudawan', 'ID Wisudawan']) : idRef,
       NIM: student ? (findValue_(student, ['NIM']) || '—') : (findValue_(row, ['NIM']) || '—'),
-      Nama_Wisudawan: student ? findValue_(student, ['Nama_Lengkap', 'Nama Lengkap', 'Nama']) : (findValue_(row, ['Nama_Wisudawan', 'Nama Wisudawan']) || idTamu),
+      Nama_Wisudawan: student ? findValue_(student, ['Nama_Lengkap', 'Nama Lengkap', 'Nama']) : (findValue_(row, ['Nama_Wisudawan', 'Nama Wisudawan']) || idRef),
       Fakultas: student ? findValue_(student, ['Fakultas']) : '—',
       Program_Studi: student ? findValue_(student, ['Program_Studi', 'Program Studi']) : '—',
       Nomor_Kursi: student ? (findValue_(student, ['Nomor_Kursi', 'Nomor Kursi']) || '—') : '—',
